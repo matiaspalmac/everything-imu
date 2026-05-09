@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "everything-imu",
+  "version": "1.0.0-alpha.0",
+  "identifier": "dev.matiaspalmac.everything-imu",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @everything-imu/ui dev",
+    "beforeBuildCommand": "pnpm --filter @everything-imu/ui build",
+    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "../../apps/ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "everything-imu",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 500,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage", "deb", "nsis"],
+    "icon": ["icons/icon.png", "icons/icon.ico"]
+  }
+}

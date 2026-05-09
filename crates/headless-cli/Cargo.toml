@@ -1,0 +1,25 @@
+[package]
+name = "headless-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "everything-imu-cli"
+path = "src/main.rs"
+
+[dependencies]
+everything-imu-core = { path = "../core" }
+device-joycon = { path = "../device-joycon", features = ["synthetic-source"] }
+device-dualsense = { path = "../device-dualsense", features = ["synthetic-source"] }
+device-psmove = { path = "../device-psmove", features = ["synthetic-source"] }
+device-traits = { path = "../device-traits" }
+persistence = { path = "../persistence" }
+clap = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }

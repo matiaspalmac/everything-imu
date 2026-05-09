@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* === Dark (default — daisu Nocturne sumi-ink) === */
+:root {
+  color-scheme: dark;
+
+  --bg-base: #0e0e13;
+  --bg-panel: #14141b;
+  --bg-elevated: #1c1c25;
+  --bg-overlay: rgba(14, 14, 19, 0.82);
+
+  --fg-primary: #e8e4da;
+  --fg-secondary: #a8a296;
+  --fg-muted: #6b6558;
+  --fg-inverse: #0e0e13;
+  --fg-section-header: #8a8478;
+
+  --border-subtle: rgba(232, 228, 218, 0.06);
+  --border-strong: rgba(232, 228, 218, 0.12);
+  --border-active: #d4a574;
+
+  --accent: #d4a574;
+  --accent-bright: #e8c497;
+  --accent-deep: #a88458;
+  --accent-soft: rgba(212, 165, 116, 0.1);
+
+  --warn: #c8a46a;
+  --warn-bright: #ddb87a;
+  --warn-soft: rgba(200, 164, 106, 0.12);
+  --danger: #b8736a;
+  --danger-bright: #c8867d;
+  --danger-soft: rgba(184, 115, 106, 0.14);
+  --success: #8fae83;
+  --info: #8fa0b8;
+
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --titlebar-h: 34px;
+  --activitybar-w: 56px;
+  --statusbar-h: 26px;
+
+  --body-gradient:
+    radial-gradient(circle at 20% 0%, rgba(212, 165, 116, 0.04), transparent 45%),
+    radial-gradient(circle at 80% 100%, rgba(168, 132, 88, 0.03), transparent 55%);
+}
+
+/* === Light (washi paper — same warm hue, inverted lightness) === */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-base: #f4ede0;
+  --bg-panel: #ebe2d1;
+  --bg-elevated: #ddd1bb;
+  --bg-overlay: rgba(244, 237, 224, 0.92);
+
+  --fg-primary: #2a2620;
+  --fg-secondary: #4f4738;
+  --fg-muted: #8a7e68;
+  --fg-inverse: #f4ede0;
+  --fg-section-header: #6e6552;
+
+  --border-subtle: rgba(42, 38, 32, 0.08);
+  --border-strong: rgba(42, 38, 32, 0.18);
+  --border-active: #a86a2a;
+
+  --accent: #a86a2a;
+  --accent-bright: #c98a4a;
+  --accent-deep: #8a5520;
+  --accent-soft: rgba(168, 106, 42, 0.12);
+
+  --warn: #b07a30;
+  --warn-bright: #c89048;
+  --warn-soft: rgba(176, 122, 48, 0.14);
+  --danger: #a04c40;
+  --danger-bright: #b86058;
+  --danger-soft: rgba(160, 76, 64, 0.14);
+  --success: #4f7a44;
+  --info: #4a6480;
+
+  --body-gradient:
+    radial-gradient(circle at 20% 0%, rgba(168, 106, 42, 0.05), transparent 45%),
+    radial-gradient(circle at 80% 100%, rgba(138, 85, 32, 0.04), transparent 55%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  background-image: var(--body-gradient);
+  color: var(--fg-primary);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+*:focus-visible {
+  outline: 1px solid var(--border-active);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}

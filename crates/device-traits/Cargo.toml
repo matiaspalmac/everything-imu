@@ -1,0 +1,21 @@
+[package]
+name = "device-traits"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+mock = []
+
+[dependencies]
+imu-math = { path = "../imu-math" }
+tokio = { workspace = true, features = ["sync", "rt", "macros", "time"] }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }

@@ -1,0 +1,25 @@
+[package]
+name = "slime-tracker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "SlimeVR UDP wire-protocol encoder/decoder + tokio client. Extended with v0.4.1 features (BUNDLE auto-fallback, FEATURE_FLAGS gating, magnetometer, battery)."
+
+[dependencies]
+deku = { workspace = true }
+nalgebra = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["net", "rt", "macros", "sync", "time"] }
+tracing = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+
+[features]
+default = ["client"]
+client = ["dep:tokio", "dep:tracing", "dep:thiserror"]
+nalgebra = ["dep:nalgebra"]
+
+[dev-dependencies]
+nalgebra = { workspace = true }
+tokio = { workspace = true, features = ["net", "rt", "rt-multi-thread", "macros", "sync", "time"] }

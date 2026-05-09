@@ -1,0 +1,31 @@
+[package]
+name = "everything-imu-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "everything_imu_core"
+path = "src/lib.rs"
+
+[dependencies]
+device-traits = { path = "../device-traits" }
+slime-tracker = { path = "../slime-tracker" }
+imu-math = { path = "../imu-math" }
+imu-fusion = { path = "../imu-fusion" }
+nalgebra = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt", "macros", "time", "net"] }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+device-traits = { path = "../device-traits", features = ["mock"] }
+device-joycon = { path = "../device-joycon", features = ["synthetic-source"] }
+device-dualsense = { path = "../device-dualsense", features = ["synthetic-source"] }
+device-psmove = { path = "../device-psmove", features = ["synthetic-source"] }

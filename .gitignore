@@ -1,0 +1,51 @@
+# Local docs
+docs/
+
+# Rust
+target/
+**/*.rs.bk
+
+# Node
+node_modules/
+**/dist/
+*.log
+.npm
+.yarn
+.pnpm-store/
+
+# Vite
+.vite/
+*.local
+
+# Tauri
+.tauri/
+crates/everything-imu-app/gen/
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*.swo
+
+# Build outputs
+*.pdb
+
+# Test coverage
+coverage/
+*.lcov
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Python venvs (oracle fixture regen tooling)
+.venv/
+__pycache__/
+*.pyc

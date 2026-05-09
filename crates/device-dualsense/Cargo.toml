@@ -1,0 +1,24 @@
+[package]
+name = "device-dualsense"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "DualSense + DualSense Edge + DualShock 4 IMU device driver"
+
+[features]
+default = []
+synthetic-source = []
+
+[dependencies]
+device-traits = { path = "../device-traits" }
+hidapi = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt", "macros", "time"] }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }

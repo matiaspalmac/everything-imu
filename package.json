@@ -1,0 +1,26 @@
+{
+  "name": "everything-imu",
+  "private": true,
+  "version": "1.0.0-alpha.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @everything-imu/ui dev",
+    "build": "pnpm --filter @everything-imu/ui build",
+    "test": "pnpm --filter @everything-imu/ui test",
+    "typecheck": "pnpm --filter @everything-imu/ui typecheck",
+    "tauri:dev": "cd crates/everything-imu-app && cargo tauri dev",
+    "tauri:build": "cd crates/everything-imu-app && cargo tauri build",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@tauri-apps/cli": "^2.11.1"
+  },
+  "engines": {
+    "pnpm": ">=10",
+    "node": ">=22"
+  },
+  "author": "Matias Palma <matiaspalma2594@gmail.com>"
+}

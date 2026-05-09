@@ -1,0 +1,28 @@
+[package]
+name = "device-joycon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+synthetic-source = []
+
+[dependencies]
+device-traits = { path = "../device-traits" }
+imu-math = { path = "../imu-math" }
+imu-fusion = { path = "../imu-fusion" }
+slime-tracker = { path = "../slime-tracker" }
+hidapi = { workspace = true }
+arc-swap = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt", "macros", "time"] }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+device-traits = { path = "../device-traits", features = ["mock"] }
