@@ -64,7 +64,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@types/three": ">=0.170.0",
+    "@types/three": ">=0.184.1",
     "@vitejs/plugin-react": "^6.0.0",
     "esbuild": "^0.28.0",
     "jsdom": "^25.0.0",
