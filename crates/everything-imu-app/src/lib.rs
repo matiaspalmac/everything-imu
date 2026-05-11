@@ -180,6 +180,11 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
             commands::set_tracker_label,
             commands::set_emission_paused,
             commands::get_emission_paused,
+            commands::get_output_profile,
+            commands::set_output_profile,
+            commands::get_calibration_wizard_status,
+            commands::apply_calibration_wizard,
+            commands::get_advanced_telemetry,
         ])
         .events(tauri_specta::collect_events![
             events::TrackerUpdate,

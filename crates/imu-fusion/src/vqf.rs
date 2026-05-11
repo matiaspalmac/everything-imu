@@ -737,6 +737,10 @@ impl Vqf {
         quat_apply_delta(q6, self.state.delta)
     }
 
+    pub fn mag_seen(&self) -> bool {
+        self.state.mag_seen
+    }
+
     fn quat_6d_internal(&self) -> [f64; 4] {
         quat_normalize(quat_multiply(self.state.acc_quat, self.state.gyr_quat))
     }

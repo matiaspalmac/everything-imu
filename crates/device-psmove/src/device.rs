@@ -7,13 +7,27 @@ use device_traits::{
     ChannelInfo, Device, DeviceCapabilities, DeviceError, DeviceId, DeviceMetadata,
 };
 use hidapi::HidDevice;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 pub struct PsMoveDevice {
     metadata: DeviceMetadata,
     kind: ControllerKind,
     device: Option<HidDevice>,
+    io: Option<Arc<Mutex<HidDevice>>>,
+    output_state: Arc<Mutex<OutputState>>,
+    output_shutdown: Arc<AtomicBool>,
+    output_join: Option<thread::JoinHandle<()>>,
     reader: Option<HidReaderHandle>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct OutputState {
+    rgb: [u8; 3],
+    rumble: u8,
 }
 
 impl PsMoveDevice {
@@ -33,8 +47,27 @@ impl PsMoveDevice {
             metadata,
             kind,
             device: Some(device),
+            io: None,
+            output_state: Arc::new(Mutex::new(OutputState {
+                rgb: [0, 0, 0],
+                rumble: 0,
+            })),
+            output_shutdown: Arc::new(AtomicBool::new(false)),
+            output_join: None,
             reader: None,
         }
+    }
+
+    fn write_output_now(&self) -> Result<(), DeviceError> {
+        let io = self
+            .io
+            .clone()
+            .ok_or_else(|| DeviceError::Hid("psmove not started".into()))?;
+        let state = *self
+            .output_state
+            .lock()
+            .map_err(|_| DeviceError::Hid("psmove output lock poisoned".into()))?;
+        write_output(&io, state)
     }
 }
 
@@ -49,6 +82,8 @@ impl Device for PsMoveDevice {
             .device
             .take()
             .ok_or_else(|| DeviceError::Hid("device handle already taken".into()))?;
+        let dev = Arc::new(Mutex::new(dev));
+        self.io = Some(dev.clone());
         let kind = self.kind;
         let mut reader = spawn_reader(dev, move |buf, tx| {
             if !parse_report(kind, buf, tx) {
@@ -57,6 +92,34 @@ impl Device for PsMoveDevice {
         });
         let events_rx = std::mem::replace(&mut reader.events_rx, mpsc::channel(1).1);
         self.reader = Some(reader);
+        self.output_shutdown.store(false, Ordering::Relaxed);
+        let out_state = self.output_state.clone();
+        let out_io = self
+            .io
+            .as_ref()
+            .expect("io must be set before output thread")
+            .clone();
+        let out_stop = self.output_shutdown.clone();
+        self.output_join = Some(
+            thread::Builder::new()
+                .name("device-psmove-output".into())
+                .spawn(move || {
+                    while !out_stop.load(Ordering::Relaxed) {
+                        thread::sleep(Duration::from_secs(3));
+                        if out_stop.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        let state = match out_state.lock() {
+                            Ok(s) => *s,
+                            Err(_) => return,
+                        };
+                        if state.rgb != [0, 0, 0] || state.rumble != 0 {
+                            let _ = write_output(&out_io, state);
+                        }
+                    }
+                })
+                .map_err(|e| DeviceError::Hid(format!("psmove output thread failed: {e}")))?,
+        );
         Ok(events_rx)
     }
 
@@ -64,16 +127,91 @@ impl Device for PsMoveDevice {
         if let Some(mut r) = self.reader.take() {
             r.shutdown();
         }
+        self.output_shutdown.store(true, Ordering::Relaxed);
+        if let Some(j) = self.output_join.take() {
+            let _ = j.join();
+        }
+        self.io = None;
         Ok(())
     }
 
-    async fn set_led_mask(&mut self, _mask: u8) -> Result<(), DeviceError> {
-        // Output reports (sphere LED, rumble) intentionally out of scope —
-        // the bridge only forwards motion to SlimeVR-Server.
-        Ok(())
+    async fn set_led_mask(&mut self, mask: u8) -> Result<(), DeviceError> {
+        let mut state = self
+            .output_state
+            .lock()
+            .map_err(|_| DeviceError::Hid("psmove output lock poisoned".into()))?;
+        state.rgb = led_rgb_from_mask(mask);
+        drop(state);
+        self.write_output_now()
     }
 
-    async fn set_rumble(&mut self, _on: bool) -> Result<(), DeviceError> {
-        Ok(())
+    async fn set_rumble(&mut self, on: bool) -> Result<(), DeviceError> {
+        let mut state = self
+            .output_state
+            .lock()
+            .map_err(|_| DeviceError::Hid("psmove output lock poisoned".into()))?;
+        state.rumble = if on { 0x80 } else { 0x00 };
+        drop(state);
+        self.write_output_now()
+    }
+}
+
+fn build_output_report(state: OutputState) -> [u8; 9] {
+    [
+        0x06, // report id
+        0x00,
+        state.rgb[0],
+        state.rgb[1],
+        state.rgb[2],
+        0x00,
+        state.rumble,
+        0x00,
+        0x00,
+    ]
+}
+
+fn write_output(io: &Arc<Mutex<HidDevice>>, state: OutputState) -> Result<(), DeviceError> {
+    let report = build_output_report(state);
+    let dev = io
+        .lock()
+        .map_err(|_| DeviceError::Hid("psmove io lock poisoned".into()))?;
+    dev.write(&report)
+        .map_err(|e| DeviceError::Hid(format!("psmove write output failed: {e}")))?;
+    Ok(())
+}
+
+fn led_rgb_from_mask(mask: u8) -> [u8; 3] {
+    match (mask & 0x0F).count_ones() {
+        0 => [0x00, 0x00, 0x00],
+        1 => [0x00, 0x00, 0xFF],
+        2 => [0x00, 0xFF, 0xFF],
+        3 => [0xFF, 0x00, 0xFF],
+        _ => [0xFF, 0xFF, 0xFF],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn output_report_layout_matches_protocol() {
+        let report = build_output_report(OutputState {
+            rgb: [0x12, 0x34, 0x56],
+            rumble: 0x80,
+        });
+        assert_eq!(
+            report,
+            [0x06, 0x00, 0x12, 0x34, 0x56, 0x00, 0x80, 0x00, 0x00]
+        );
+    }
+
+    #[test]
+    fn led_mask_maps_to_expected_colors() {
+        assert_eq!(led_rgb_from_mask(0b0000), [0x00, 0x00, 0x00]);
+        assert_eq!(led_rgb_from_mask(0b0001), [0x00, 0x00, 0xFF]);
+        assert_eq!(led_rgb_from_mask(0b0011), [0x00, 0xFF, 0xFF]);
+        assert_eq!(led_rgb_from_mask(0b0111), [0xFF, 0x00, 0xFF]);
+        assert_eq!(led_rgb_from_mask(0b1111), [0xFF, 0xFF, 0xFF]);
     }
 }

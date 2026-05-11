@@ -151,24 +151,46 @@ impl FilterImpl {
         }
     }
 
-    fn update_6d(&mut self, gyr: [f64; 3], acc: [f64; 3]) {
+    fn update(&mut self, gyr: [f64; 3], acc: [f64; 3], mag: Option<[f64; 3]>) {
         match self {
-            Self::Vqf(f) => f.update(gyr, acc, None),
-            Self::Madgwick(f) => f.update_imu(
-                gyr[0] as f32,
-                gyr[1] as f32,
-                gyr[2] as f32,
-                acc[0] as f32,
-                acc[1] as f32,
-                acc[2] as f32,
-            ),
+            Self::Vqf(f) => f.update(gyr, acc, mag),
+            Self::Madgwick(f) => {
+                if let Some(m) = mag {
+                    f.update_marg(
+                        gyr[0] as f32,
+                        gyr[1] as f32,
+                        gyr[2] as f32,
+                        acc[0] as f32,
+                        acc[1] as f32,
+                        acc[2] as f32,
+                        m[0] as f32,
+                        m[1] as f32,
+                        m[2] as f32,
+                    );
+                } else {
+                    f.update_imu(
+                        gyr[0] as f32,
+                        gyr[1] as f32,
+                        gyr[2] as f32,
+                        acc[0] as f32,
+                        acc[1] as f32,
+                        acc[2] as f32,
+                    );
+                }
+            }
             Self::BasicVqf(f) => f.update(gyr, acc),
         }
     }
 
-    fn quat_wijk(&self) -> [f64; 4] {
+    fn quat_wijk(&self, use_mag: bool) -> [f64; 4] {
         match self {
-            Self::Vqf(f) => f.quat_6d(),
+            Self::Vqf(f) => {
+                if use_mag && f.mag_seen() {
+                    f.quat_9d()
+                } else {
+                    f.quat_6d()
+                }
+            }
             Self::Madgwick(f) => {
                 let q = f.quaternion();
                 [q[0] as f64, q[1] as f64, q[2] as f64, q[3] as f64]
@@ -224,6 +246,7 @@ pub struct Pipeline {
     battery_tx: watch::Sender<f32>,
     rate_counter: VecDeque<Instant>,
     sensor_info_sent: bool,
+    last_sensor_mag_config: Option<u16>,
 }
 
 pub struct PipelineHandles {
@@ -288,6 +311,7 @@ impl Pipeline {
             battery_tx,
             rate_counter: VecDeque::with_capacity(256),
             sensor_info_sent: false,
+            last_sensor_mag_config: None,
         };
         let handles = PipelineHandles {
             quat_rx,
@@ -322,7 +346,17 @@ impl Pipeline {
         Ok(())
     }
 
-    async fn send_sensor_info(&self) -> Result<(), AppError> {
+    fn sensor_mag_config(&self) -> u16 {
+        if !self.meta.capabilities.has_magnetometer {
+            0x0000
+        } else if self.config_rx.borrow().magnetometer_enabled {
+            0x0003
+        } else {
+            0x0002
+        }
+    }
+
+    async fn send_sensor_info(&self, mag_config: u16) -> Result<(), AppError> {
         use slime_tracker::client::SensorDescriptor;
         use slime_tracker::{ImuType, TrackerDataType, TrackerPosition};
 
@@ -331,7 +365,7 @@ impl Pipeline {
             // Use Bno085 to tell SlimeVR Server that the data is already fused
             // and it should NOT apply its own server-side Drift Compensation.
             imu_type: ImuType::Bno085,
-            mag_config: 0x0000,
+            mag_config,
             position: TrackerPosition::None,
             data_type: TrackerDataType::Rotation,
         };
@@ -345,12 +379,17 @@ impl Pipeline {
         let confirmed = self.slime.stats().handshake_confirmed;
         if !confirmed {
             self.sensor_info_sent = false;
-        } else if !self.sensor_info_sent {
-            if let Err(e) = self.send_sensor_info().await {
-                tracing::warn!(error = %e, "sensor_info send failed");
-            } else {
-                self.sensor_info_sent = true;
-                tracing::debug!("sensor_info sent after handshake confirmed");
+            self.last_sensor_mag_config = None;
+        } else {
+            let desired_mag_config = self.sensor_mag_config();
+            if !self.sensor_info_sent || self.last_sensor_mag_config != Some(desired_mag_config) {
+                if let Err(e) = self.send_sensor_info(desired_mag_config).await {
+                    tracing::warn!(error = %e, "sensor_info send failed");
+                } else {
+                    self.sensor_info_sent = true;
+                    self.last_sensor_mag_config = Some(desired_mag_config);
+                    tracing::debug!("sensor_info sent after handshake confirmed");
+                }
             }
         }
 
@@ -360,18 +399,24 @@ impl Pipeline {
                 if samples.is_empty() {
                     return Ok(());
                 }
+                let cfg = *self.config_rx.borrow();
                 for s in &samples {
                     let gyro_vqf =
                         coord::jsl_to_vqf_body(Vector3::new(s.gyro[0], s.gyro[1], s.gyro[2]));
                     let accel_vqf =
                         coord::jsl_to_vqf_body(Vector3::new(s.accel[0], s.accel[1], s.accel[2]));
-                    self.fusion.update_6d(gyro_vqf, accel_vqf);
+                    let mag_vqf = if cfg.magnetometer_enabled {
+                        s.mag
+                            .map(|m| coord::jsl_to_vqf_body(Vector3::new(m[0], m[1], m[2])))
+                    } else {
+                        None
+                    };
+                    self.fusion.update(gyro_vqf, accel_vqf, mag_vqf);
                 }
-                let q6 = self.fusion.quat_wijk();
+                let q6 = self.fusion.quat_wijk(cfg.magnetometer_enabled);
                 let q_estimate = QuatXyzw::from_vqf_wijk(q6);
                 // Live-read mounting orientation + rotation offset each
                 // batch so command-side changes apply without a reconnect.
-                let cfg = *self.config_rx.borrow();
                 let mut q_xyzw_arr = q_estimate.0;
                 if cfg.mounting != MountingOrientation::Identity {
                     q_xyzw_arr = quat_mul_xyzw(cfg.mounting.quat_xyzw(), q_xyzw_arr);
@@ -428,6 +473,14 @@ impl Pipeline {
                         .send_rotation_and_accel(self.sensor_id, slime_q, accel_tuple)
                         .await
                         .map_err(|e| AppError::Slime(e.to_string()))?;
+                    if cfg.magnetometer_enabled {
+                        if let Some(m) = last.mag {
+                            self.slime
+                                .send_magnetometer(self.sensor_id, (m[0], m[1], m[2]))
+                                .await
+                                .map_err(|e| AppError::Slime(e.to_string()))?;
+                        }
+                    }
                 }
 
                 if self.last_persist.elapsed() >= Duration::from_secs(10) {

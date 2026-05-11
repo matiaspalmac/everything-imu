@@ -215,7 +215,8 @@ Mag chip co-mounted on same PCB → same base remap as IMU.
 
 ### Transport
 
-- UDP listener (Dolphin emulator emits Wiimote IMU packets)
+- TCP listener (`127.0.0.1:9909`) for forwarded companion packets (17-byte legacy Wii packet format)
+- Bi-directional response path returns per-controller rumble state + polling interval
 - No HID/BLE — passive packet receiver
 
 ---

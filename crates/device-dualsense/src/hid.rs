@@ -40,7 +40,7 @@ impl HidReaderHandle {
     }
 }
 
-pub fn spawn_reader<F>(device: HidDevice, mut parse: F) -> HidReaderHandle
+pub fn spawn_reader<F>(device: Arc<Mutex<HidDevice>>, mut parse: F) -> HidReaderHandle
 where
     F: FnMut(&[u8], &mpsc::Sender<device_traits::ChannelInfo>) + Send + 'static,
 {
@@ -50,10 +50,23 @@ where
     let join = thread::Builder::new()
         .name("device-dualsense-hid".into())
         .spawn(move || {
-            let _ = device.set_blocking_mode(true);
+            if let Ok(dev) = device.lock() {
+                let _ = dev.set_blocking_mode(true);
+            }
             let mut buf = [0u8; 78];
             while !sd.load(Ordering::Relaxed) {
-                match device.read_timeout(&mut buf, 50) {
+                let read_res = {
+                    let dev = match device.lock() {
+                        Ok(g) => g,
+                        Err(_) => {
+                            let _ =
+                                event_tx.blocking_send(device_traits::ChannelInfo::Disconnected);
+                            return;
+                        }
+                    };
+                    dev.read_timeout(&mut buf, 50)
+                };
+                match read_res {
                     Ok(0) => continue,
                     Ok(n) => parse(&buf[..n], &event_tx),
                     Err(e) => {

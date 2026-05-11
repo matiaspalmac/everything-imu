@@ -7,8 +7,7 @@
 //! doubling), so we emit two `ImuSample`s per parse. Big-endian
 //! throughout — distinct from the DualSense / DS4 little-endian path.
 //!
-//! Output reports (sphere LED color, rumble level) are intentionally
-//! out of scope: the bridge only forwards motion to SlimeVR-Server.
+//! Output reports are supported for sphere LED color + rumble (report 0x06).
 #![allow(dead_code)]
 
 pub mod ids;

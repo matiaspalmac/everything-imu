@@ -20,7 +20,7 @@
 - **DualSense (PS5)**
 - **DualShock 4 (PS4)**
 - **PS Move (ZCM1/ZCM2)**
-- **Wii Remote** (via Dolphin UDP bridge)
+- **Wii Remote** (via forwarded companion TCP `127.0.0.1:9909`)
 
 For complete hardware details and IMU specs, see our [Devices Matrix](DEVICES.md).3
 

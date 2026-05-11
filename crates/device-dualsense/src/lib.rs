@@ -12,8 +12,8 @@
 //!   range and ±4 g accel range are factory defaults; per-device calibration via feature
 //!   report 0x05 is read on connect when available, otherwise fallback to defaults.
 //!
-//! This crate intentionally does NOT touch output reports (LEDs / triggers / haptics).
-//! The bridge only forwards IMU motion to SlimeVR-Server; cosmetic feedback is out of scope.
+//! Output reports are supported for DualSense / DualSense Edge / DualShock 4
+//! basic feedback (player LED + rumble).
 #![allow(dead_code)]
 
 pub mod ids;

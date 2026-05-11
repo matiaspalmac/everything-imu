@@ -5,6 +5,7 @@ use device_psmove::PsMoveFactory;
 use device_traits::{
     BiasStore, DeviceFactory, InMemoryBiasStore, InMemorySettingsStore, SettingsStore,
 };
+use device_wii::WiiFactory;
 use everything_imu_core::{AppState, Supervisor};
 use persistence::{PersistenceDb, SqliteBiasStore, SqliteSettingsStore};
 use std::net::SocketAddr;
@@ -97,16 +98,20 @@ async fn run_doctor(server: SocketAddr) -> i32 {
     line("hidapi", &hid);
 
     let nintendo = JoyconFactory::list_paired().unwrap_or_default();
+    let jc2_nearby = JoyconFactory::list_nearby_jc2(1200)
+        .await
+        .unwrap_or_default();
     let sony_pads = DualSenseFactory::list_paired().unwrap_or_default();
     let sony_moves = PsMoveFactory::list_paired().unwrap_or_default();
-    let total = nintendo.len() + sony_pads.len() + sony_moves.len();
+    let total = nintendo.len() + jc2_nearby.len() + sony_pads.len() + sony_moves.len();
     let dev = if total == 0 {
         CheckOutcome::Warn("no paired controllers visible (Bluetooth pairing?)".into())
     } else {
         CheckOutcome::Pass(format!(
-            "{} controller(s) visible (jc={}, sony-pad={}, ps-move={})",
+            "{} controller(s) visible (jc1-hid={}, jc2-ble={}, sony-pad={}, ps-move={})",
             total,
             nintendo.len(),
+            jc2_nearby.len(),
             sony_pads.len(),
             sony_moves.len(),
         ))
@@ -173,9 +178,14 @@ async fn main() -> anyhow::Result<()> {
 
     if args.list_devices {
         let nintendo = JoyconFactory::list_paired()?;
+        let jc2_nearby = JoyconFactory::list_nearby_jc2(1200).await?;
         let sony_pads = DualSenseFactory::list_paired()?;
         let sony_moves = PsMoveFactory::list_paired()?;
-        if nintendo.is_empty() && sony_pads.is_empty() && sony_moves.is_empty() {
+        if nintendo.is_empty()
+            && jc2_nearby.is_empty()
+            && sony_pads.is_empty()
+            && sony_moves.is_empty()
+        {
             println!("No paired Nintendo or Sony controllers visible to hidapi.");
             println!("Check Bluetooth pairing and that no other process holds the device.");
             return Ok(());
@@ -186,6 +196,15 @@ async fn main() -> anyhow::Result<()> {
                 println!(
                     "  [{idx}] {:?}  pid=0x{:04X}  iface={}  serial={}  mac={:02X?}",
                     d.kind, d.pid, d.interface, d.serial, d.mac
+                );
+            }
+        }
+        if !jc2_nearby.is_empty() {
+            println!("Nearby Joy-Con 2 BLE devices ({}):", jc2_nearby.len());
+            for (idx, d) in jc2_nearby.iter().enumerate() {
+                println!(
+                    "  [{idx}] {:?}  addr={}  name={}  mac={:02X?}",
+                    d.kind, d.address, d.name, d.mac
                 );
             }
         }
@@ -251,6 +270,7 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(JoyconFactory::real()),
             Arc::new(DualSenseFactory::new()),
             Arc::new(PsMoveFactory::new()),
+            Arc::new(WiiFactory::new()),
         ]
     };
     let sup = Supervisor::new(state.clone(), factories);

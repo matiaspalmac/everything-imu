@@ -5,6 +5,7 @@ use device_dualsense::DualSenseFactory;
 use device_joycon::JoyconFactory;
 use device_psmove::PsMoveFactory;
 use device_traits::DeviceFactory;
+use device_wii::WiiFactory;
 use everything_imu_core::Supervisor;
 use std::sync::Arc;
 use tauri::{AppHandle as TauriAppHandle, Manager};
@@ -29,6 +30,7 @@ pub fn spawn(app: &TauriAppHandle, auto_start_synthetic: bool) {
                 Arc::new(JoyconFactory::real()),
                 Arc::new(DualSenseFactory::new()),
                 Arc::new(PsMoveFactory::new()),
+                Arc::new(WiiFactory::new()),
             ]
         };
         let sup = Supervisor::new(handle.state.clone(), factories);

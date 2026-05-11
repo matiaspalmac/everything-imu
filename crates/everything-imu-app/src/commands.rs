@@ -418,9 +418,12 @@ pub async fn doctor(handle: State<'_, AppHandle>) -> Result<DoctorReportDto, Ipc
     };
 
     let nintendo = device_joycon::JoyconFactory::list_paired().unwrap_or_default();
+    let jc2_nearby = device_joycon::JoyconFactory::list_nearby_jc2(800)
+        .await
+        .unwrap_or_default();
     let sony_pads = device_dualsense::DualSenseFactory::list_paired().unwrap_or_default();
     let sony_moves = device_psmove::PsMoveFactory::list_paired().unwrap_or_default();
-    let total = nintendo.len() + sony_pads.len() + sony_moves.len();
+    let total = nintendo.len() + jc2_nearby.len() + sony_pads.len() + sony_moves.len();
 
     let dev_status = if total == 0 {
         DoctorStatus::Warn
@@ -435,9 +438,10 @@ pub async fn doctor(handle: State<'_, AppHandle>) -> Result<DoctorReportDto, Ipc
             "No paired controllers visible. Check Bluetooth pairing.".into()
         } else {
             format!(
-                "{} controller(s) visible (jc={}, sony-pad={}, ps-move={})",
+                "{} controller(s) visible (jc1-hid={}, jc2-ble={}, sony-pad={}, ps-move={})",
                 total,
                 nintendo.len(),
+                jc2_nearby.len(),
                 sony_pads.len(),
                 sony_moves.len(),
             )
@@ -533,4 +537,221 @@ pub async fn get_connection_status(
         last_send_ms_ago,
         last_handshake_ms_ago,
     })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct OutputProfileDto {
+    pub led_mask: u8,
+    pub rumble_enabled: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_output_profile(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+) -> Result<OutputProfileDto, IpcError> {
+    let mk = mac_key(mac);
+    let led_mask = handle
+        .db
+        .get_setting(&format!("led_mask:{mk}"))?
+        .and_then(|s| s.parse::<u8>().ok())
+        .unwrap_or(0);
+    let rumble_enabled = handle
+        .db
+        .get_setting(&format!("rumble_enabled:{mk}"))?
+        .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    Ok(OutputProfileDto {
+        led_mask,
+        rumble_enabled,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_output_profile(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+    profile: OutputProfileDto,
+    apply_now: bool,
+) -> Result<(), IpcError> {
+    let mk = mac_key(mac);
+    handle
+        .db
+        .set_setting(&format!("led_mask:{mk}"), &profile.led_mask.to_string())?;
+    handle.db.set_setting(
+        &format!("rumble_enabled:{mk}"),
+        if profile.rumble_enabled { "1" } else { "0" },
+    )?;
+    if apply_now {
+        let _ = handle.state.set_led_mask(mac, profile.led_mask).await;
+        let _ = handle.state.set_rumble(mac, profile.rumble_enabled).await;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct CalibrationWizardStatusDto {
+    pub suggested_mounting: MountingOrientationDto,
+    pub suggested_rotation_offset_deg: f32,
+    pub accel_norm_mps2: f32,
+    pub gyro_norm_rads: f32,
+    pub sample_age_ms: u64,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_calibration_wizard_status(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+) -> Result<CalibrationWizardStatusDto, IpcError> {
+    let samples = handle.state.latest_sample_snapshot().await;
+    let quat = handle.state.latest_quat_snapshot().await;
+    let (id, sample) = samples
+        .iter()
+        .find(|(id, _)| id.mac == mac)
+        .ok_or(IpcError::NotFound)?;
+    let q = quat
+        .get(id)
+        .copied()
+        .unwrap_or(everything_imu_core::QuatXyzw::IDENTITY);
+
+    let acc = sample.acc_xyz;
+    let abs = [acc[0].abs(), acc[1].abs(), acc[2].abs()];
+    let suggested_mounting = if abs[2] >= abs[0] && abs[2] >= abs[1] {
+        if acc[2] < 0.0 {
+            MountingOrientationDto::UpsideDown
+        } else {
+            MountingOrientationDto::Identity
+        }
+    } else if abs[0] >= abs[1] {
+        if acc[0] > 0.0 {
+            MountingOrientationDto::LeftSide
+        } else {
+            MountingOrientationDto::RightSide
+        }
+    } else if acc[1] > 0.0 {
+        MountingOrientationDto::FacingForward
+    } else {
+        MountingOrientationDto::FacingBack
+    };
+
+    let yaw_deg = yaw_deg_from_quat(q.0);
+    Ok(CalibrationWizardStatusDto {
+        suggested_mounting,
+        suggested_rotation_offset_deg: -yaw_deg,
+        accel_norm_mps2: norm3(sample.acc_xyz),
+        gyro_norm_rads: norm3(sample.gyr_xyz),
+        sample_age_ms: sample.elapsed_ms,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn apply_calibration_wizard(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+    mounting: MountingOrientationDto,
+    rotation_offset_deg: f32,
+    magnetometer_enabled: bool,
+) -> Result<(), IpcError> {
+    if !rotation_offset_deg.is_finite() {
+        return Err(IpcError::Invalid("non-finite degrees".into()));
+    }
+    let mk = mac_key(mac);
+    handle
+        .db
+        .set_setting(&format!("mounting_orientation:{mk}"), mounting.to_setting())?;
+    handle.db.set_setting(
+        &format!(
+            "rotation_offset_deg:{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
+        ),
+        &rotation_offset_deg.to_string(),
+    )?;
+    handle.db.set_setting(
+        &format!("magnetometer_enabled:{mk}"),
+        if magnetometer_enabled { "1" } else { "0" },
+    )?;
+    let _ = handle
+        .state
+        .set_mounting_orientation(
+            mac,
+            MountingOrientation::from_setting(mounting.to_setting()),
+        )
+        .await;
+    let _ = handle
+        .state
+        .set_rotation_offset_deg(mac, rotation_offset_deg)
+        .await;
+    let _ = handle
+        .state
+        .set_magnetometer_enabled(mac, magnetometer_enabled)
+        .await;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct AdvancedTelemetryDto {
+    pub mac: [u8; 6],
+    pub serial: String,
+    pub sample_rate_hz: f32,
+    pub battery_fraction: f32,
+    pub gyro_norm_rads: f32,
+    pub accel_norm_mps2: f32,
+    pub mag_norm_u_t: Option<f32>,
+    pub gyro_bias_rads: [f64; 3],
+    pub orientation_xyzw: [f32; 4],
+    pub sample_age_ms: u64,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_advanced_telemetry(
+    handle: State<'_, AppHandle>,
+) -> Result<Vec<AdvancedTelemetryDto>, IpcError> {
+    let meta = handle.state.device_metadata_snapshot().await;
+    let quat = handle.state.latest_quat_snapshot().await;
+    let sample = handle.state.latest_sample_snapshot().await;
+    let bias = handle.state.latest_bias_snapshot().await;
+    let rate = handle.state.latest_rate_snapshot().await;
+    let battery = handle.state.latest_battery_snapshot().await;
+    let mut out = Vec::with_capacity(meta.len());
+    for m in meta {
+        let id = m.id.clone();
+        let q = quat
+            .get(&id)
+            .copied()
+            .unwrap_or(everything_imu_core::QuatXyzw::IDENTITY);
+        let s = sample.get(&id).copied().unwrap_or_default();
+        let b = bias.get(&id).copied().unwrap_or_default();
+        out.push(AdvancedTelemetryDto {
+            mac: id.mac,
+            serial: id.serial.clone(),
+            sample_rate_hz: rate.get(&id).copied().unwrap_or(0.0),
+            battery_fraction: battery.get(&id).copied().unwrap_or(f32::NAN),
+            gyro_norm_rads: norm3(s.gyr_xyz),
+            accel_norm_mps2: norm3(s.acc_xyz),
+            mag_norm_u_t: s.mag_xyz.map(norm3),
+            gyro_bias_rads: b.gyr_bias,
+            orientation_xyzw: q.0,
+            sample_age_ms: s.elapsed_ms,
+        });
+    }
+    Ok(out)
+}
+
+fn norm3(v: [f32; 3]) -> f32 {
+    (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()
+}
+
+fn yaw_deg_from_quat(q: [f32; 4]) -> f32 {
+    let x = q[0];
+    let y = q[1];
+    let z = q[2];
+    let w = q[3];
+    let siny_cosp = 2.0 * (w * y + x * z);
+    let cosy_cosp = 1.0 - 2.0 * (y * y + z * z);
+    siny_cosp.atan2(cosy_cosp).to_degrees()
 }

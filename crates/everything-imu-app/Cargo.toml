@@ -37,6 +37,7 @@ everything-imu-core = { path = "../core" }
 device-joycon = { path = "../device-joycon", features = ["synthetic-source"] }
 device-dualsense = { path = "../device-dualsense", features = ["synthetic-source"] }
 device-psmove = { path = "../device-psmove", features = ["synthetic-source"] }
+device-wii = { path = "../device-wii" }
 device-traits = { path = "../device-traits" }
 persistence = { path = "../persistence" }
 slime-tracker = { path = "../slime-tracker" }

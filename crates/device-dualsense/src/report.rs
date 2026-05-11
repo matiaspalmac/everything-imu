@@ -19,10 +19,15 @@ use device_traits::{BatteryState, ChannelInfo, ImuSample};
 
 const DEG_PER_LSB: f32 = 2000.0 / 32767.0;
 const RAD_PER_DEG: f32 = std::f32::consts::PI / 180.0;
-const GYRO_SCALE_RAD_S: f32 = DEG_PER_LSB * RAD_PER_DEG;
+const ACCEL_SCALE_G: f32 = 4.0 / 32767.0;
 
-const G_PER_LSB: f32 = 4.0 / 32767.0;
-const ACCEL_SCALE_M_S2: f32 = G_PER_LSB * 9.806_65;
+#[derive(Debug, Clone, Copy)]
+pub struct SonyCalibration {
+    pub gyro_bias_dps: [f32; 3],
+    pub gyro_scale: [f32; 3],
+    pub accel_bias_g: [f32; 3],
+    pub accel_scale: [f32; 3],
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ImuOffsets {
@@ -81,6 +86,7 @@ pub fn parse_ps_button(kind: ControllerKind, buf: &[u8]) -> Option<bool> {
 pub fn parse_report(
     kind: ControllerKind,
     buf: &[u8],
+    calibration: Option<SonyCalibration>,
     out: &tokio::sync::mpsc::Sender<ChannelInfo>,
 ) -> bool {
     let Some(offsets) = ImuOffsets::for_report(kind, buf.len()) else {
@@ -106,16 +112,33 @@ pub fn parse_report(
         return false;
     };
 
+    let mut gyro_dps = [
+        gx as f32 * DEG_PER_LSB,
+        gy as f32 * DEG_PER_LSB,
+        gz as f32 * DEG_PER_LSB,
+    ];
+    let mut accel_g = [
+        ax as f32 * ACCEL_SCALE_G,
+        ay as f32 * ACCEL_SCALE_G,
+        az as f32 * ACCEL_SCALE_G,
+    ];
+    if let Some(cal) = calibration {
+        for i in 0..3 {
+            gyro_dps[i] = (gyro_dps[i] - cal.gyro_bias_dps[i]) * cal.gyro_scale[i];
+            accel_g[i] = (accel_g[i] - cal.accel_bias_g[i]) * cal.accel_scale[i];
+        }
+    }
+
     let sample = ImuSample {
         gyro: [
-            gx as f32 * GYRO_SCALE_RAD_S,
-            gy as f32 * GYRO_SCALE_RAD_S,
-            gz as f32 * GYRO_SCALE_RAD_S,
+            gyro_dps[0] * RAD_PER_DEG,
+            gyro_dps[1] * RAD_PER_DEG,
+            gyro_dps[2] * RAD_PER_DEG,
         ],
         accel: [
-            ax as f32 * ACCEL_SCALE_M_S2,
-            ay as f32 * ACCEL_SCALE_M_S2,
-            az as f32 * ACCEL_SCALE_M_S2,
+            accel_g[0] * 9.806_65,
+            accel_g[1] * 9.806_65,
+            accel_g[2] * 9.806_65,
         ],
         mag: None,
         timestamp_us: 0,
@@ -131,6 +154,118 @@ pub fn parse_report(
         }
     }
     true
+}
+
+pub fn parse_feature_calibration(
+    kind: ControllerKind,
+    report_id: u8,
+    buf: &[u8],
+) -> Option<SonyCalibration> {
+    let interleaved = matches!(kind, ControllerKind::DualShock4) && report_id == 0x05;
+    let sequential = matches!(
+        kind,
+        ControllerKind::DualSense | ControllerKind::DualSenseEdge
+    ) || matches!(kind, ControllerKind::DualShock4) && report_id == 0x02;
+    if !interleaved && !sequential {
+        return None;
+    }
+    if buf.len() < 35 {
+        return None;
+    }
+
+    let s16 = |off: usize| -> Option<i16> {
+        let b = buf.get(off..off + 2)?;
+        Some(i16::from_le_bytes([b[0], b[1]]))
+    };
+
+    let bias = [s16(1)? as f32, s16(3)? as f32, s16(5)? as f32];
+    if bias.iter().any(|v| v.abs() > 4096.0) {
+        return None;
+    }
+
+    let (pitch_plus, pitch_minus, yaw_plus, yaw_minus, roll_plus, roll_minus) = if interleaved {
+        (
+            s16(7)? as f32,
+            s16(13)? as f32,
+            s16(9)? as f32,
+            s16(15)? as f32,
+            s16(11)? as f32,
+            s16(17)? as f32,
+        )
+    } else {
+        (
+            s16(7)? as f32,
+            s16(9)? as f32,
+            s16(11)? as f32,
+            s16(13)? as f32,
+            s16(15)? as f32,
+            s16(17)? as f32,
+        )
+    };
+    let speed_plus = s16(19)? as f32;
+    let speed_minus = s16(21)? as f32;
+    let acc_x_plus = s16(23)? as f32;
+    let acc_x_minus = s16(25)? as f32;
+    let acc_y_plus = s16(27)? as f32;
+    let acc_y_minus = s16(29)? as f32;
+    let acc_z_plus = s16(31)? as f32;
+    let acc_z_minus = s16(33)? as f32;
+
+    let gyro_bias_dps = [
+        bias[0] * DEG_PER_LSB,
+        bias[1] * DEG_PER_LSB,
+        bias[2] * DEG_PER_LSB,
+    ];
+    let mut gyro_scale = [1.0; 3];
+    let speed_2x = speed_plus + speed_minus;
+    if speed_2x > 0.0 {
+        let denom = [
+            (pitch_plus - bias[0]).abs() + (pitch_minus - bias[0]).abs(),
+            (yaw_plus - bias[1]).abs() + (yaw_minus - bias[1]).abs(),
+            (roll_plus - bias[2]).abs() + (roll_minus - bias[2]).abs(),
+        ];
+        for i in 0..3 {
+            if denom[i] > 0.0 {
+                gyro_scale[i] = ((speed_2x / denom[i]) / DEG_PER_LSB).clamp(0.9, 1.1);
+            }
+        }
+    }
+
+    let range = [
+        acc_x_plus - acc_x_minus,
+        acc_y_plus - acc_y_minus,
+        acc_z_plus - acc_z_minus,
+    ];
+    if range.iter().any(|v| *v <= 0.0) {
+        return Some(SonyCalibration {
+            gyro_bias_dps,
+            gyro_scale,
+            accel_bias_g: [0.0; 3],
+            accel_scale: [1.0; 3],
+        });
+    }
+    let midpoint = [
+        acc_x_plus - (range[0] / 2.0),
+        acc_y_plus - (range[1] / 2.0),
+        acc_z_plus - (range[2] / 2.0),
+    ];
+    let accel_bias_g = [
+        midpoint[0] * ACCEL_SCALE_G,
+        midpoint[1] * ACCEL_SCALE_G,
+        midpoint[2] * ACCEL_SCALE_G,
+    ];
+    let accel_scale = [
+        (2.0 * 8192.0 / range[0]).clamp(0.9, 1.1),
+        (2.0 * 8192.0 / range[1]).clamp(0.9, 1.1),
+        (2.0 * 8192.0 / range[2]).clamp(0.9, 1.1),
+    ];
+
+    Some(SonyCalibration {
+        gyro_bias_dps,
+        gyro_scale,
+        accel_bias_g,
+        accel_scale,
+    })
 }
 
 #[cfg(test)]
@@ -149,7 +284,7 @@ mod tests {
         buf[25..27].copy_from_slice(&0i16.to_le_bytes());
 
         let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
-        assert!(parse_report(ControllerKind::DualSense, &buf, &tx));
+        assert!(parse_report(ControllerKind::DualSense, &buf, None, &tx));
 
         let evt = rx.try_recv().expect("imu event");
         match evt {
@@ -169,7 +304,7 @@ mod tests {
     fn unknown_report_length_returns_false() {
         let buf = [0u8; 32];
         let (tx, _rx) = mpsc::channel::<ChannelInfo>(8);
-        assert!(!parse_report(ControllerKind::DualSense, &buf, &tx));
+        assert!(!parse_report(ControllerKind::DualSense, &buf, None, &tx));
     }
 
     #[test]
@@ -196,12 +331,39 @@ mod tests {
         let mut buf = [0u8; 64];
         buf[13..15].copy_from_slice(&100i16.to_le_bytes());
         let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
-        assert!(parse_report(ControllerKind::DualShock4, &buf, &tx));
+        assert!(parse_report(ControllerKind::DualShock4, &buf, None, &tx));
         match rx.try_recv().expect("imu event") {
             ChannelInfo::ImuSamples(s) => {
                 assert!(s[0].gyro[0] > 0.0);
             }
             _ => panic!("expected ImuSamples"),
         }
+    }
+
+    #[test]
+    fn ds5_feature_calibration_parses() {
+        let mut buf = [0u8; 41];
+        buf[1..3].copy_from_slice(&10i16.to_le_bytes());
+        buf[3..5].copy_from_slice(&(-5i16).to_le_bytes());
+        buf[5..7].copy_from_slice(&7i16.to_le_bytes());
+        buf[7..9].copy_from_slice(&16500i16.to_le_bytes());
+        buf[9..11].copy_from_slice(&(-16500i16).to_le_bytes());
+        buf[11..13].copy_from_slice(&16500i16.to_le_bytes());
+        buf[13..15].copy_from_slice(&(-16500i16).to_le_bytes());
+        buf[15..17].copy_from_slice(&16500i16.to_le_bytes());
+        buf[17..19].copy_from_slice(&(-16500i16).to_le_bytes());
+        buf[19..21].copy_from_slice(&2000i16.to_le_bytes());
+        buf[21..23].copy_from_slice(&2000i16.to_le_bytes());
+        buf[23..25].copy_from_slice(&8192i16.to_le_bytes());
+        buf[25..27].copy_from_slice(&(-8192i16).to_le_bytes());
+        buf[27..29].copy_from_slice(&8192i16.to_le_bytes());
+        buf[29..31].copy_from_slice(&(-8192i16).to_le_bytes());
+        buf[31..33].copy_from_slice(&8192i16.to_le_bytes());
+        buf[33..35].copy_from_slice(&(-8192i16).to_le_bytes());
+
+        let cal =
+            parse_feature_calibration(ControllerKind::DualSense, 0x05, &buf).expect("cal parsed");
+        assert!(cal.gyro_scale.iter().all(|v| (0.9..=1.1).contains(v)));
+        assert!(cal.accel_scale.iter().all(|v| (*v - 1.0).abs() < 0.01));
     }
 }

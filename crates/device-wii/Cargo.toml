@@ -8,3 +8,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+device-traits = { path = "../device-traits" }
+tokio = { workspace = true, features = ["sync", "rt", "macros", "time", "net", "io-util"] }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }

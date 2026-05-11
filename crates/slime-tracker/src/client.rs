@@ -352,6 +352,26 @@ impl SlimeClient {
         Ok(())
     }
 
+    /// Send a standalone [`SbPacket::Magnetometer`] (packet 5).
+    pub async fn send_magnetometer(
+        &self,
+        sensor_id: u8,
+        vector: (f32, f32, f32),
+    ) -> Result<(), ClientError> {
+        let pkt = Packet::new(
+            self.next_seq(),
+            SbPacket::Magnetometer {
+                sensor_id,
+                data_type: SensorDataType::Normal,
+                vector,
+                calibration_info: 0,
+            },
+        );
+        let bytes = pkt.to_bytes()?;
+        self.send_packet(&bytes).await?;
+        Ok(())
+    }
+
     /// Send a [`SbPacket::UserAction`] (packet 21) with the given action variant.
     pub async fn send_user_action(
         &self,

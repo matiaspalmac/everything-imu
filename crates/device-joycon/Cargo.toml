@@ -22,6 +22,9 @@ tokio = { workspace = true, features = ["sync", "rt", "macros", "time"] }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+btleplug = { workspace = true }
+futures-util = { workspace = true }
+uuid = { workspace = true, features = ["macro-diagnostics"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }

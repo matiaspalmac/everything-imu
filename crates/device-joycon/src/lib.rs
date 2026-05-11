@@ -11,6 +11,7 @@ pub(crate) mod axis_remap;
 pub(crate) mod calibration;
 pub(crate) mod hid;
 pub(crate) mod jc1;
+pub(crate) mod jc2;
 pub(crate) mod report;
 pub(crate) mod reset_buttons;
 pub(crate) mod spi_cal;

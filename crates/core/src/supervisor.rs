@@ -1,6 +1,6 @@
 //! Supervisor — runs DeviceFactory enumerate loops and registers discovered devices.
 
-use crate::app_state::AppState;
+use crate::app_state::{AppState, DeviceControl};
 use crate::error::AppError;
 use device_traits::{Device, DeviceFactory, DeviceMetadata};
 use std::sync::Arc;
@@ -39,7 +39,21 @@ impl Supervisor {
                     continue;
                 }
             };
-            if let Err(e) = self.state.register_device(meta, events).await {
+            let (control_tx, mut control_rx) = mpsc::channel::<DeviceControl>(16);
+            let device_id = meta.id.clone();
+            tokio::spawn(async move {
+                while let Some(cmd) = control_rx.recv().await {
+                    let res = match cmd {
+                        DeviceControl::SetLedMask(mask) => device.set_led_mask(mask).await,
+                        DeviceControl::SetRumble(on) => device.set_rumble(on).await,
+                    };
+                    if let Err(e) = res {
+                        tracing::debug!(id = %device_id, error = %e, "device control command failed");
+                    }
+                }
+                let _ = device.stop().await;
+            });
+            if let Err(e) = self.state.register_device(meta, events, control_tx).await {
                 tracing::warn!(error = %e, "register_device failed");
             }
         }

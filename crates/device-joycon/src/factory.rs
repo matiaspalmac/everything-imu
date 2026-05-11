@@ -3,8 +3,9 @@
 use crate::hid::hid_api_singleton;
 use crate::ids::{pid, ControllerKind, JOYCON_VID};
 use crate::jc1::JoyCon1Device;
-use device_traits::{Device, DeviceError, DeviceFactory, DeviceMetadata};
-use std::collections::HashSet;
+use crate::jc2::{scan_nearby, JoyCon2Kind, JoyCon2Scanner};
+use device_traits::{Device, DeviceError, DeviceFactory, DeviceKind, DeviceMetadata};
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -56,6 +57,14 @@ impl JoyconFactory {
     ) -> Result<(), DeviceError> {
         let api = hid_api_singleton().map_err(|e| DeviceError::Hid(e.to_string()))?;
         let mut known: HashSet<String> = HashSet::new();
+        let mut known_jc2: HashMap<String, tokio::time::Instant> = HashMap::new();
+        let mut jc2_scanner = JoyCon2Scanner::new().await;
+        let jc2_rediscover_after = Duration::from_secs(8);
+        if jc2_scanner.is_none() {
+            tracing::info!("jc2: BLE adapter unavailable; running HID-only scan");
+        } else {
+            tracing::info!("jc2: BLE scan enabled");
+        }
 
         loop {
             {
@@ -131,6 +140,15 @@ impl JoyconFactory {
                 }
             }
 
+            if let Some(scanner) = jc2_scanner.as_mut() {
+                if let Err(e) = scanner
+                    .poll(&mut known_jc2, jc2_rediscover_after, &out)
+                    .await
+                {
+                    tracing::warn!(error = %e, "jc2 scan tick failed");
+                }
+            }
+
             tokio::time::sleep(Duration::from_millis(1500)).await;
         }
     }
@@ -167,6 +185,14 @@ pub struct PairedJoycon {
     pub serial: String,
     pub path: String,
     pub interface: i32,
+    pub mac: [u8; 6],
+}
+
+#[derive(Debug, Clone)]
+pub struct NearbyJoyCon2 {
+    pub kind: DeviceKind,
+    pub name: String,
+    pub address: String,
     pub mac: [u8; 6],
 }
 
@@ -210,6 +236,24 @@ impl JoyconFactory {
             });
         }
         Ok(out)
+    }
+
+    /// One-shot nearby JC2 BLE scan. Returns advertising controllers seen
+    /// during the scan window; no pairing changes are performed.
+    pub async fn list_nearby_jc2(timeout_ms: u64) -> Result<Vec<NearbyJoyCon2>, DeviceError> {
+        let found = scan_nearby(Duration::from_millis(timeout_ms)).await?;
+        Ok(found
+            .into_iter()
+            .map(|d| NearbyJoyCon2 {
+                kind: match d.kind {
+                    JoyCon2Kind::Left => DeviceKind::JoyCon2L,
+                    JoyCon2Kind::Right => DeviceKind::JoyCon2R,
+                },
+                name: d.name,
+                address: d.address,
+                mac: d.mac,
+            })
+            .collect())
     }
 }
 

@@ -37,6 +37,13 @@ struct DeviceHandle {
     pub rate_rx: watch::Receiver<f32>,
     pub battery_rx: watch::Receiver<f32>,
     pub config_tx: watch::Sender<crate::pipeline::PipelineConfig>,
+    pub control_tx: mpsc::Sender<DeviceControl>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DeviceControl {
+    SetLedMask(u8),
+    SetRumble(bool),
 }
 
 impl AppState {
@@ -66,7 +73,16 @@ impl AppState {
         &self,
         meta: DeviceMetadata,
         events: mpsc::Receiver<ChannelInfo>,
+        control_tx: mpsc::Sender<DeviceControl>,
     ) -> Result<(), AppError> {
+        let config = pipeline_config_from_settings(self.settings.as_ref(), &meta.id);
+        let mag_status = if !meta.capabilities.has_magnetometer {
+            0
+        } else if config.magnetometer_enabled {
+            2
+        } else {
+            1
+        };
         // Each device gets its own UDP connection + handshake with its real
         // MAC address. SlimeVR-Server identifies trackers by source socket,
         // so N devices = N independent trackers in the dashboard.
@@ -74,7 +90,7 @@ impl AppState {
             board: BoardType::Custom,
             imu: ImuType::Bno085,
             mcu: McuType::Unknown,
-            mag_status: 0,
+            mag_status,
             firmware: "everything-imu 1.0.0-alpha".into(),
             mac_address: meta.id.mac,
         };
@@ -86,7 +102,6 @@ impl AppState {
         let (stop_tx, stop_rx) = watch::channel(false);
         // Always sensor_id 0 — each device is its own tracker connection.
         let sensor_id = 0u8;
-        let config = pipeline_config_from_settings(self.settings.as_ref(), &meta.id);
         let (pipeline, handles) = Pipeline::new(
             meta.clone(),
             slime.clone(),
@@ -110,6 +125,7 @@ impl AppState {
                 rate_rx: handles.rate_rx,
                 battery_rx: handles.battery_rx,
                 config_tx: handles.config_tx,
+                control_tx,
             },
         );
         Ok(())
@@ -156,6 +172,28 @@ impl AppState {
         cfg.rotation_offset_deg = deg;
         h.config_tx.send_replace(cfg);
         true
+    }
+
+    pub async fn set_led_mask(&self, mac: [u8; 6], mask: u8) -> bool {
+        let devices = self.devices.read().await;
+        let Some(h) = devices.values().find(|h| h.metadata.id.mac == mac) else {
+            return false;
+        };
+        h.control_tx
+            .send(DeviceControl::SetLedMask(mask))
+            .await
+            .is_ok()
+    }
+
+    pub async fn set_rumble(&self, mac: [u8; 6], on: bool) -> bool {
+        let devices = self.devices.read().await;
+        let Some(h) = devices.values().find(|h| h.metadata.id.mac == mac) else {
+            return false;
+        };
+        h.control_tx
+            .send(DeviceControl::SetRumble(on))
+            .await
+            .is_ok()
     }
 
     /// Aggregate connection stats across all per-device SlimeClients.
