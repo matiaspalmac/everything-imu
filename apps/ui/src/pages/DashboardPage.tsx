@@ -1,4 +1,5 @@
 import { ArrowsClockwise, Crosshair, Target } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { ConnectionStatusCard } from "../components/ConnectionStatusCard";
@@ -8,6 +9,7 @@ import { useDeviceStore } from "../stores/useDeviceStore";
 import { useTrackerStore } from "../stores/useTrackerStore";
 
 export function DashboardPage() {
+  const { t } = useTranslation();
   const trackers = useTrackerStore((s) => s.trackers);
   const devices = useDeviceStore((s) => s.devices);
   const list = Object.values(trackers);
@@ -20,40 +22,41 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <SectionPanel title="Connection">
+      <SectionPanel title={t("pages.connection")}>
         <ConnectionStatusCard />
       </SectionPanel>
 
-      <SectionPanel title="Broadcast actions">
+      <SectionPanel title={t("pages.broadcast_actions")}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <ResetButton
-            label="Yaw Reset"
+            label={t("actions.yaw_reset")}
             icon={<Crosshair size={20} weight="duotone" />}
             onClick={() => broadcastReset("yaw")}
             disabled={list.length === 0}
           />
           <ResetButton
-            label="Full Reset"
+            label={t("actions.full_reset")}
             icon={<ArrowsClockwise size={20} weight="duotone" />}
             onClick={() => broadcastReset("full")}
             disabled={list.length === 0}
           />
           <ResetButton
-            label="Mounting"
+            label={t("actions.mounting_short")}
             icon={<Target size={20} weight="duotone" />}
             onClick={() => broadcastReset("mounting")}
             disabled={list.length === 0}
           />
         </div>
         <div className="mt-3 text-xs text-[var(--fg-muted)]">
-          Sends to all {list.length} active tracker{list.length === 1 ? "" : "s"}. Body model and
-          skeleton live on SlimeVR-Server.
+          {t(list.length === 1 ? "hints.broadcast_actions" : "hints.broadcast_actions_plural", {
+            count: list.length,
+          })}
         </div>
       </SectionPanel>
 
-      <SectionPanel title="Live trackers">
+      <SectionPanel title={t("pages.live_trackers")}>
         {list.length === 0 ? (
-          <Empty>No trackers detected. Pair a Joy-Con or enable synthetic mode in Settings.</Empty>
+          <Empty>{t("hints.no_trackers")}</Empty>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
             {list.map((snap) => {

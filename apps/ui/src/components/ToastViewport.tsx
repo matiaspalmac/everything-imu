@@ -1,4 +1,5 @@
 import { CheckCircle, Info, Warning, WarningOctagon, X } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
 import { type Toast, useToastStore } from "../stores/useToastStore";
 
 const ICON: Record<Toast["level"], React.ComponentType<{ size?: number }>> = {
@@ -16,31 +17,32 @@ const LEVEL_CLS: Record<Toast["level"], string> = {
 };
 
 export function ToastViewport() {
+  const { t } = useTranslation();
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
   if (toasts.length === 0) return null;
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-40 flex w-80 flex-col gap-2">
-      {toasts.map((t) => {
-        const Icon = ICON[t.level];
+      {toasts.map((toast) => {
+        const Icon = ICON[toast.level];
         return (
           <div
-            key={t.id}
-            className={`pointer-events-auto flex items-start gap-3 rounded-[var(--radius-md)] border bg-[var(--bg-panel)] p-3 shadow-lg ${LEVEL_CLS[t.level]}`}
+            key={toast.id}
+            className={`pointer-events-auto flex items-start gap-3 rounded-[var(--radius-md)] border bg-[var(--bg-panel)] p-3 shadow-lg ${LEVEL_CLS[toast.level]}`}
           >
             <span className="pt-0.5">
               <Icon size={18} />
             </span>
             <div className="min-w-0 flex-1">
-              {t.title && (
-                <div className="text-sm font-semibold text-[var(--fg-primary)]">{t.title}</div>
+              {toast.title && (
+                <div className="text-sm font-semibold text-[var(--fg-primary)]">{toast.title}</div>
               )}
-              <div className="text-xs text-[var(--fg-secondary)]">{t.message}</div>
+              <div className="text-xs text-[var(--fg-secondary)]">{toast.message}</div>
             </div>
             <button
               type="button"
-              onClick={() => dismiss(t.id)}
-              aria-label="Dismiss"
+              onClick={() => dismiss(toast.id)}
+              aria-label={t("window.dismiss")}
               className="text-[var(--fg-muted)] hover:text-[var(--fg-primary)]"
             >
               <X size={14} />

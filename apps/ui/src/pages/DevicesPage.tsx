@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import type { DeviceMetadataDto } from "../api/client";
 import { api } from "../api/client";
@@ -5,6 +6,7 @@ import { macHex, macKey as macKeyFn } from "../lib/macFormat";
 import { useDeviceStore } from "../stores/useDeviceStore";
 
 export function DevicesPage() {
+  const { t } = useTranslation();
   const devices = useDeviceStore((s) => s.devices);
   const navigate = useNavigate();
   const list = Object.values(devices);
@@ -13,19 +15,21 @@ export function DevicesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-section-header)]">
-          Devices
+          {t("pages.devices")}
         </h2>
-        <span className="text-xs text-[var(--fg-muted)]">{list.length} known</span>
+        <span className="text-xs text-[var(--fg-muted)]">
+          {t("status.known", { count: list.length })}
+        </span>
       </div>
       <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)]">
         <table className="w-full text-sm">
           <thead className="bg-[var(--bg-elevated)] text-xs uppercase tracking-wide text-[var(--fg-muted)]">
             <tr>
-              <th className="px-4 py-3 text-left">MAC</th>
-              <th className="px-4 py-3 text-left">Serial</th>
-              <th className="px-4 py-3 text-left">Kind</th>
-              <th className="px-4 py-3 text-left">Capabilities</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+              <th className="px-4 py-3 text-left">{t("labels.mac")}</th>
+              <th className="px-4 py-3 text-left">{t("labels.serial")}</th>
+              <th className="px-4 py-3 text-left">{t("labels.kind")}</th>
+              <th className="px-4 py-3 text-left">{t("labels.capabilities")}</th>
+              <th className="px-4 py-3 text-right">{t("labels.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -39,7 +43,7 @@ export function DevicesPage() {
             {list.length === 0 && (
               <tr>
                 <td className="px-4 py-8 text-center text-[var(--fg-muted)]" colSpan={5}>
-                  No devices detected. Pair a Joy-Con or enable synthetic mode.
+                  {t("hints.no_devices")}
                 </td>
               </tr>
             )}
@@ -51,6 +55,7 @@ export function DevicesPage() {
 }
 
 function Row({ d, onOpen }: { d: DeviceMetadataDto; onOpen: () => void }) {
+  const { t } = useTranslation();
   const caps: string[] = [];
   if (d.has_magnetometer) caps.push("mag");
   if (d.has_battery) caps.push("battery");
@@ -79,7 +84,7 @@ function Row({ d, onOpen }: { d: DeviceMetadataDto; onOpen: () => void }) {
             void api.requestReset(d.mac, "yaw");
           }}
         >
-          Reset Yaw
+          {t("actions.reset_yaw")}
         </button>
         <button
           type="button"
@@ -89,7 +94,7 @@ function Row({ d, onOpen }: { d: DeviceMetadataDto; onOpen: () => void }) {
             void api.requestReset(d.mac, "full");
           }}
         >
-          Reset Full
+          {t("actions.reset_full")}
         </button>
       </td>
     </tr>

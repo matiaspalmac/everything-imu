@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { api, events } from "../api/client";
 import { macHex, macKey } from "../lib/macFormat";
 import { useActivityStore } from "../stores/useActivityStore";
@@ -20,6 +21,7 @@ const BATTERY_LOW_THRESHOLD = 0.15;
  * navigating between routes.
  */
 export function EventBridge() {
+  const { t } = useTranslation();
   const applyTrackers = useTrackerStore((s) => s.apply);
   const observeMetrics = useMetricsStore((s) => s.observe);
   const ingestSamples = useImuStreamStore((s) => s.ingest);
@@ -49,19 +51,22 @@ export function EventBridge() {
       events.trackerUpdate.listen((e) => {
         applyTrackers(e.payload);
         observeMetrics(e.payload.trackers);
-        for (const t of e.payload.trackers) {
+        for (const tr of e.payload.trackers) {
           if (
-            Number.isFinite(t.battery_fraction) &&
-            t.battery_fraction > 0 &&
-            t.battery_fraction < BATTERY_LOW_THRESHOLD
+            Number.isFinite(tr.battery_fraction) &&
+            tr.battery_fraction > 0 &&
+            tr.battery_fraction < BATTERY_LOW_THRESHOLD
           ) {
-            const k = macKey(t.mac);
+            const k = macKey(tr.mac);
             if (!lowBatteryNotified.current.has(k)) {
               lowBatteryNotified.current.add(k);
               pushToast({
                 level: "warn",
-                title: "Battery low",
-                message: `${macHex(t.mac)} at ${Math.round(t.battery_fraction * 100)}%`,
+                title: t("toast.battery_low_title"),
+                message: t("toast.battery_low_message", {
+                  mac: macHex(tr.mac),
+                  pct: Math.round(tr.battery_fraction * 100),
+                }),
                 ttlMs: 8000,
               });
             }
@@ -75,11 +80,13 @@ export function EventBridge() {
         addDevice(e.payload.metadata);
         pushActivity({
           level: "success",
-          message: `Discovered ${e.payload.metadata.kind} (${macHex(e.payload.metadata.mac)})`,
+          message: `${t("toast.device_discovered_title")}: ${e.payload.metadata.kind} (${macHex(
+            e.payload.metadata.mac,
+          )})`,
         });
         pushToast({
           level: "success",
-          title: "Device discovered",
+          title: t("toast.device_discovered_title"),
           message: `${e.payload.metadata.kind} ${macHex(e.payload.metadata.mac)}`,
         });
       }),
@@ -90,7 +97,7 @@ export function EventBridge() {
         });
         pushToast({
           level: e.payload.state === "connected" ? "info" : "warn",
-          title: e.payload.state === "connected" ? "Reconnected" : "Disconnected",
+          title: e.payload.state === "connected" ? t("toast.reconnected") : t("toast.disconnected"),
           message: macHex(e.payload.mac),
         });
         if (e.payload.state === "disconnected") {
@@ -117,6 +124,7 @@ export function EventBridge() {
     pushLog,
     pushLogBatch,
     pushToast,
+    t,
   ]);
 
   return null;

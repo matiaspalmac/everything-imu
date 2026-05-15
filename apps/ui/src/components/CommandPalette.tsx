@@ -11,6 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { Command } from "cmdk";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useTrackerStore } from "../stores/useTrackerStore";
@@ -30,6 +31,7 @@ type Action = {
  * component only wires the action registry and the global hotkey.
  */
 export function CommandPalette() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const trackers = useTrackerStore((s) => s.trackers);
@@ -47,62 +49,65 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const macs = Object.values(trackers).map((t) => t.mac);
+  const macs = Object.values(trackers).map((tr) => tr.mac);
 
   function broadcast(kind: "yaw" | "full" | "mounting") {
     for (const m of macs) void api.requestReset(m, kind);
   }
 
+  const countHint = t(macs.length === 1 ? "status.tracker_count" : "status.tracker_count_plural", {
+    count: macs.length,
+  });
   const actions: Action[] = [
     {
       id: "nav-dash",
-      label: "Go to Dashboard",
+      label: t("palette.go_dashboard"),
       icon: House,
       run: () => navigate("/"),
     },
     {
       id: "nav-conn",
-      label: "Go to Connection",
-      hint: "diagnostics + activity feed",
+      label: t("palette.go_connection"),
+      hint: t("palette.go_connection_hint"),
       icon: Pulse,
       run: () => navigate("/connection"),
     },
     {
       id: "nav-dev",
-      label: "Go to Devices",
+      label: t("palette.go_devices"),
       icon: Plugs,
       run: () => navigate("/devices"),
     },
     {
       id: "nav-logs",
-      label: "Go to Logs",
+      label: t("palette.go_logs"),
       icon: ListBullets,
       run: () => navigate("/logs"),
     },
     {
       id: "nav-settings",
-      label: "Go to Settings",
+      label: t("palette.go_settings"),
       icon: GearSix,
       run: () => navigate("/settings"),
     },
     {
       id: "broadcast-yaw",
-      label: "Broadcast Yaw Reset",
-      hint: `${macs.length} tracker${macs.length === 1 ? "" : "s"}`,
+      label: t("palette.bc_yaw"),
+      hint: countHint,
       icon: Crosshair,
       run: () => broadcast("yaw"),
     },
     {
       id: "broadcast-full",
-      label: "Broadcast Full Reset",
-      hint: `${macs.length} tracker${macs.length === 1 ? "" : "s"}`,
+      label: t("palette.bc_full"),
+      hint: countHint,
       icon: ArrowsClockwise,
       run: () => broadcast("full"),
     },
     {
       id: "broadcast-mounting",
-      label: "Broadcast Mounting Calibrate",
-      hint: `${macs.length} tracker${macs.length === 1 ? "" : "s"}`,
+      label: t("palette.bc_mounting"),
+      hint: countHint,
       icon: Target,
       run: () => broadcast("mounting"),
     },
@@ -124,19 +129,19 @@ export function CommandPalette() {
       }}
     >
       <Command
-        label="Command palette"
+        label={t("palette.title")}
         loop
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-xl overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] shadow-2xl"
       >
         <Command.Input
           autoFocus
-          placeholder="Type a command or search…"
+          placeholder={t("palette.placeholder")}
           className="w-full border-b border-[var(--border-subtle)] bg-transparent px-4 py-3 text-sm text-[var(--fg-primary)] placeholder:text-[var(--fg-muted)] focus:outline-none"
         />
         <Command.List className="max-h-80 overflow-auto p-2">
           <Command.Empty className="px-3 py-4 text-center text-xs text-[var(--fg-muted)]">
-            No matching command.
+            {t("palette.empty")}
           </Command.Empty>
           {actions.map((a) => {
             const Icon = a.icon;
@@ -155,8 +160,8 @@ export function CommandPalette() {
           })}
         </Command.List>
         <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-3 py-1.5 text-[10px] text-[var(--fg-muted)]">
-          <span>↑↓ navigate · ↵ select · Esc close</span>
-          <span>Ctrl+K toggle</span>
+          <span>{t("palette.footer_nav")}</span>
+          <span>{t("palette.footer_toggle")}</span>
         </div>
       </Command>
     </div>

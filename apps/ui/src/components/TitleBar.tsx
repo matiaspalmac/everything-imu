@@ -1,8 +1,10 @@
 import { Minus, Square, X } from "@phosphor-icons/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 export function TitleBar() {
+  const { t } = useTranslation();
   // Guard: getCurrentWindow throws when running in plain browser (vite dev
   // outside Tauri webview). Keep titlebar render-safe for designers preview.
   const win = useMemo(() => {
@@ -39,7 +41,7 @@ export function TitleBar() {
 
       <button
         type="button"
-        aria-label="Minimize"
+        aria-label={t("window.minimize")}
         onClick={() => void win?.minimize()}
         className="grid w-11 place-items-center text-[var(--fg-muted)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--fg-primary)]"
       >
@@ -47,7 +49,7 @@ export function TitleBar() {
       </button>
       <button
         type="button"
-        aria-label="Maximize"
+        aria-label={t("window.maximize")}
         onClick={() => void win?.toggleMaximize()}
         className="grid w-11 place-items-center text-[var(--fg-muted)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--fg-primary)]"
       >
@@ -55,7 +57,7 @@ export function TitleBar() {
       </button>
       <button
         type="button"
-        aria-label="Close"
+        aria-label={t("window.close")}
         onClick={() => void win?.close()}
         className="grid w-11 place-items-center text-[var(--fg-muted)] transition-colors hover:bg-[var(--danger)] hover:text-[var(--fg-inverse)]"
       >

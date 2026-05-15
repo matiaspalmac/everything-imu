@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
 import { useToastStore } from "../stores/useToastStore";
 import { useTrackerStore } from "../stores/useTrackerStore";
@@ -9,6 +10,7 @@ import { useTrackerStore } from "../stores/useTrackerStore";
  * CommandPalette; we deliberately don't claim it here.
  */
 export function KeyboardShortcuts() {
+  const { t } = useTranslation();
   const trackers = useTrackerStore((s) => s.trackers);
   const pushToast = useToastStore((s) => s.push);
 
@@ -22,22 +24,25 @@ export function KeyboardShortcuts() {
       ) {
         return;
       }
-      const macs = Object.values(trackers).map((t) => t.mac);
+      const macs = Object.values(trackers).map((tr) => tr.mac);
       if (macs.length === 0) return;
       if (e.key === "r" || e.key === "R") {
         e.preventDefault();
         const kind: "yaw" | "full" = e.shiftKey ? "full" : "yaw";
         for (const m of macs) void api.requestReset(m, kind);
+        const baseKey =
+          kind === "full" ? "shortcuts.broadcast_full_done" : "shortcuts.broadcast_yaw_done";
+        const key = macs.length === 1 ? baseKey : `${baseKey}_plural`;
         pushToast({
           level: "info",
-          message: `Broadcast ${kind === "full" ? "Full" : "Yaw"} reset to ${macs.length} tracker${macs.length === 1 ? "" : "s"}`,
+          message: t(key, { count: macs.length }),
           ttlMs: 2500,
         });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [trackers, pushToast]);
+  }, [trackers, pushToast, t]);
 
   return null;
 }

@@ -1,32 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { FusionAlgoDto, MountingOrientationDto, PerDeviceSettingsDto } from "../api/client";
 import { api } from "../api/client";
 
-const FUSION_OPTIONS: { id: FusionAlgoDto; label: string; hint: string }[] = [
-  {
-    id: "vqf",
-    label: "VQF",
-    hint: "default · Laidig 2023, gyro+accel+mag, bias Kalman",
-  },
-  {
-    id: "madgwick",
-    label: "Madgwick",
-    hint: "gradient-descent, lighter CPU",
-  },
-  {
-    id: "basic_vqf",
-    label: "Basic VQF",
-    hint: "6D subset of VQF without bias / rest detection",
-  },
-];
-
-const MOUNTING_OPTIONS: { id: MountingOrientationDto; label: string }[] = [
-  { id: "identity", label: "Identity" },
-  { id: "left_side", label: "Left side" },
-  { id: "right_side", label: "Right side" },
-  { id: "upside_down", label: "Upside down" },
-  { id: "facing_forward", label: "Facing forward" },
-  { id: "facing_back", label: "Facing back" },
+const FUSION_IDS: FusionAlgoDto[] = ["vqf", "madgwick", "basic_vqf"];
+const MOUNTING_IDS: MountingOrientationDto[] = [
+  "identity",
+  "left_side",
+  "right_side",
+  "upside_down",
+  "facing_forward",
+  "facing_back",
 ];
 
 export function PerDeviceConfig({
@@ -34,9 +18,20 @@ export function PerDeviceConfig({
 }: {
   mac: [number, number, number, number, number, number];
 }) {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<PerDeviceSettingsDto | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+
+  const FUSION_OPTIONS = FUSION_IDS.map((id) => ({
+    id,
+    label: t(`fusion.${id}`),
+    hint: t(`fusion.${id}_hint`),
+  }));
+  const MOUNTING_OPTIONS = MOUNTING_IDS.map((id) => ({
+    id,
+    label: t(`mounting.${id}`),
+  }));
 
   const reload = useCallback(async () => {
     const res = await api.getPerDeviceSettings(mac);
@@ -53,10 +48,10 @@ export function PerDeviceConfig({
     try {
       const res = await api.setFusionAlgo(mac, algo);
       if (res.status === "ok") {
-        setMsg(`Fusion → ${algo} (reconnect tracker to apply)`);
+        setMsg(t("msg.fusion_set", { algo: t(`fusion.${algo}`) }));
         await reload();
       } else {
-        setMsg(`Error: ${JSON.stringify(res.error)}`);
+        setMsg(t("msg.error_generic", { err: JSON.stringify(res.error) }));
       }
     } finally {
       setBusy(null);
@@ -69,10 +64,10 @@ export function PerDeviceConfig({
     try {
       const res = await api.setMountingOrientation(mac, o);
       if (res.status === "ok") {
-        setMsg(`Mounting → ${o} (live)`);
+        setMsg(t("msg.mounting_set", { orientation: t(`mounting.${o}`) }));
         await reload();
       } else {
-        setMsg(`Error: ${JSON.stringify(res.error)}`);
+        setMsg(t("msg.error_generic", { err: JSON.stringify(res.error) }));
       }
     } finally {
       setBusy(null);
@@ -85,10 +80,10 @@ export function PerDeviceConfig({
     try {
       const res = await api.setMagnetometerEnabled(mac, enabled);
       if (res.status === "ok") {
-        setMsg(`Magnetometer ${enabled ? "enabled" : "disabled"} (live)`);
+        setMsg(enabled ? t("msg.mag_enabled") : t("msg.mag_disabled"));
         await reload();
       } else {
-        setMsg(`Error: ${JSON.stringify(res.error)}`);
+        setMsg(t("msg.error_generic", { err: JSON.stringify(res.error) }));
       }
     } finally {
       setBusy(null);
@@ -102,7 +97,7 @@ export function PerDeviceConfig({
       if (res.status === "ok") {
         await reload();
       } else {
-        setMsg(`Error: ${JSON.stringify(res.error)}`);
+        setMsg(t("msg.error_generic", { err: JSON.stringify(res.error) }));
       }
     } finally {
       setBusy(null);
@@ -111,12 +106,12 @@ export function PerDeviceConfig({
 
   return (
     <div className="flex flex-col gap-4 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4">
-      <Section label="Label">
+      <Section label={t("labels.label")}>
         <input
           type="text"
           value={settings?.label ?? ""}
           maxLength={64}
-          placeholder="e.g. right shin"
+          placeholder={t("label_placeholder")}
           onChange={(e) => {
             if (settings) setSettings({ ...settings, label: e.target.value });
           }}
@@ -124,12 +119,10 @@ export function PerDeviceConfig({
           disabled={busy === "label"}
           className="w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-sm text-[var(--fg-primary)] focus:border-[var(--accent)] focus:outline-none"
         />
-        <p className="text-[11px] text-[var(--fg-muted)]">
-          Informational only. SlimeVR-Server owns body assignment.
-        </p>
+        <p className="text-[11px] text-[var(--fg-muted)]">{t("hints.label_info")}</p>
       </Section>
 
-      <Section label="Fusion algorithm">
+      <Section label={t("labels.fusion_algorithm")}>
         <div className="flex flex-wrap gap-2">
           {FUSION_OPTIONS.map((opt) => {
             const active = settings?.fusion === opt.id;
@@ -154,7 +147,7 @@ export function PerDeviceConfig({
         </div>
       </Section>
 
-      <Section label="Mounting orientation">
+      <Section label={t("labels.mounting_orientation")}>
         <div className="flex flex-wrap gap-2">
           {MOUNTING_OPTIONS.map((opt) => {
             const active = settings?.mounting === opt.id;
@@ -177,7 +170,7 @@ export function PerDeviceConfig({
         </div>
       </Section>
 
-      <Section label="Magnetometer">
+      <Section label={t("labels.magnetometer")}>
         <label className="flex items-center gap-2 text-sm text-[var(--fg-secondary)]">
           <input
             type="checkbox"
@@ -186,12 +179,9 @@ export function PerDeviceConfig({
             onChange={(e) => void toggleMag(e.target.checked)}
             className="h-4 w-4 accent-[var(--accent)]"
           />
-          Feed magnetometer to fusion (9D yaw)
+          {t("hints.feed_mag")}
         </label>
-        <p className="text-[11px] text-[var(--fg-muted)]">
-          Joy-Con 1 has no magnetometer. Enabling on JC2/Wii forwards mag samples once
-          SET_CONFIG_FLAG is wired (Sprint 7).
-        </p>
+        <p className="text-[11px] text-[var(--fg-muted)]">{t("hints.magnetometer")}</p>
       </Section>
 
       {msg && <div className="text-[11px] text-[var(--fg-muted)]">{msg}</div>}

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { ConnectionStatusCard } from "../components/ConnectionStatusCard";
 import { Sparkline } from "../components/Sparkline";
@@ -6,19 +7,20 @@ import { useMetricsStore } from "../stores/useMetricsStore";
 import { useTrackerStore } from "../stores/useTrackerStore";
 
 export function ConnectionPage() {
+  const { t } = useTranslation();
   const trackers = useTrackerStore((s) => s.trackers);
   const histByMac = useMetricsStore((s) => s.perMacHist);
   const list = Object.values(trackers);
 
   return (
     <div className="flex flex-col gap-6">
-      <Section title="Connection">
+      <Section title={t("pages.connection")}>
         <ConnectionStatusCard />
       </Section>
 
-      <Section title="Per-tracker rate">
+      <Section title={t("pages.per_tracker_rate")}>
         {list.length === 0 ? (
-          <Empty>No trackers yet.</Empty>
+          <Empty>{t("hints.no_trackers_short")}</Empty>
         ) : (
           <div className="flex flex-col divide-y divide-[var(--border-subtle)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)]">
             {list.map((t) => {
@@ -40,7 +42,7 @@ export function ConnectionPage() {
         )}
       </Section>
 
-      <Section title="Activity">
+      <Section title={t("pages.activity")}>
         <ActivityFeed />
       </Section>
     </div>

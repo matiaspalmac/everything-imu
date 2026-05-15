@@ -1,11 +1,13 @@
 import { Pause, Play } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { LogRow } from "../components/LogRow";
 import { useLogStore } from "../stores/useLogStore";
 
 const LEVEL_ORDER = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"];
 
 export function LogsPage() {
+  const { t } = useTranslation();
   const entries = useLogStore((s) => s.entries);
   const filterLevel = useLogStore((s) => s.filterLevel);
   const filterText = useLogStore((s) => s.filterText);
@@ -39,12 +41,12 @@ export function LogsPage() {
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-section-header)]">
-          Logs
+          {t("logs.title")}
         </h2>
         <div className="flex items-center gap-3 text-xs text-[var(--fg-muted)]">
-          <span>{filtered.length.toLocaleString()} shown</span>
+          <span>{t("status.shown", { count: filtered.length })}</span>
           <span>·</span>
-          <span>{entries.length.toLocaleString()} captured</span>
+          <span>{t("status.captured", { count: entries.length })}</span>
         </div>
       </div>
 
@@ -62,7 +64,7 @@ export function LogsPage() {
         </select>
         <input
           type="text"
-          placeholder="Filter…"
+          placeholder={t("labels.filter")}
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
           className="flex-1 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 py-1.5 text-sm text-[var(--fg-primary)] focus:border-[var(--accent)] focus:outline-none"
@@ -70,8 +72,8 @@ export function LogsPage() {
         <ToggleButton
           on={!paused}
           onClick={() => setPaused(!paused)}
-          labelOn="Streaming"
-          labelOff="Paused"
+          labelOn={t("labels.streaming")}
+          labelOff={t("labels.paused")}
           iconOn={<Pause size={14} />}
           iconOff={<Play size={14} />}
         />
@@ -82,7 +84,7 @@ export function LogsPage() {
             onChange={(e) => setFollow(e.target.checked)}
             className="accent-[var(--accent)]"
           />
-          Follow
+          {t("labels.follow")}
         </label>
       </div>
 
@@ -95,9 +97,7 @@ export function LogsPage() {
           <LogRow key={`${e.ts_ms}-${i}`} entry={e} />
         ))}
         {filtered.length === 0 && (
-          <div className="p-6 text-center text-sm text-[var(--fg-muted)]">
-            No log entries match filter.
-          </div>
+          <div className="p-6 text-center text-sm text-[var(--fg-muted)]">{t("hints.no_logs")}</div>
         )}
       </div>
     </div>

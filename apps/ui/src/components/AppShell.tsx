@@ -43,7 +43,7 @@ export function AppShell() {
       <TitleBar />
       <div className="flex min-h-0 flex-1">
         <aside
-          aria-label="Primary navigation"
+          aria-label={t("window.primary_nav")}
           className="flex w-[var(--activitybar-w)] shrink-0 flex-col items-center gap-1 border-r border-[var(--border-subtle)] bg-[var(--bg-panel)] py-2"
         >
           {PRIMARY.map((it) => (

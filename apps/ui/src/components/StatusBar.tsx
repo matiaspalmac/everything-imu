@@ -1,13 +1,15 @@
 import { CircleNotch, Keyboard, Pause, Play, Plug, PlugsConnected } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useConnectionStore } from "../stores/useConnectionStore";
 import { useTrackerStore } from "../stores/useTrackerStore";
 
-const VERSION = "1.0.0-alpha.0";
+const VERSION = __APP_VERSION__;
 
 export function StatusBar() {
+  const { t } = useTranslation();
   const status = useConnectionStore((s) => s.status);
   const trackers = useTrackerStore((s) => s.trackers);
   const list = Object.values(trackers);
@@ -45,12 +47,18 @@ export function StatusBar() {
           <Plug size={12} />
         )}
         <span className={live && !stale ? "text-[var(--success)]" : ""}>
-          {live && !stale ? "live" : list.length > 0 ? "stalled" : "idle"}
+          {live && !stale
+            ? t("status.live")
+            : list.length > 0
+              ? t("status.stalled")
+              : t("status.idle")}
         </span>
       </span>
       <span className="text-[var(--border-strong)]">·</span>
       <span>
-        {list.length} tracker{list.length === 1 ? "" : "s"}
+        {t(list.length === 1 ? "status.tracker_count" : "status.tracker_count_plural", {
+          count: list.length,
+        })}
       </span>
       {list.length > 0 && (
         <>
@@ -61,7 +69,7 @@ export function StatusBar() {
       {status && (
         <>
           <span className="text-[var(--border-strong)]">·</span>
-          <span className="font-mono">{status.packets_sent.toLocaleString()} pkts</span>
+          <span className="font-mono">{t("status.pkts", { count: status.packets_sent })}</span>
           <span className="text-[var(--border-strong)]">·</span>
           <span className="font-mono">{status.server_addr}</span>
         </>
@@ -70,7 +78,7 @@ export function StatusBar() {
         <button
           type="button"
           onClick={() => void togglePause()}
-          title={paused ? "Resume UDP emission" : "Pause UDP emission"}
+          title={paused ? t("status.resume_emission") : t("status.pause_emission")}
           className={`flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 transition-colors ${
             paused
               ? "bg-[var(--warn-soft)] text-[var(--warn)]"
@@ -78,16 +86,16 @@ export function StatusBar() {
           }`}
         >
           {paused ? <Play size={12} /> : <Pause size={12} />}
-          {paused ? "paused" : "running"}
+          {paused ? t("status.paused") : t("status.running")}
         </button>
         <span className="text-[var(--border-strong)]">·</span>
         <Link
           to="/help"
           className="flex items-center gap-1 hover:text-[var(--accent)]"
-          title="Keyboard shortcuts + about"
+          title={t("status.help_title")}
         >
           <Keyboard size={12} />
-          help
+          {t("status.help_short")}
         </Link>
         <span className="text-[var(--border-strong)]">·</span>
         <span className="font-mono">v{VERSION}</span>

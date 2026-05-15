@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowsClockwise, Crosshair, Target } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { BiasDisplay } from "../components/BiasDisplay";
@@ -19,6 +20,7 @@ import { useTrackerStore } from "../stores/useTrackerStore";
 const AXIS_COLOR = ["#e57373", "#81c784", "#64b5f6"];
 
 export function TrackerDetailPage() {
+  const { t } = useTranslation();
   const params = useParams<{ macKey: string }>();
   const macKey = params.macKey ?? "";
   const navigate = useNavigate();
@@ -53,9 +55,13 @@ export function TrackerDetailPage() {
     setMsg(null);
     try {
       const res = await api.requestReset(macBytes, action);
-      setMsg(res.status === "ok" ? `${label} sent` : `Error: ${JSON.stringify(res.error)}`);
+      setMsg(
+        res.status === "ok"
+          ? t("msg.action_sent", { action: label })
+          : t("msg.error_generic", { err: JSON.stringify(res.error) }),
+      );
     } catch (e) {
-      setMsg(`Error: ${e}`);
+      setMsg(t("msg.error_generic", { err: String(e) }));
     } finally {
       setBusy(null);
     }
@@ -68,10 +74,12 @@ export function TrackerDetailPage() {
     try {
       const res = await api.setDeviceRotationOffset(macBytes, rotationDeg);
       setMsg(
-        res.status === "ok" ? "Rotation offset applied" : `Error: ${JSON.stringify(res.error)}`,
+        res.status === "ok"
+          ? t("msg.rotation_applied")
+          : t("msg.error_generic", { err: JSON.stringify(res.error) }),
       );
     } catch (e) {
-      setMsg(`Error: ${e}`);
+      setMsg(t("msg.error_generic", { err: String(e) }));
     } finally {
       setBusy(null);
     }
@@ -80,9 +88,9 @@ export function TrackerDetailPage() {
   if (!macBytes) {
     return (
       <div className="text-sm text-[var(--fg-muted)]">
-        Unknown tracker.{" "}
+        {t("hints.unknown_tracker")}{" "}
         <Link to="/devices" className="text-[var(--accent)] underline">
-          Back to devices
+          {t("hints.back_to_devices")}
         </Link>
       </div>
     );
@@ -114,7 +122,7 @@ export function TrackerDetailPage() {
         onClick={() => navigate(-1)}
         className="flex items-center gap-1 text-xs text-[var(--fg-muted)] hover:text-[var(--accent)]"
       >
-        <ArrowLeft size={14} /> back
+        <ArrowLeft size={14} /> {t("actions.back")}
       </button>
 
       <div className="flex flex-wrap items-center gap-4">
@@ -129,7 +137,9 @@ export function TrackerDetailPage() {
           <div className="flex items-center gap-2 pt-1">
             <StatusBadge rateHz={snap?.rate_hz ?? 0} targetHz={targetHz} />
             {battery !== null && (
-              <span className="text-xs text-[var(--fg-secondary)]">battery {battery}%</span>
+              <span className="text-xs text-[var(--fg-secondary)]">
+                {t("labels.battery", { pct: battery })}
+              </span>
             )}
             {dev?.has_magnetometer && <Pill>magnetometer</Pill>}
             {dev?.has_rumble && <Pill>rumble</Pill>}
@@ -139,26 +149,26 @@ export function TrackerDetailPage() {
         <Sparkline values={rates} width={160} height={40} />
       </div>
 
-      <Section title="Orientation">
+      <Section title={t("pages.orientation")}>
         <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4">
           <QuaternionDisplay quat={snap?.quat_xyzw ?? [0, 0, 0, 1]} />
         </div>
       </Section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Section title="Gyroscope (rad/s)">
+        <Section title={t("pages.gyroscope")}>
           <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-3">
             {gyrSeries.length === 0 || gyrSeries.every((s) => s.values.length === 0) ? (
-              <Empty>Waiting for samples…</Empty>
+              <Empty>{t("hints.waiting_samples")}</Empty>
             ) : (
               <MultiSparkline series={gyrSeries} width={400} height={90} />
             )}
           </div>
         </Section>
-        <Section title="Accelerometer (m/s²)">
+        <Section title={t("pages.accelerometer")}>
           <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-3">
             {accSeries.length === 0 || accSeries.every((s) => s.values.length === 0) ? (
-              <Empty>Waiting for samples…</Empty>
+              <Empty>{t("hints.waiting_samples")}</Empty>
             ) : (
               <MultiSparkline series={accSeries} width={400} height={90} />
             )}
@@ -166,38 +176,38 @@ export function TrackerDetailPage() {
         </Section>
       </div>
 
-      <Section title="Live VQF gyro bias">
+      <Section title={t("pages.live_bias")}>
         <BiasDisplay bias={bias ?? null} />
       </Section>
 
-      <Section title="Per-device configuration">
+      <Section title={t("pages.per_device_config")}>
         <PerDeviceConfig mac={macBytes} />
       </Section>
 
-      <Section title="Reset actions">
+      <Section title={t("pages.reset_actions")}>
         <div className="flex flex-wrap gap-2">
           <ActionButton
             disabled={busy !== null}
-            label="Yaw Reset"
+            label={t("actions.yaw_reset")}
             icon={<Crosshair size={16} />}
-            onClick={() => void send("yaw", "Yaw reset")}
+            onClick={() => void send("yaw", t("actions.yaw_reset"))}
           />
           <ActionButton
             disabled={busy !== null}
-            label="Full Reset"
+            label={t("actions.full_reset")}
             icon={<ArrowsClockwise size={16} />}
-            onClick={() => void send("full", "Full reset")}
+            onClick={() => void send("full", t("actions.full_reset"))}
           />
           <ActionButton
             disabled={busy !== null}
-            label="Mounting Calibrate"
+            label={t("actions.mounting_calibrate")}
             icon={<Target size={16} />}
-            onClick={() => void send("mounting", "Mounting calibrate")}
+            onClick={() => void send("mounting", t("actions.mounting_calibrate"))}
           />
         </div>
       </Section>
 
-      <Section title="Rotation offset">
+      <Section title={t("pages.rotation_offset")}>
         <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4">
           <div className="flex items-center gap-3">
             <input
@@ -230,13 +240,10 @@ export function TrackerDetailPage() {
               onClick={() => void applyRotation()}
               className="ml-auto rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1 text-xs font-semibold text-[var(--fg-inverse)] transition-colors hover:bg-[var(--accent-bright)] disabled:opacity-50"
             >
-              {busy === "rotation" ? "applying…" : "apply"}
+              {busy === "rotation" ? t("actions.applying") : t("actions.apply")}
             </button>
           </div>
-          <div className="text-[11px] text-[var(--fg-muted)]">
-            Offset is applied client-side to outgoing rotation packets. Body assignment and mounting
-            model live on SlimeVR-Server.
-          </div>
+          <div className="text-[11px] text-[var(--fg-muted)]">{t("hints.rotation_offset")}</div>
         </div>
       </Section>
 

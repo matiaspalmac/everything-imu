@@ -10,9 +10,10 @@ import { type SupportedLocale, setLocale } from "../i18n";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import { type Theme, useThemeStore } from "../stores/useThemeStore";
 
-const VERSION = "1.0.0-alpha.0";
+const VERSION = __APP_VERSION__;
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const settings = useSettingsStore((s) => s.settings);
   const replace = useSettingsStore((s) => s.replace);
   const setLocal = useSettingsStore((s) => s.set);
@@ -46,9 +47,9 @@ export function SettingsPage() {
       if (next) await enableAutostart();
       else await disableAutostart();
       await refreshAutostart();
-      setMsg(next ? "Will launch on Windows login." : "Autostart disabled.");
+      setMsg(next ? t("msg.autostart_on") : t("msg.autostart_off"));
     } catch (e) {
-      setMsg(`Autostart error: ${e}`);
+      setMsg(t("msg.autostart_error", { err: String(e) }));
     } finally {
       setSaving(false);
     }
@@ -61,9 +62,9 @@ export function SettingsPage() {
     setMsg(null);
     try {
       await api.setSetting(key, value);
-      setMsg(hint ?? "Saved.");
+      setMsg(hint ?? t("msg.generic_saved"));
     } catch (e) {
-      setMsg(`Error: ${e}`);
+      setMsg(t("msg.error_generic", { err: String(e) }));
     } finally {
       setSaving(false);
     }
@@ -72,11 +73,7 @@ export function SettingsPage() {
   async function commitServerAddr() {
     if (serverAddrDraft === settings.slime_server_addr) return;
     setLocal({ slime_server_addr: serverAddrDraft });
-    await autosave(
-      "slime_server_addr",
-      serverAddrDraft,
-      "Saved. Restart app to apply server address change.",
-    );
+    await autosave("slime_server_addr", serverAddrDraft, t("msg.server_addr_saved"));
   }
 
   async function spawnSynthetic(count: number) {
@@ -86,11 +83,11 @@ export function SettingsPage() {
       const res = await api.restartSynthetic(count);
       setMsg(
         res.status === "ok"
-          ? `Synthetic Joy-Con count = ${count}`
-          : `Error: ${JSON.stringify(res.error)}`,
+          ? t("msg.synth_count", { count })
+          : t("msg.error_generic", { err: JSON.stringify(res.error) }),
       );
     } catch (e) {
-      setMsg(`Error: ${e}`);
+      setMsg(t("msg.error_generic", { err: String(e) }));
     } finally {
       setSaving(false);
     }
@@ -99,11 +96,11 @@ export function SettingsPage() {
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--fg-section-header)]">
-        Settings
+        {t("pages.settings")}
       </h2>
 
-      <Card title="SlimeVR-Server connection">
-        <Field label="Server address">
+      <Card title={t("cards.slime_connection")}>
+        <Field label={t("labels.server_address")}>
           <input
             type="text"
             value={serverAddrDraft}
@@ -116,35 +113,32 @@ export function SettingsPage() {
             placeholder="127.0.0.1:6969"
           />
         </Field>
-        <p className="text-[11px] text-[var(--fg-muted)]">
-          UDP target. SlimeVR-Server listens on 6969 by default. Restart the app for the new address
-          to take effect.
-        </p>
+        <p className="text-[11px] text-[var(--fg-muted)]">{t("hints.server_address")}</p>
       </Card>
 
-      <Card title="Diagnostics">
+      <Card title={t("cards.diagnostics")}>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => void api.openLogsDir()}
             className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
           >
-            Open logs folder
+            {t("actions.open_logs_folder")}
           </button>
           <button
             type="button"
             onClick={() => void api.openDataDir()}
             className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
           >
-            Open data folder
+            {t("actions.open_data_folder")}
           </button>
         </div>
-        <Field label="Log level">
+        <Field label={t("labels.log_level")}>
           <select
             value={settings.log_filter}
             onChange={(e) => {
               setLocal({ log_filter: e.target.value });
-              void autosave("log_filter", e.target.value, "Log level updated.");
+              void autosave("log_filter", e.target.value, t("msg.log_level_updated"));
             }}
             className="w-full rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 py-2 text-sm text-[var(--fg-primary)] focus:border-[var(--accent)] focus:outline-none"
           >
@@ -157,12 +151,12 @@ export function SettingsPage() {
         </Field>
       </Card>
 
-      <Card title="Appearance">
+      <Card title={t("cards.appearance")}>
         <ThemePicker />
         <LocalePicker />
       </Card>
 
-      <Card title="Startup">
+      <Card title={t("cards.startup")}>
         <label className="flex items-center gap-2 text-sm text-[var(--fg-secondary)]">
           <input
             type="checkbox"
@@ -171,19 +165,17 @@ export function SettingsPage() {
             onChange={(e) => void toggleAutostart(e.target.checked)}
             className="h-4 w-4 accent-[var(--accent)]"
           />
-          Launch on system startup
+          {t("labels.launch_on_startup")}
         </label>
-        <p className="text-[11px] text-[var(--fg-muted)]">
-          Registers a login-item entry. The app starts hidden.
-        </p>
+        <p className="text-[11px] text-[var(--fg-muted)]">{t("hints.autostart")}</p>
       </Card>
 
-      <Card title="Tips">
-        <Row label="Command palette" value="Ctrl + K" mono />
-        <Row label="JoyCon latency" value="Rename BT adapter to 'Nintendo' & restart PC" />
+      <Card title={t("cards.tips")}>
+        <Row label={t("labels.command_palette")} value={t("tips.command_palette_keys")} mono />
+        <Row label={t("tips.joycon_label")} value={t("tips.joycon_value")} />
       </Card>
 
-      <Card title="Developer">
+      <Card title={t("cards.developer")}>
         <label className="flex items-center gap-2 text-sm text-[var(--fg-secondary)]">
           <input
             type="checkbox"
@@ -193,15 +185,15 @@ export function SettingsPage() {
               void autosave(
                 "auto_start_synthetic",
                 e.target.checked ? "1" : "0",
-                "Synthetic auto-start updated.",
+                t("msg.synth_auto_updated"),
               );
             }}
             className="h-4 w-4 accent-[var(--accent)]"
           />
-          Auto-start synthetic Joy-Con on launch
+          {t("hints.auto_start_synthetic")}
         </label>
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <span className="text-xs text-[var(--fg-muted)]">Spawn now:</span>
+          <span className="text-xs text-[var(--fg-muted)]">{t("hints.spawn_now")}</span>
           {[0, 1, 2, 4].map((n) => (
             <button
               key={n}
@@ -210,7 +202,7 @@ export function SettingsPage() {
               onClick={() => void spawnSynthetic(n)}
               className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)] disabled:opacity-50"
             >
-              {n === 0 ? "stop" : `${n}`}
+              {n === 0 ? t("hints.spawn_stop") : `${n}`}
             </button>
           ))}
         </div>
@@ -218,23 +210,20 @@ export function SettingsPage() {
 
       <div className="flex items-center gap-3 text-xs text-[var(--fg-muted)]">
         {saving ? (
-          <span>Saving…</span>
+          <span>{t("hints.saving")}</span>
         ) : msg ? (
           <span className="text-[var(--fg-secondary)]">{msg}</span>
         ) : (
-          <span>Changes are saved automatically.</span>
+          <span>{t("hints.autosave")}</span>
         )}
       </div>
 
-      <Card title="About">
-        <Row label="Version" value={VERSION} mono />
-        <Row label="Repository" value="github.com/matiaspalmac/everything-imu" mono />
-        <Row label="License" value="MIT" />
-        <Row label="Protocol" value="SlimeIMU v0.4.x byte-exact" />
-        <p className="pt-2 text-[11px] text-[var(--fg-muted)]">
-          everything-imu is a bridge from consumer IMU controllers (Joy-Con, DualSense, Wii, …) to
-          SlimeVR-Server. Body model, skeleton, and mounting calibration live on the server.
-        </p>
+      <Card title={t("cards.about")}>
+        <Row label={t("labels.version")} value={VERSION} mono />
+        <Row label={t("labels.repository")} value={t("repo")} mono />
+        <Row label={t("labels.license")} value="MIT" />
+        <Row label={t("labels.protocol")} value={t("protocol_value")} />
+        <p className="pt-2 text-[11px] text-[var(--fg-muted)]">{t("hints.about_app")}</p>
       </Card>
     </div>
   );
@@ -262,18 +251,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const THEME_OPTIONS: { id: Theme; label: string; hint: string }[] = [
-  { id: "dark", label: "Dark", hint: "Sumi-ink (default)" },
-  { id: "light", label: "Light", hint: "Washi paper" },
-  { id: "system", label: "System", hint: "Follow OS preference" },
-];
-
 function ThemePicker() {
+  const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.set);
+  const options: { id: Theme; labelKey: string; hintKey: string }[] = [
+    { id: "dark", labelKey: "theme.dark", hintKey: "theme.dark_hint" },
+    { id: "light", labelKey: "theme.light", hintKey: "theme.light_hint" },
+    { id: "system", labelKey: "theme.system", hintKey: "theme.system_hint" },
+  ];
   return (
     <div className="flex flex-wrap gap-2">
-      {THEME_OPTIONS.map((opt) => {
+      {options.map((opt) => {
         const active = theme === opt.id;
         return (
           <button
@@ -286,8 +275,8 @@ function ThemePicker() {
                 : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--fg-secondary)] hover:border-[var(--border-strong)]"
             }`}
           >
-            <span className="text-sm font-semibold">{opt.label}</span>
-            <span className="text-[10px] text-[var(--fg-muted)]">{opt.hint}</span>
+            <span className="text-sm font-semibold">{t(opt.labelKey)}</span>
+            <span className="text-[10px] text-[var(--fg-muted)]">{t(opt.hintKey)}</span>
           </button>
         );
       })}
@@ -301,12 +290,12 @@ const LOCALE_OPTIONS: { id: SupportedLocale; label: string }[] = [
 ];
 
 function LocalePicker() {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const active: SupportedLocale = (i18n.language === "es" ? "es" : "en") as SupportedLocale;
   return (
     <div className="flex flex-col gap-2 pt-2">
       <div className="text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)]">
-        Language / Idioma
+        {t("labels.language")}
       </div>
       <div className="flex flex-wrap gap-2">
         {LOCALE_OPTIONS.map((opt) => (
