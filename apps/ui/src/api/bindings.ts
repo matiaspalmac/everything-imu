@@ -175,6 +175,46 @@ async getEmissionPaused() : Promise<Result<boolean, IpcError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getOutputProfile(mac: [number, number, number, number, number, number]) : Promise<Result<OutputProfileDto, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_output_profile", { mac }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setOutputProfile(mac: [number, number, number, number, number, number], profile: OutputProfileDto, applyNow: boolean) : Promise<Result<null, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_output_profile", { mac, profile, applyNow }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getCalibrationWizardStatus(mac: [number, number, number, number, number, number]) : Promise<Result<CalibrationWizardStatusDto, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_calibration_wizard_status", { mac }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async applyCalibrationWizard(mac: [number, number, number, number, number, number], mounting: MountingOrientationDto, rotationOffsetDeg: number, magnetometerEnabled: boolean) : Promise<Result<null, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("apply_calibration_wizard", { mac, mounting, rotationOffsetDeg, magnetometerEnabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getAdvancedTelemetry() : Promise<Result<AdvancedTelemetryDto[], IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_advanced_telemetry") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -207,8 +247,10 @@ trackerUpdate: "tracker-update"
 
 /** user-defined types **/
 
+export type AdvancedTelemetryDto = { mac: [number, number, number, number, number, number]; serial: string; sample_rate_hz: number; battery_fraction: number; gyro_norm_rads: number; accel_norm_mps2: number; mag_norm_u_t: number | null; gyro_bias_rads: [number, number, number]; orientation_xyzw: [number, number, number, number]; sample_age_ms: number }
 export type BiasEntry = { mac: [number, number, number, number, number, number]; gyr_bias: [number, number, number] }
 export type BiasUpdate = { entries: BiasEntry[] }
+export type CalibrationWizardStatusDto = { suggested_mounting: MountingOrientationDto; suggested_rotation_offset_deg: number; accel_norm_mps2: number; gyro_norm_rads: number; sample_age_ms: number }
 /**
  * Snapshot of the SlimeClient runtime state for the Connection panel.
  * Emitted ~1 Hz and also returned synchronously by the
@@ -232,6 +274,7 @@ export type IpcError = { type: "NotFound" } | { type: "Invalid"; message: string
 export type LogEntry = { ts_ms: number; level: string; target: string; message: string }
 export type LogEntryDto = { ts_ms: number; level: string; target: string; message: string }
 export type MountingOrientationDto = "identity" | "left_side" | "right_side" | "upside_down" | "facing_forward" | "facing_back"
+export type OutputProfileDto = { led_mask: number; rumble_enabled: boolean }
 export type PerDeviceSettingsDto = { fusion: FusionAlgoDto; mounting: MountingOrientationDto; magnetometer_enabled: boolean; rotation_offset_deg: number; 
 /**
  * Optional user-provided label ("right shin", "head") — purely

@@ -851,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "device-dualsense"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -863,7 +863,7 @@ dependencies = [
 
 [[package]]
 name = "device-joycon"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -882,7 +882,7 @@ dependencies = [
 
 [[package]]
 name = "device-psmove"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -894,7 +894,7 @@ dependencies = [
 
 [[package]]
 name = "device-traits"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-trait",
  "imu-math",
@@ -904,7 +904,7 @@ dependencies = [
 
 [[package]]
 name = "device-wii"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -1130,7 +1130,7 @@ dependencies = [
 
 [[package]]
 name = "everything-imu-app"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "device-dualsense",
@@ -1161,7 +1161,7 @@ dependencies = [
 
 [[package]]
 name = "everything-imu-core"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "async-trait",
  "device-dualsense",
@@ -1710,7 +1710,7 @@ dependencies = [
 
 [[package]]
 name = "headless-cli"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -2000,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "imu-fusion"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "approx",
  "imu-math",
@@ -2012,7 +2012,7 @@ dependencies = [
 
 [[package]]
 name = "imu-math"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "approx",
  "nalgebra",
@@ -2885,7 +2885,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "persistence"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "device-traits",
  "rusqlite",
@@ -3740,7 +3740,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slime-tracker"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "deku",
  "nalgebra",
