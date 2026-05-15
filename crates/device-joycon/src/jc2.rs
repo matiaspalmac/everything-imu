@@ -10,6 +10,15 @@
 //! - accel/gyro from motion block offsets 0x30..0x3A
 //! - optional mag from 0x19..0x1E
 //! - Home/Capture bits from byte 0x05 (0x10 / 0x20)
+//!
+//! # Safety: command 0x15 is a brick path
+//!
+//! Sending sub-command byte `0x15` to a Joy-Con 2 over BLE has been reported
+//! to soft-brick the controller (requires Nintendo service to recover). Every
+//! command builder in this file uses one of the known-safe sub-commands
+//! `0x01 / 0x02 / 0x04` and the write character is allow-listed via
+//! `build_*_cmd`. Do NOT add raw write helpers that take an arbitrary
+//! sub-command byte — keep the builder-per-command pattern.
 
 use btleplug::api::{
     Central, CharPropFlags, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType,

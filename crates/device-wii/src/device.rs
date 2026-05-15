@@ -3,7 +3,7 @@ use device_traits::{
     DeviceMetadata, ResetButtonDetector,
 };
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinHandle;
 
@@ -57,31 +57,46 @@ impl Device for WiiDevice {
         self.reader = Some(tokio::spawn(async move {
             let _ = tx.send(ChannelInfo::Connected(id.clone())).await;
             let mut reset = ResetButtonDetector::default();
+            let start = Instant::now();
+            let mut last_battery = Instant::now()
+                .checked_sub(Duration::from_secs(2))
+                .unwrap_or_else(Instant::now);
+            let mut last_battery_level: Option<u8> = None;
             while let Some(pkt) = packet_rx.recv().await {
+                let now = Instant::now();
+                // Nunchuk path forwards only accel because the companion sends
+                // accel via `pkt.accel` and MotionPlus-style gyro arrives in
+                // `pkt.data` only when no nunchuk is attached.
                 let imu = if pkt.nunchuk_connected {
-                    imu_from_raw(pkt.accel, [0, 0, 0])
+                    imu_from_raw(pkt.accel, [0, 0, 0], start, now)
                 } else {
                     let gyro = [
                         pkt.data[0].saturating_sub(8192),
                         pkt.data[1].saturating_sub(8192),
                         pkt.data[2].saturating_sub(8192),
                     ];
-                    imu_from_raw(pkt.accel, gyro)
+                    imu_from_raw(pkt.accel, gyro, start, now)
                 };
                 if tx.send(ChannelInfo::ImuSamples(vec![imu])).await.is_err() {
                     break;
                 }
-                let _ = tx
-                    .send(ChannelInfo::Battery(BatteryState {
-                        fraction: (pkt.battery_level as f32 / 100.0).clamp(0.0, 1.0),
-                        charging: false,
-                    }))
-                    .await;
+                // Throttle battery to 1 Hz or on-change. Packet rate ~100 Hz.
+                let changed = last_battery_level != Some(pkt.battery_level);
+                if changed || now.duration_since(last_battery) >= Duration::from_secs(1) {
+                    last_battery = now;
+                    last_battery_level = Some(pkt.battery_level);
+                    let _ = tx
+                        .send(ChannelInfo::Battery(BatteryState {
+                            fraction: (pkt.battery_level as f32 / 100.0).clamp(0.0, 1.0),
+                            charging: false,
+                        }))
+                        .await;
+                }
                 if let Some(kind) = reset.observe(
                     ButtonState::CaptureOnly {
                         pressed: pkt.button_up,
                     },
-                    std::time::Instant::now(),
+                    now,
                 ) {
                     let _ = tx.send(ChannelInfo::ResetRequested(kind)).await;
                 }
@@ -117,7 +132,12 @@ impl Device for WiiDevice {
     }
 }
 
-fn imu_from_raw(accel_raw: [i16; 3], gyro_raw: [i16; 3]) -> device_traits::ImuSample {
+fn imu_from_raw(
+    accel_raw: [i16; 3],
+    gyro_raw: [i16; 3],
+    start: Instant,
+    now: Instant,
+) -> device_traits::ImuSample {
     const G: f32 = 9.80665;
     const ACCEL_LSB_PER_G: f32 = 512.0;
     const GYRO_DPS_PER_LSB: f32 = 0.07;
@@ -135,10 +155,7 @@ fn imu_from_raw(accel_raw: [i16; 3], gyro_raw: [i16; 3]) -> device_traits::ImuSa
             accel_raw[2] as f32 / ACCEL_LSB_PER_G * G,
         ],
         mag: None,
-        timestamp_us: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_micros() as u64)
-            .unwrap_or(0),
+        timestamp_us: now.duration_since(start).as_micros() as u64,
     }
 }
 

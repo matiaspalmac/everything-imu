@@ -8,7 +8,7 @@ use device_traits::{
     ResetButtonDetector,
 };
 use hidapi::HidDevice;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -58,7 +58,7 @@ impl DualSenseDevice {
                 led_mask_5bit: 0,
                 rumble_on: false,
             },
-            last_report_len: Arc::new(AtomicUsize::new(64)),
+            last_report_len: Arc::new(AtomicUsize::new(0)),
             reader: None,
         }
     }
@@ -69,7 +69,15 @@ impl DualSenseDevice {
             .clone()
             .ok_or_else(|| DeviceError::Hid("dualsense not started".into()))?;
         let kind = self.kind;
-        let is_bt = self.last_report_len.load(Ordering::Relaxed) >= 78;
+        let last_len = self.last_report_len.load(Ordering::Relaxed);
+        if last_len == 0 {
+            // No input report observed yet → transport unknown. Skip rather than
+            // guess and ship a USB-shaped report to a BT-attached pad (or vice
+            // versa). Caller will retry on next set_led/set_rumble.
+            tracing::trace!("dualsense set_output before first read — deferred");
+            return Ok(());
+        }
+        let is_bt = last_len >= 78;
         let report = build_output_report(kind, state, is_bt);
         if report.is_empty() {
             return Ok(());
@@ -101,7 +109,12 @@ impl Device for DualSenseDevice {
         let calibration = self.calibration;
         let report_len = self.last_report_len.clone();
         let mut reset_detector = ResetButtonDetector::new();
+        let device_id = self.metadata.id.clone();
+        let connected_flag = Arc::new(AtomicBool::new(false));
         let mut reader = spawn_reader(dev, move |buf, tx| {
+            if !connected_flag.swap(true, Ordering::Relaxed) {
+                let _ = tx.try_send(ChannelInfo::Connected(device_id.clone()));
+            }
             report_len.store(buf.len(), Ordering::Relaxed);
             if !parse_report(kind, buf, calibration, tx) {
                 tracing::trace!(len = buf.len(), "dualsense unknown report");

@@ -118,19 +118,22 @@ pub fn parse_report(
 
     if let Some(byte) = buf.get(ZCM_OFS_BATTERY).copied() {
         // PS Move battery byte: 0x00..0x05 discharging levels, 0xEE = charging,
-        // 0xEF = charged. Map to fraction defensively.
-        let (fraction, charging) = match byte {
-            0x00 => (0.0, false),
-            0x01 => (0.2, false),
-            0x02 => (0.4, false),
-            0x03 => (0.6, false),
-            0x04 => (0.8, false),
-            0x05 => (1.0, false),
-            0xEE => (0.5, true),
-            0xEF => (1.0, true),
-            _ => (f32::NAN, false),
+        // 0xEF = charged. Unknown values are skipped — NaN would leak into UI
+        // and fusion downstream.
+        let parsed = match byte {
+            0x00 => Some((0.0, false)),
+            0x01 => Some((0.2, false)),
+            0x02 => Some((0.4, false)),
+            0x03 => Some((0.6, false)),
+            0x04 => Some((0.8, false)),
+            0x05 => Some((1.0, false)),
+            0xEE => Some((0.5, true)),
+            0xEF => Some((1.0, true)),
+            _ => None,
         };
-        let _ = out.try_send(ChannelInfo::Battery(BatteryState { fraction, charging }));
+        if let Some((fraction, charging)) = parsed {
+            let _ = out.try_send(ChannelInfo::Battery(BatteryState { fraction, charging }));
+        }
     }
 
     true

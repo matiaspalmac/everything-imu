@@ -85,7 +85,12 @@ impl Device for PsMoveDevice {
         let dev = Arc::new(Mutex::new(dev));
         self.io = Some(dev.clone());
         let kind = self.kind;
+        let device_id = self.metadata.id.clone();
+        let connected_flag = Arc::new(AtomicBool::new(false));
         let mut reader = spawn_reader(dev, move |buf, tx| {
+            if !connected_flag.swap(true, Ordering::Relaxed) {
+                let _ = tx.try_send(ChannelInfo::Connected(device_id.clone()));
+            }
             if !parse_report(kind, buf, tx) {
                 tracing::trace!(len = buf.len(), "psmove unknown report");
             }
@@ -105,10 +110,6 @@ impl Device for PsMoveDevice {
                 .name("device-psmove-output".into())
                 .spawn(move || {
                     while !out_stop.load(Ordering::Relaxed) {
-                        thread::sleep(Duration::from_secs(3));
-                        if out_stop.load(Ordering::Relaxed) {
-                            break;
-                        }
                         let state = match out_state.lock() {
                             Ok(s) => *s,
                             Err(_) => return,
@@ -116,6 +117,9 @@ impl Device for PsMoveDevice {
                         if state.rgb != [0, 0, 0] || state.rumble != 0 {
                             let _ = write_output(&out_io, state);
                         }
+                        // PS Move LED auto-turns-off after ~5s without a write,
+                        // so 3s heartbeat keeps it lit while leaving margin.
+                        thread::sleep(Duration::from_secs(3));
                     }
                 })
                 .map_err(|e| DeviceError::Hid(format!("psmove output thread failed: {e}")))?,

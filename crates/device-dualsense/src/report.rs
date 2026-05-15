@@ -147,9 +147,11 @@ pub fn parse_report(
 
     if let Some(off) = offsets.battery {
         if let Some(byte) = buf.get(off).copied() {
+            // DS5/DS4 battery byte: low nibble is capacity 0..=10 per Linux hid-playstation
+            // (DS_STATUS_BATTERY_CAPACITY); high nibble bit 4 is charging status.
             let level_raw = byte & 0x0F;
             let charging = (byte & 0x10) != 0;
-            let fraction = (level_raw as f32 / 8.0).clamp(0.0, 1.0);
+            let fraction = (level_raw as f32 / 10.0).clamp(0.0, 1.0);
             let _ = out.try_send(ChannelInfo::Battery(BatteryState { fraction, charging }));
         }
     }
