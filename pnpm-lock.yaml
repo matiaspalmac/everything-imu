@@ -145,8 +145,8 @@ importers:
         specifier: ^4.11.0
         version: 4.11.3
       '@fast-check/vitest':
-        specifier: ^0.2.0
-        version: 0.2.4(vitest@4.1.5(@types/node@24.12.2)(jsdom@25.0.1)(vite@8.0.10(@types/node@24.12.2)(esbuild@0.28.0)(jiti@2.7.0)))
+        specifier: ^0.4.1
+        version: 0.4.1(vitest@4.1.5(@types/node@24.12.2)(jsdom@25.0.1)(vite@8.0.10(@types/node@24.12.2)(esbuild@0.28.0)(jiti@2.7.0)))
       '@size-limit/file':
         specifier: ^12.0.0
         version: 12.1.0(size-limit@12.1.0(jiti@2.7.0))
@@ -474,10 +474,10 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@fast-check/vitest@0.2.4':
-    resolution: {integrity: sha512-Ilcr+JAIPhb1s6FRm4qoglQYSGXXrS+zAupZeNuWAA3qHVGDA1d1Gb84Hb/+otL3GzVZjFJESg5/1SfIvrgssA==}
+  '@fast-check/vitest@0.4.1':
+    resolution: {integrity: sha512-OX6TecB+ZzRfPc49jcPChcV1cf5aDu77CdDU8liecWVam7eD7mPvJNP50b9bBSTxVoGN5wzxrX9PIcCnqgC8bg==}
     peerDependencies:
-      vitest: ^1 || ^2 || ^3 || ^4
+      vitest: ^4.1.0
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -1610,8 +1610,8 @@ packages:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
     engines: {node: '>=12.0.0'}
 
-  fast-check@4.7.0:
-    resolution: {integrity: sha512-NsZRtqvSSoCP0HbNjUD+r1JH8zqZalyp6gLY9e7OYs7NK9b6AHOs2baBFeBG7bVNsuoukh89x2Yg3rPsul8ziQ==}
+  fast-check@4.8.0:
+    resolution: {integrity: sha512-GOJ158CUMnN6cSahsv4+ExARvIDuzzinFjkp0E9WtiBa5zcVeLozVkWaE4IzFcc+Y48Wp1EDlUZsXRyAztQcSg==}
     engines: {node: '>=12.17.0'}
 
   fdir@6.5.0:
@@ -2590,9 +2590,9 @@ snapshots:
   '@esbuild/win32-x64@0.28.0':
     optional: true
 
-  '@fast-check/vitest@0.2.4(vitest@4.1.5(@types/node@24.12.2)(jsdom@25.0.1)(vite@8.0.10(@types/node@24.12.2)(esbuild@0.28.0)(jiti@2.7.0)))':
+  '@fast-check/vitest@0.4.1(vitest@4.1.5(@types/node@24.12.2)(jsdom@25.0.1)(vite@8.0.10(@types/node@24.12.2)(esbuild@0.28.0)(jiti@2.7.0)))':
     dependencies:
-      fast-check: 4.7.0
+      fast-check: 4.8.0
       vitest: 4.1.5(@types/node@24.12.2)(jsdom@25.0.1)(vite@8.0.10(@types/node@24.12.2)(esbuild@0.28.0)(jiti@2.7.0))
 
   '@floating-ui/core@1.7.5':
@@ -3673,7 +3673,7 @@ snapshots:
 
   expect-type@1.3.0: {}
 
-  fast-check@4.7.0:
+  fast-check@4.8.0:
     dependencies:
       pure-rand: 8.4.0
 
