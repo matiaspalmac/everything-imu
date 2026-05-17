@@ -149,6 +149,7 @@ export function CommandPalette() {
     // biome-ignore lint/a11y/noStaticElementInteractions: dimmer click closes palette; cmdk owns inner keyboard nav
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-24 backdrop-blur-sm"
+      role="presentation"
       onClick={() => setOpen(false)}
       onKeyDown={(e) => {
         if (e.key === "Escape") setOpen(false);
