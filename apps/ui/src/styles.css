@@ -1,0 +1,235 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Color system — OKLCH ramps.
+ *
+ * Each accent / status family is parameterised by a hue (--*-h) and the
+ * ramps derive lightness + chroma from it. This keeps "accent-bright" and
+ * "accent-deep" sitting on the same hue line so micro-interactions
+ * (pulse, glow, fade) interpolate cleanly without going muddy.
+ *
+ * Identity preserved:
+ *   - dark: sumi-ink + warm umber accent (~55° hue)
+ *   - light: washi paper + deeper umber (~50° hue)
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* hue anchors — soft blue palette */
+  --accent-h: 232;
+  --warn-h: 65;
+  --danger-h: 18;
+  --success-h: 158;
+  --info-h: 215;
+
+  /* neutrals (cool slate, hue-shifted toward blue) */
+  --bg-base: oklch(17% 0.014 232);
+  --bg-panel: oklch(20% 0.018 232);
+  --bg-elevated: oklch(24% 0.022 232);
+  --bg-overlay: color-mix(in oklch, var(--bg-base) 82%, transparent);
+  --surface-glass: color-mix(in oklch, var(--bg-panel) 70%, transparent);
+
+  --fg-primary: oklch(94% 0.012 232);
+  --fg-secondary: oklch(74% 0.016 232);
+  --fg-muted: oklch(54% 0.018 232);
+  --fg-inverse: oklch(17% 0.014 232);
+  --fg-section-header: oklch(64% 0.022 232);
+
+  --border-subtle: color-mix(in oklch, var(--fg-primary) 6%, transparent);
+  --border-strong: color-mix(in oklch, var(--fg-primary) 14%, transparent);
+  --border-active: var(--accent);
+
+  /* accent ramp — softer chroma than warm umber to read as gentle blue */
+  --accent: oklch(74% 0.1 var(--accent-h));
+  --accent-bright: oklch(84% 0.12 var(--accent-h));
+  --accent-deep: oklch(58% 0.11 var(--accent-h));
+  --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+  --accent-glow: color-mix(in oklch, var(--accent) 40%, transparent);
+
+  /* status families */
+  --warn: oklch(78% 0.13 var(--warn-h));
+  --warn-bright: oklch(86% 0.15 var(--warn-h));
+  --warn-soft: color-mix(in oklch, var(--warn) 14%, transparent);
+
+  --danger: oklch(64% 0.16 var(--danger-h));
+  --danger-bright: oklch(72% 0.18 var(--danger-h));
+  --danger-soft: color-mix(in oklch, var(--danger) 16%, transparent);
+
+  --success: oklch(70% 0.14 var(--success-h));
+  --success-bright: oklch(78% 0.16 var(--success-h));
+  --success-soft: color-mix(in oklch, var(--success) 14%, transparent);
+
+  --info: oklch(70% 0.09 var(--info-h));
+  --info-soft: color-mix(in oklch, var(--info) 14%, transparent);
+
+  /* shape + space tokens */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-xl: 22px;
+
+  --titlebar-h: 34px;
+  --activitybar-w: 56px;
+  --statusbar-h: 26px;
+
+  /* motion tokens — short for affordances, long for ambience */
+  --motion-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-medium: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-slow: 480ms cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* depth */
+  --shadow-card: 0 1px 2px color-mix(in oklch, black 25%, transparent),
+    0 8px 24px -12px color-mix(in oklch, black 35%, transparent);
+  --shadow-pop: 0 12px 40px -8px color-mix(in oklch, black 55%, transparent);
+
+  --body-gradient:
+    radial-gradient(circle at 18% 0%, color-mix(in oklch, var(--accent) 6%, transparent), transparent 50%),
+    radial-gradient(circle at 82% 100%, color-mix(in oklch, var(--accent-deep) 5%, transparent), transparent 60%);
+}
+
+/* Light — washi paper. Same hue anchors, inverted lightness, lower chroma. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --accent-h: 228;
+  --warn-h: 60;
+  --danger-h: 22;
+  --success-h: 158;
+  --info-h: 215;
+
+  --bg-base: oklch(91% 0.008 232);
+  --bg-panel: oklch(87% 0.012 232);
+  --bg-elevated: oklch(82% 0.014 232);
+  --bg-overlay: color-mix(in oklch, var(--bg-base) 92%, transparent);
+  --surface-glass: color-mix(in oklch, var(--bg-panel) 80%, transparent);
+
+  --fg-primary: oklch(22% 0.018 232);
+  --fg-secondary: oklch(34% 0.02 232);
+  --fg-muted: oklch(50% 0.022 232);
+  --fg-inverse: oklch(91% 0.008 232);
+  --fg-section-header: oklch(42% 0.024 232);
+
+  --border-subtle: color-mix(in oklch, var(--fg-primary) 8%, transparent);
+  --border-strong: color-mix(in oklch, var(--fg-primary) 18%, transparent);
+  --border-active: var(--accent);
+
+  --accent: oklch(54% 0.13 var(--accent-h));
+  --accent-bright: oklch(64% 0.15 var(--accent-h));
+  --accent-deep: oklch(42% 0.12 var(--accent-h));
+  --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
+  --accent-glow: color-mix(in oklch, var(--accent) 28%, transparent);
+
+  --warn: oklch(62% 0.14 var(--warn-h));
+  --warn-bright: oklch(70% 0.16 var(--warn-h));
+  --warn-soft: color-mix(in oklch, var(--warn) 16%, transparent);
+
+  --danger: oklch(54% 0.16 var(--danger-h));
+  --danger-bright: oklch(62% 0.18 var(--danger-h));
+  --danger-soft: color-mix(in oklch, var(--danger) 16%, transparent);
+
+  --success: oklch(54% 0.14 var(--success-h));
+  --success-bright: oklch(62% 0.16 var(--success-h));
+  --success-soft: color-mix(in oklch, var(--success) 16%, transparent);
+
+  --info: oklch(54% 0.1 var(--info-h));
+  --info-soft: color-mix(in oklch, var(--info) 16%, transparent);
+
+  --shadow-card: 0 1px 2px color-mix(in oklch, black 6%, transparent),
+    0 6px 18px -10px color-mix(in oklch, black 10%, transparent);
+  --shadow-pop: 0 12px 40px -8px color-mix(in oklch, black 14%, transparent);
+
+  --body-gradient:
+    radial-gradient(circle at 18% 0%, color-mix(in oklch, var(--accent) 8%, transparent), transparent 50%),
+    radial-gradient(circle at 82% 100%, color-mix(in oklch, var(--accent-deep) 6%, transparent), transparent 60%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  background-image: var(--body-gradient);
+  color: var(--fg-primary);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv01", "tnum";
+}
+
+/* tabular numerals + opt-in stretched mono for metrics labels */
+.metric-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: 0.01em;
+}
+
+*:focus-visible {
+  outline: 1px solid var(--border-active);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* ============================================================
+ * Micro-interactions / motion library
+ * Reusable keyframes consumed by individual components via
+ * Tailwind animate-* utilities or inline className strings.
+ * ============================================================ */
+
+@keyframes eimu-connect-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-glow);
+  }
+  70% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.connect-pulse {
+  animation: eimu-connect-pulse 1.2s var(--motion-slow);
+}
+
+@keyframes eimu-bridge-glitch {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(0.5px, -0.5px); }
+  40% { transform: translate(-0.5px, 0.5px); }
+  60% { transform: translate(0.5px, 0.5px); }
+  80% { transform: translate(-0.5px, -0.5px); }
+}
+
+.bridge-paused {
+  animation: eimu-bridge-glitch 320ms steps(4, end) infinite;
+  filter: saturate(0.55) contrast(1.05);
+}
+
+@keyframes eimu-breath {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.breath {
+  animation: eimu-breath 3.2s ease-in-out infinite;
+}
+
+/* Glassy panel with a backdrop blur — opt-in via className */
+.surface-glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
