@@ -34,5 +34,23 @@ export default defineConfig({
     target: "esnext",
     minify: "esbuild",
     sourcemap: false,
+    // three.js core is ~900 kB raw / ~245 kB gzip — irreducible and only
+    // loaded lazily via Dashboard / TrackerDetail routes. Raise the
+    // warning threshold so honest big vendors don't pollute build logs.
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("@react-three")) return "three-fiber";
+          if (id.includes("/three/")) return "three";
+          if (id.includes("@radix-ui")) return "radix";
+          if (id.includes("@phosphor-icons")) return "icons";
+          if (id.includes("i18next") || id.includes("react-i18next")) return "i18n";
+          if (id.includes("uplot")) return "uplot";
+          if (id.includes("cmdk")) return "cmdk";
+        },
+      },
+    },
   },
 });
