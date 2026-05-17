@@ -1,0 +1,52 @@
+[package]
+name = "everything-imu-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "everything-imu desktop app — Tauri 2 binary"
+default-run = "everything-imu"
+
+[lib]
+name = "everything_imu_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "everything-imu"
+path = "src/main.rs"
+
+[[bin]]
+name = "gen-bindings"
+path = "src/bin/gen_bindings.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+tauri = { workspace = true }
+tauri-specta = { version = "2.0.0-rc.21", features = ["derive", "typescript"] }
+specta = "2.0.0-rc.22"
+specta-typescript = "0.0.9"
+tauri-plugin-window-state = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+everything-imu-core = { path = "../core" }
+device-joycon = { path = "../device-joycon", features = ["synthetic-source"] }
+device-dualsense = { path = "../device-dualsense", features = ["synthetic-source"] }
+device-psmove = { path = "../device-psmove", features = ["synthetic-source"] }
+device-wii = { path = "../device-wii" }
+device-traits = { path = "../device-traits" }
+persistence = { path = "../persistence" }
+slime-tracker = { path = "../slime-tracker" }
+imu-math = { path = "../imu-math" }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = "0.2"
+parking_lot = "0.12"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
