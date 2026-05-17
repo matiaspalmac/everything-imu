@@ -1,0 +1,40 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      tauri:
+        patterns:
+          - "tauri"
+          - "tauri-*"
+      tokio:
+        patterns:
+          - "tokio"
+          - "tokio-*"
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    groups:
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      tauri-js:
+        patterns:
+          - "@tauri-apps/*"
+      react-three:
+        patterns:
+          - "@react-three/*"
+          - "three"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
