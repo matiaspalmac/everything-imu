@@ -204,8 +204,7 @@ function GroupBlock({
   const dragMac = useRef<string | null>(null);
   // local order overrides perDevSettings during drag so the UI updates
   // instantly without waiting for the IPC round-trip
-  // biome-ignore lint/correctness/noUnusedVariables: false positive — localOrder read via ?? below
-  // eslint-disable-next-line react-doctor/rerender-state-only-in-handlers
+  // oxlint-disable-next-line react-doctor/rerender-state-only-in-handlers -- localOrder IS read at line below via ??
   const [localOrder, setLocalOrder] = useState<string[] | null>(null);
 
   // Single-pass O(n) lookup table beats two .find() scans in the
