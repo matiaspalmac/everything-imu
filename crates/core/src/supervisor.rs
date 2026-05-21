@@ -39,6 +39,11 @@ impl Supervisor {
                     continue;
                 }
             };
+            // Re-read metadata after start(): a driver may refine its
+            // capabilities during startup (e.g. Joy-Con 2 measures its true
+            // BLE report rate, which the fusion timestep depends on). The
+            // pre-start clone from the factory can be stale.
+            let meta = device.metadata().clone();
             let (control_tx, mut control_rx) = mpsc::channel::<DeviceControl>(16);
             let device_id = meta.id.clone();
             tokio::spawn(async move {

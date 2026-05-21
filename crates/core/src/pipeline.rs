@@ -131,15 +131,16 @@ impl FilterImpl {
     fn new(algo: FusionAlgo, gyr_ts_s: f64) -> Self {
         match algo {
             FusionAlgo::Vqf => {
-                let params = imu_fusion::vqf::VqfParams {
-                    tau_acc: 100.0,
-                    rest_bias_est_enabled: true,
-                    rest_min_t: 3.0,
-                    motion_bias_est_enabled: false,
-                    ..imu_fusion::vqf::VqfParams::default()
-                };
-
-                Self::Vqf(imu_fusion::vqf::Vqf::with_params(gyr_ts_s, params))
+                // VQF paper-recommended defaults: motion AND rest bias
+                // estimation both enabled, tau_acc 3 s. A previous override
+                // disabled motion bias estimation and set tau_acc to 100 s,
+                // which suppressed VQF's primary drift defence — gyro bias
+                // went uncorrected during sustained motion (the common case
+                // for a body tracker, which is rarely still long enough for
+                // rest-only estimation to trigger). The defaults also match
+                // the validated C# legacy, which ran stock VQF plus a
+                // separate rest-only gyro-bias calibrator.
+                Self::Vqf(Vqf::new(gyr_ts_s))
             }
             FusionAlgo::Madgwick => Self::Madgwick(Madgwick::new(gyr_ts_s as f32)),
             FusionAlgo::BasicVqf => Self::BasicVqf(BasicVqf::new(gyr_ts_s)),
