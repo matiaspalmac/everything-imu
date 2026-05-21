@@ -99,6 +99,12 @@ pub fn parse_0x21_spi_reply(buf: &[u8]) -> Option<SpiReadReply> {
     if buf[0] != 0x21 {
         return None;
     }
+    // Byte 13 is the subcommand ack: 0x90 = SPI read OK. A failed/NAK reply
+    // (0x00 or an error code) carries no valid payload — reject it so the cal
+    // reconciliation never adopts garbage as a factory block.
+    if buf[13] != 0x90 {
+        return None;
+    }
     if buf[14] != 0x10 {
         return None;
     }

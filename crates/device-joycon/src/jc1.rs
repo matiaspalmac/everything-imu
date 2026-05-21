@@ -1,7 +1,7 @@
 //! JoyCon1Device — implements `Device` trait for Joy-Con L/R + Pro Controller + Charging Grip.
 
 use crate::axis_remap;
-use crate::calibration::{accel_to_m_s2, gyro_to_rad_s, raw_minus_offset};
+use crate::calibration::{accel_sample_m_s2, gyro_sample_rad_s};
 use crate::hid::{spawn_reader, HidReaderHandle};
 use crate::ids::ControllerKind;
 use crate::report::{parse_0x21_spi_reply, parse_0x30};
@@ -30,8 +30,9 @@ pub struct JoyCon1Device {
     metadata: DeviceMetadata,
     kind: ControllerKind,
     cal: Arc<ArcSwap<ImuCalibration>>,
-    /// Wrapped in `Arc<StdMutex>` so the HID thread can hold it after `start()` returns.
-    hid: Arc<StdMutex<Option<HidDevice>>>,
+    /// Shared with the reader thread so output reports (LED, rumble) still work
+    /// after `start()` — the reader and `write_report` serialize on this mutex.
+    hid: Arc<StdMutex<HidDevice>>,
     reader: Option<HidReaderHandle>,
     pkt_counter: u8,
     /// `true` for USB-attached devices; `false` for Bluetooth. Affects connect sequence.
@@ -62,7 +63,7 @@ impl JoyCon1Device {
             metadata,
             kind,
             cal: Arc::new(ArcSwap::from_pointee(ImuCalibration::zero())),
-            hid: Arc::new(StdMutex::new(Some(device))),
+            hid: Arc::new(StdMutex::new(device)),
             reader: None,
             pkt_counter: 0,
             is_usb,
@@ -93,12 +94,7 @@ impl Device for JoyCon1Device {
         let kind = self.kind;
         let cal_swap = self.cal.clone();
         let id_for_log = self.metadata.id.clone();
-        let hid = self
-            .hid
-            .lock()
-            .unwrap()
-            .take()
-            .ok_or_else(|| DeviceError::Hid("hid handle already moved".into()))?;
+        let hid = self.hid.clone();
 
         let mut detector = ResetButtonDetector::new();
 
@@ -134,10 +130,10 @@ impl Device for JoyCon1Device {
             let cal = cal_swap.load();
             let mut samples = Vec::with_capacity(3);
             for raw_s in report.imu_samples.iter() {
-                let accel_off = raw_minus_offset(raw_s.accel, cal.accel_offset);
-                let gyro_off = raw_minus_offset(raw_s.gyro, cal.gyro_offset);
-                let mut accel = accel_to_m_s2(accel_off);
-                let mut gyro = gyro_to_rad_s(gyro_off);
+                let mut accel =
+                    accel_sample_m_s2(raw_s.accel, cal.accel_offset, cal.accel_coeff_g);
+                let mut gyro =
+                    gyro_sample_rad_s(raw_s.gyro, cal.gyro_offset, cal.gyro_coeff_dps);
                 accel = axis_remap::apply(kind, accel);
                 gyro = axis_remap::apply(kind, gyro);
                 samples.push(ImuSample {
@@ -209,10 +205,8 @@ impl JoyCon1Device {
         let hid = self.hid.clone();
         tokio::task::spawn_blocking(move || -> Result<(), DeviceError> {
             let guard = hid.lock().unwrap();
-            let dev = guard
-                .as_ref()
-                .ok_or_else(|| DeviceError::Hid("device handle moved to reader thread".into()))?;
-            dev.write(&bytes)
+            guard
+                .write(&bytes)
                 .map_err(|e| DeviceError::Hid(e.to_string()))?;
             Ok(())
         })

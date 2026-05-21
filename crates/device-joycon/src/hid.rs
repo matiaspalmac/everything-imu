@@ -36,7 +36,14 @@ impl HidReaderHandle {
     }
 }
 
-pub fn spawn_reader<F>(device: HidDevice, mut parse: F) -> HidReaderHandle
+/// Spawn the blocking HID reader thread.
+///
+/// The device handle is shared (`Arc<Mutex<HidDevice>>`) rather than moved so
+/// the owning `Device` can still issue output reports (LED, rumble) after the
+/// reader is running. The reader holds the lock only for the duration of one
+/// `read_timeout` call, so a concurrent write waits at most one poll interval
+/// (~50 ms) — imperceptible for non-realtime commands.
+pub fn spawn_reader<F>(device: Arc<Mutex<HidDevice>>, mut parse: F) -> HidReaderHandle
 where
     F: FnMut(&[u8], &mpsc::Sender<ChannelInfo>, &watch::Sender<Option<ImuSample>>) + Send + 'static,
 {
@@ -47,10 +54,17 @@ where
     let join = thread::Builder::new()
         .name("device-joycon-hid".into())
         .spawn(move || {
-            let _ = device.set_blocking_mode(true);
+            {
+                let dev = device.lock().unwrap();
+                let _ = dev.set_blocking_mode(true);
+            }
             let mut buf = [0u8; 64];
             while !sd.load(Ordering::Relaxed) {
-                match device.read_timeout(&mut buf, 50) {
+                let read = {
+                    let dev = device.lock().unwrap();
+                    dev.read_timeout(&mut buf, 50)
+                };
+                match read {
                     Ok(0) => continue,
                     Ok(n) => parse(&buf[..n], &event_tx, &sample_tx),
                     Err(e) => {
