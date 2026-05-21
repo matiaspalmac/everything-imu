@@ -21,16 +21,18 @@
 //! sub-command byte — keep the builder-per-command pattern.
 
 use btleplug::api::{
-    Central, CharPropFlags, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType,
+    Central, CentralEvent, CharPropFlags, Characteristic, ConnectionParameterPreset, Manager as _,
+    Peripheral as _, ScanFilter, WriteType,
 };
-use btleplug::platform::{Adapter, Manager, Peripheral};
+use btleplug::platform::{Adapter, Manager, Peripheral, PeripheralId};
 use device_traits::{
     BatteryState, ButtonState, ChannelInfo, Device, DeviceCapabilities, DeviceError, DeviceId,
     DeviceKind, DeviceMetadata, ImuSample, ResetButtonDetector,
 };
-use futures_util::StreamExt;
+use futures_util::{FutureExt, Stream, StreamExt};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::pin::Pin;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
 use uuid::{uuid, Uuid};
@@ -39,12 +41,17 @@ const NINTENDO_MFR_ID: u16 = 0x0553;
 const NINTENDO_ADV_PREFIX: [u8; 4] = [0x01, 0x00, 0x03, 0x7E];
 const ADV_KIND_JC2_R: u8 = 0x05;
 const ADV_KIND_JC2_L: u8 = 0x06;
+const ADV_KIND_JC2_PRO: u8 = 0x09;
 
 const INPUT_COMMON_UUID: Uuid = uuid!("ab7de9be-89fe-49ad-828f-118f09df7fd2");
 const WRITE_COMMAND_UUID: Uuid = uuid!("649d4ac9-8eb7-4e6c-af44-1ea54fe5f005");
 const RESPONSE_NOTIFY_UUID: Uuid = uuid!("c765a961-d9d8-4d36-a20a-5315b111836a");
 
-const REPORT_0X05_LEN: usize = 62;
+// Minimum input-report 0x05 length we can parse: gyro Z ends at 0x3C (60).
+// The advertised "common" report is 62 bytes, but Joy-Con 2 (no GameCube
+// trigger bytes) is observed sending 60-byte packets. Matching the C#
+// reference guard (`len < 0x3C`) avoids silently dropping every frame.
+const REPORT_0X05_LEN: usize = 0x3C;
 
 const BATTERY_MV_MIN: f32 = 3000.0;
 const BATTERY_MV_MAX: f32 = 4200.0;
@@ -60,6 +67,10 @@ const MAG_UT_PER_LSB: f32 = 4900.0 / 32767.0;
 pub enum JoyCon2Kind {
     Left,
     Right,
+    /// Switch 2 Pro Controller. Streams the same 0x05 common input report as
+    /// the Joy-Cons; differs only in axis orientation (grip-style, no
+    /// standalone Joy-Con rotation correction).
+    Pro,
 }
 
 impl JoyCon2Kind {
@@ -67,6 +78,7 @@ impl JoyCon2Kind {
         match self {
             Self::Left => DeviceKind::JoyCon2L,
             Self::Right => DeviceKind::JoyCon2R,
+            Self::Pro => DeviceKind::ProController2,
         }
     }
 }
@@ -79,15 +91,48 @@ pub struct ParsedJc2Report {
     pub capture_pressed: bool,
 }
 
+/// Identify a Switch 2 controller from its BLE advertisement manufacturer data.
+///
+/// Mirrors the C# `JoyCon2Manager.OnAdvertReceived` reference: a device is a
+/// Joy-Con 2 candidate whenever the Nintendo manufacturer block carries the
+/// Switch 2 prefix `01 00 03 7E`. Left/Right is taken from the USB PID embedded
+/// in the advert (scanned anywhere in the block — the offset shifts between
+/// firmware revisions). The advert byte-4 "kind" value is an unverified guess
+/// (see `ref_joycon2_protocol.md`); gating discovery on it left controllers
+/// invisible when the guess did not match, so it is now only a last-resort
+/// fallback. `resolve_kind_via_flash` corrects the kind once GATT is up.
 pub fn kind_from_manufacturer_data(mfr: &HashMap<u16, Vec<u8>>) -> Option<JoyCon2Kind> {
     let data = mfr.get(&NINTENDO_MFR_ID)?;
     if data.len() < 5 || data[..4] != NINTENDO_ADV_PREFIX {
         return None;
     }
+    // Primary: scan the advert for a known Switch 2 USB PID.
+    if data.len() >= 6 {
+        for off in 4..=data.len() - 2 {
+            match u16::from_le_bytes([data[off], data[off + 1]]) {
+                0x2067 => return Some(JoyCon2Kind::Left),
+                0x2066 | 0x2068 => return Some(JoyCon2Kind::Right),
+                0x2069 => return Some(JoyCon2Kind::Pro),
+                // NSO GameCube 2 uses a different input report layout and is
+                // not handled by this crate.
+                0x2073 => return None,
+                _ => {}
+            }
+        }
+    }
+    // Fallback: legacy advert byte-4 hint, then assume a Joy-Con so a valid
+    // Switch 2 advert with no recognizable PID is never dropped.
     match data[4] {
         ADV_KIND_JC2_L => Some(JoyCon2Kind::Left),
         ADV_KIND_JC2_R => Some(JoyCon2Kind::Right),
-        _ => None,
+        ADV_KIND_JC2_PRO => Some(JoyCon2Kind::Pro),
+        other => {
+            tracing::debug!(
+                advert_kind = other,
+                "jc2 advert kind unrecognized; assuming right joy-con, flash will correct"
+            );
+            Some(JoyCon2Kind::Right)
+        }
     }
 }
 
@@ -180,10 +225,12 @@ pub fn parse_input_report_0x05(
 fn remap_axes(kind: JoyCon2Kind, raw_xyz: [f32; 3]) -> [f32; 3] {
     // SDL base remap for Switch 2 controllers.
     let base = [raw_xyz[0], raw_xyz[2], -raw_xyz[1]];
-    // Standalone Joy-Con orientation correction.
     match kind {
+        // Standalone Joy-Con orientation correction (±90° about Y).
         JoyCon2Kind::Left => [base[2], base[1], -base[0]],
         JoyCon2Kind::Right => [-base[2], base[1], base[0]],
+        // Pro Controller 2 is grip-style — SDL applies no standalone flip.
+        JoyCon2Kind::Pro => base,
     }
 }
 
@@ -292,6 +339,7 @@ fn kind_from_pid(pid: u16) -> Option<JoyCon2Kind> {
     match pid {
         0x2067 => Some(JoyCon2Kind::Left),
         0x2066 | 0x2068 => Some(JoyCon2Kind::Right),
+        0x2069 => Some(JoyCon2Kind::Pro),
         _ => None,
     }
 }
@@ -302,16 +350,132 @@ async fn ensure_connected(peripheral: &Peripheral) -> Result<(), DeviceError> {
         .await
         .map_err(|e| DeviceError::Hid(format!("jc2 is_connected failed: {e}")))?;
     if !connected {
+        // Windows BLE connect can hang indefinitely if the controller stopped
+        // advertising between discovery and connect. btleplug's *_with_timeout
+        // variants bound the wait and cancel the underlying OS operation —
+        // unlike wrapping connect() in tokio::time::timeout, which only drops
+        // the future and leaves the WinRT call dangling.
         peripheral
-            .connect()
+            .connect_with_timeout(Duration::from_secs(20))
             .await
             .map_err(|e| DeviceError::Hid(format!("jc2 connect failed: {e}")))?;
     }
     peripheral
-        .discover_services()
+        .discover_services_with_timeout(Duration::from_secs(20))
         .await
         .map_err(|e| DeviceError::Hid(format!("jc2 discover_services failed: {e}")))?;
     Ok(())
+}
+
+/// Ask the OS for a short BLE connection interval.
+///
+/// Switch 2 controllers never issue a Connection Parameter Update Request of
+/// their own — the console gets ~200 Hz by having the host request a ~5 ms
+/// interval. Windows' default interval is ~60 ms, which caps input report 0x05
+/// at ~16 Hz and makes tracking feel broken even on a healthy link.
+///
+/// `ThroughputOptimized` maps (in the btleplug WinRT backend) to
+/// `BluetoothLEPreferredConnectionParameters::ThroughputOptimized`, the same
+/// call the C# tracker uses. btleplug implements this on Windows and Android
+/// only; on Linux (BlueZ) and on Windows 10 it returns an error. The error is
+/// non-fatal — the link just stays at the slower default rate. Linux users can
+/// instead tune `MinConnectionInterval` in `/etc/bluetooth/main.conf`
+/// system-wide.
+async fn request_fast_connection_interval(peripheral: &Peripheral) {
+    match peripheral
+        .request_connection_parameters(ConnectionParameterPreset::ThroughputOptimized)
+        .await
+    {
+        Ok(()) => tracing::info!("jc2 requested throughput-optimized connection interval"),
+        Err(e) => tracing::warn!(
+            error = %e,
+            "jc2 fast connection interval unavailable (Windows 10 / Linux / older BT stack); \
+             report rate may stay low — see ref_joycon2_protocol.md"
+        ),
+    }
+}
+
+/// Log the negotiated BLE link parameters for diagnostics. Called after the
+/// IMU-enable sequence so the over-the-air parameter update has had time to
+/// settle.
+///
+/// - **interval** near 60000 µs → the fast-interval request did not take
+///   (Windows 10 / Linux / old BT stack); report rate stays low.
+/// - **mtu** below the report 0x05 size + 3 ATT header bytes → notifications
+///   are truncated and every IMU frame fails to parse. Windows and BlueZ both
+///   normally negotiate a large MTU automatically, so a low value points at a
+///   driver issue.
+/// - **rssi** weaker than about -85 dBm → marginal link; the user is likely
+///   too far from the adapter or there is 2.4 GHz interference.
+async fn log_link_diagnostics(peripheral: &Peripheral) {
+    let mtu = peripheral.mtu();
+    if mtu > 0 && mtu < REPORT_0X05_LEN as u16 + 3 {
+        tracing::warn!(
+            mtu,
+            needed = REPORT_0X05_LEN as u16 + 3,
+            "jc2 negotiated MTU too small for the input report; IMU frames will be dropped"
+        );
+    }
+    if let Ok(Some(params)) = peripheral.connection_parameters().await {
+        let approx_hz = 1_000_000u32.checked_div(params.interval_us).unwrap_or(0);
+        tracing::info!(
+            interval_us = params.interval_us,
+            approx_max_hz = approx_hz,
+            mtu,
+            "jc2 negotiated link parameters"
+        );
+    }
+    if let Ok(rssi) = peripheral.read_rssi().await {
+        tracing::info!(rssi_dbm = rssi, "jc2 signal strength");
+    }
+}
+
+/// Measure the actual input-report rate over a short window.
+///
+/// Joy-Con 2 delivers one IMU sample per report 0x05, and the report rate is
+/// set by the negotiated BLE connection interval — it varies with the OS, the
+/// Bluetooth stack and the number of connected controllers (observed 16–130
+/// Hz). The fusion filter integrates gyro with a fixed `1/rate` timestep, so a
+/// wrong assumed rate scales the estimated rotation speed (turn 90°, see 45° or
+/// 180°). Measuring here lets the device report an accurate
+/// `native_imu_rate_hz`. Mirrors the C# tracker, which averaged the first
+/// packets' dt before constructing VQF.
+///
+/// Returns `None` (caller keeps the default) if too few reports arrive to
+/// trust the estimate.
+async fn measure_sample_rate(peripheral: &Peripheral) -> Option<u16> {
+    let mut notifications = peripheral.notifications().await.ok()?;
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(1500);
+    let mut count: u32 = 0;
+    let mut first: Option<tokio::time::Instant> = None;
+    let mut last = tokio::time::Instant::now();
+    loop {
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
+            break;
+        }
+        match tokio::time::timeout(deadline - now, notifications.next()).await {
+            Ok(Some(n)) => {
+                if n.uuid != INPUT_COMMON_UUID {
+                    continue;
+                }
+                let t = tokio::time::Instant::now();
+                first.get_or_insert(t);
+                last = t;
+                count += 1;
+            }
+            // Timed out or the stream ended.
+            _ => break,
+        }
+    }
+    let first = first?;
+    let span = last.duration_since(first).as_secs_f64();
+    if count < 10 || span <= 0.0 {
+        return None;
+    }
+    // The `count` reports span `count - 1` inter-sample intervals.
+    let rate = (count - 1) as f64 / span;
+    Some((rate.round() as i64).clamp(10, 250) as u16)
 }
 
 fn find_char(peripheral: &Peripheral, uuid: Uuid) -> Option<Characteristic> {
@@ -517,6 +681,7 @@ impl Device for JoyCon2Device {
         }
 
         ensure_connected(&self.peripheral).await?;
+        request_fast_connection_interval(&self.peripheral).await;
         let input_char = find_char(&self.peripheral, INPUT_COMMON_UUID)
             .ok_or_else(|| DeviceError::Hid("jc2 input characteristic not found".into()))?;
         let write_char = find_char(&self.peripheral, WRITE_COMMAND_UUID)
@@ -543,6 +708,15 @@ impl Device for JoyCon2Device {
             .await
             .map_err(|e| DeviceError::Hid(format!("jc2 subscribe failed: {e}")))?;
         enable_imu_and_mag(&self.peripheral, &write_char).await?;
+        log_link_diagnostics(&self.peripheral).await;
+        if let Some(rate) = measure_sample_rate(&self.peripheral).await {
+            tracing::info!(
+                rate_hz = rate,
+                assumed = self.metadata.capabilities.native_imu_rate_hz,
+                "jc2 measured input-report rate"
+            );
+            self.metadata.capabilities.native_imu_rate_hz = rate;
+        }
         self.mag_bias_ut =
             resolve_mag_bias_via_flash(&self.peripheral, &write_char, self.kind).await;
 
@@ -645,9 +819,23 @@ impl Device for JoyCon2Device {
     }
 }
 
+/// One Bluetooth adapter plus its `CentralEvent` stream.
+///
+/// btleplug requires `events()` to be obtained *before* `start_scan` so that no
+/// advertisement fired between the two calls is missed.
+struct AdapterFeed {
+    adapter: Adapter,
+    events: Pin<Box<dyn Stream<Item = CentralEvent> + Send>>,
+}
+
+/// Event-driven Joy-Con 2 / Pro Controller 2 BLE scanner.
+///
+/// Replaces the former `peripherals()` polling loop: discovery now reacts to
+/// `CentralEvent`s, and `DeviceDisconnected` is handled directly so a
+/// controller can be re-emitted the instant it advertises again instead of
+/// waiting out the rediscover cooldown.
 pub struct JoyCon2Scanner {
-    adapters: Vec<Adapter>,
-    scan_started: bool,
+    feeds: Vec<AdapterFeed>,
 }
 
 #[derive(Debug, Clone)]
@@ -665,74 +853,121 @@ impl JoyCon2Scanner {
         if adapters.is_empty() {
             return None;
         }
-        Some(Self {
-            adapters,
-            scan_started: false,
-        })
+        let mut feeds = Vec::new();
+        for adapter in adapters {
+            // events() before start_scan — order matters (see AdapterFeed).
+            let events = match adapter.events().await {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!(error = %e, "jc2 adapter events() failed; skipping adapter");
+                    continue;
+                }
+            };
+            if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
+                tracing::warn!(error = %e, "jc2 adapter start_scan failed; skipping adapter");
+                continue;
+            }
+            feeds.push(AdapterFeed { adapter, events });
+        }
+        if feeds.is_empty() {
+            return None;
+        }
+        Some(Self { feeds })
     }
 
+    /// Drain every event that is ready right now from each adapter feed.
+    ///
+    /// Non-blocking: `now_or_never` polls the stream once and yields only
+    /// already-buffered events, so this returns promptly even when the BLE
+    /// adapter is idle. The caller drives it on its own cadence.
     pub async fn poll(
         &mut self,
         known: &mut HashMap<String, tokio::time::Instant>,
         rediscover_after: Duration,
         out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
     ) -> Result<(), DeviceError> {
-        if !self.scan_started {
-            for adapter in &self.adapters {
-                if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
-                    tracing::warn!(error = %e, "jc2 adapter start_scan failed");
-                }
-            }
-            self.scan_started = true;
-        }
-
-        for adapter in &self.adapters {
-            let peripherals = adapter
-                .peripherals()
-                .await
-                .map_err(|e| DeviceError::Hid(format!("jc2 peripherals query failed: {e}")))?;
-            for peripheral in peripherals {
-                let Some(props) = peripheral.properties().await.map_err(|e| {
-                    DeviceError::Hid(format!("jc2 peripheral properties failed: {e}"))
-                })?
-                else {
-                    continue;
-                };
-
-                let Some(kind) = kind_from_manufacturer_data(&props.manufacturer_data) else {
-                    continue;
-                };
-                let addr = props.address.to_string();
-                let key = format!("jc2#{addr}");
-                let is_connected = peripheral.is_connected().await.unwrap_or(false);
-                if is_connected {
-                    known.insert(key.clone(), tokio::time::Instant::now());
-                    continue;
-                }
-                if let Some(last_seen) = known.get(&key) {
-                    if last_seen.elapsed() < rediscover_after {
-                        continue;
-                    }
-                }
-                known.insert(key, tokio::time::Instant::now());
-
-                let mac = mac_from_addr(&addr).unwrap_or_else(|| hash_to_mac(&addr));
-                let serial = props
-                    .local_name
-                    .unwrap_or_else(|| format!("JoyCon2-{addr}"));
-                let dev = JoyCon2Device::new(peripheral.clone(), kind, serial, mac);
-                let meta = dev.metadata().clone();
-                if out
-                    .send((meta, Box::new(dev) as Box<dyn Device>))
-                    .await
-                    .is_err()
-                {
-                    return Ok(());
-                }
+        for idx in 0..self.feeds.len() {
+            let adapter = self.feeds[idx].adapter.clone();
+            // `now_or_never` yields `Some(Some(ev))` for a ready event;
+            // `Some(None)` (stream ended) and `None` (nothing ready) both stop.
+            while let Some(Some(event)) = self.feeds[idx].events.next().now_or_never() {
+                handle_central_event(&adapter, event, known, rediscover_after, out).await?;
             }
         }
         Ok(())
     }
+}
+
+/// Route one `CentralEvent` to discovery or disconnect handling.
+async fn handle_central_event(
+    adapter: &Adapter,
+    event: CentralEvent,
+    known: &mut HashMap<String, tokio::time::Instant>,
+    rediscover_after: Duration,
+    out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
+) -> Result<(), DeviceError> {
+    match event {
+        CentralEvent::DeviceDiscovered(id)
+        | CentralEvent::DeviceUpdated(id)
+        | CentralEvent::ManufacturerDataAdvertisement { id, .. } => {
+            try_emit_peripheral(adapter, &id, known, rediscover_after, out).await?;
+        }
+        CentralEvent::DeviceDisconnected(id) => {
+            // Drop the cooldown entry so the controller is re-emitted as soon
+            // as it advertises again, rather than waiting out rediscover_after.
+            if let Ok(peripheral) = adapter.peripheral(&id).await {
+                known.remove(&format!("jc2#{}", peripheral.address()));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Resolve a peripheral id to a Joy-Con 2 / Pro Controller 2 and emit a fresh
+/// [`JoyCon2Device`] if it is not already known or connected.
+async fn try_emit_peripheral(
+    adapter: &Adapter,
+    id: &PeripheralId,
+    known: &mut HashMap<String, tokio::time::Instant>,
+    rediscover_after: Duration,
+    out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
+) -> Result<(), DeviceError> {
+    let Ok(peripheral) = adapter.peripheral(id).await else {
+        // Device vanished between the event and the lookup — ignore.
+        return Ok(());
+    };
+    let Some(props) = peripheral
+        .properties()
+        .await
+        .map_err(|e| DeviceError::Hid(format!("jc2 peripheral properties failed: {e}")))?
+    else {
+        return Ok(());
+    };
+    let Some(kind) = kind_from_manufacturer_data(&props.manufacturer_data) else {
+        return Ok(());
+    };
+    let addr = props.address.to_string();
+    let key = format!("jc2#{addr}");
+    if peripheral.is_connected().await.unwrap_or(false) {
+        known.insert(key, tokio::time::Instant::now());
+        return Ok(());
+    }
+    if let Some(last_seen) = known.get(&key) {
+        if last_seen.elapsed() < rediscover_after {
+            return Ok(());
+        }
+    }
+    known.insert(key, tokio::time::Instant::now());
+
+    let mac = mac_from_addr(&addr).unwrap_or_else(|| hash_to_mac(&addr));
+    let serial = props
+        .local_name
+        .unwrap_or_else(|| format!("JoyCon2-{addr}"));
+    let dev = JoyCon2Device::new(peripheral, kind, serial, mac);
+    let meta = dev.metadata().clone();
+    let _ = out.send((meta, Box::new(dev) as Box<dyn Device>)).await;
+    Ok(())
 }
 
 pub async fn scan_nearby(timeout: std::time::Duration) -> Result<Vec<NearbyJoyCon2>, DeviceError> {
@@ -839,6 +1074,57 @@ mod tests {
             vec![0xFF, 0x00, 0x03, 0x7E, ADV_KIND_JC2_L],
         );
         assert_eq!(kind_from_manufacturer_data(&m), None);
+    }
+
+    #[test]
+    fn manufacturer_data_detects_kind_from_pid_over_byte4() {
+        // Advert byte 4 says 0x05 (would map to Right) but the embedded USB PID
+        // 0x2067 is Joy-Con 2 Left. PID must win — the byte-4 map is unverified.
+        let mut m = HashMap::new();
+        m.insert(
+            NINTENDO_MFR_ID,
+            vec![0x01, 0x00, 0x03, 0x7E, 0x05, 0x00, 0x67, 0x20],
+        );
+        assert_eq!(kind_from_manufacturer_data(&m), Some(JoyCon2Kind::Left));
+    }
+
+    #[test]
+    fn manufacturer_data_accepts_unknown_byte4_as_joycon() {
+        // No recognizable PID and a byte-4 value outside the guessed set: the
+        // advert is still a valid Switch 2 device and must not be dropped.
+        let mut m = HashMap::new();
+        m.insert(NINTENDO_MFR_ID, vec![0x01, 0x00, 0x03, 0x7E, 0x42]);
+        assert_eq!(kind_from_manufacturer_data(&m), Some(JoyCon2Kind::Right));
+    }
+
+    #[test]
+    fn manufacturer_data_detects_pro_controller_2() {
+        let mut m = HashMap::new();
+        let [lo, hi] = 0x2069u16.to_le_bytes();
+        m.insert(
+            NINTENDO_MFR_ID,
+            vec![0x01, 0x00, 0x03, 0x7E, 0x00, 0x00, lo, hi],
+        );
+        assert_eq!(kind_from_manufacturer_data(&m), Some(JoyCon2Kind::Pro));
+        assert_eq!(kind_from_pid(0x2069), Some(JoyCon2Kind::Pro));
+    }
+
+    #[test]
+    fn manufacturer_data_rejects_gamecube_pid() {
+        // NSO GameCube 2 (0x2073) is not handled by this crate.
+        let mut m = HashMap::new();
+        let [lo, hi] = 0x2073u16.to_le_bytes();
+        m.insert(
+            NINTENDO_MFR_ID,
+            vec![0x01, 0x00, 0x03, 0x7E, 0x05, 0x00, lo, hi],
+        );
+        assert_eq!(kind_from_manufacturer_data(&m), None);
+    }
+
+    #[test]
+    fn pro_controller_axis_remap_is_base_only() {
+        // Pro 2 gets the SDL base remap (x, z, -y) with no standalone flip.
+        assert_eq!(remap_axes(JoyCon2Kind::Pro, [1.0, 2.0, 3.0]), [1.0, 3.0, -2.0]);
     }
 
     #[test]

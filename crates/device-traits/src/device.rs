@@ -38,6 +38,7 @@ pub enum DeviceKind {
     ChargingGripR,
     JoyCon2L,
     JoyCon2R,
+    ProController2,
     DualSense,
     DualSenseEdge,
     DualShock4,

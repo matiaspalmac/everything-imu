@@ -97,6 +97,17 @@ impl JoyconFactory {
                     .collect()
             };
 
+            // Forget devices that have left the HID bus. Without this a Joy-Con
+            // that disconnects mid-session (Bluetooth drop, sleep, re-pair)
+            // stays in `known` forever and is never re-enumerated — i.e. no
+            // auto-reconnect until the app restarts. Pruning here means the
+            // path is re-emitted as a fresh device the moment it reappears.
+            let present: HashSet<String> = infos
+                .iter()
+                .map(|(path, _, _, iface)| format!("{path:?}#{iface}"))
+                .collect();
+            known.retain(|key| present.contains(key));
+
             for (path, pid_value, serial, iface) in infos {
                 let key = format!("{path:?}#{iface}");
                 if !known.insert(key.clone()) {
@@ -248,6 +259,7 @@ impl JoyconFactory {
                 kind: match d.kind {
                     JoyCon2Kind::Left => DeviceKind::JoyCon2L,
                     JoyCon2Kind::Right => DeviceKind::JoyCon2R,
+                    JoyCon2Kind::Pro => DeviceKind::ProController2,
                 },
                 name: d.name,
                 address: d.address,
