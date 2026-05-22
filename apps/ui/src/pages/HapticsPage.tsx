@@ -148,7 +148,12 @@ export function HapticsPage() {
                 <button
                   key={macKey(d.mac)}
                   type="button"
-                  onClick={() => void api.testRumble(d.mac as unknown as number[], 400)}
+                  onClick={() =>
+                    void api.testRumble(
+                      d.mac as [number, number, number, number, number, number],
+                      400,
+                    )
+                  }
                   className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-1.5 text-xs text-[var(--fg-primary)] hover:border-[var(--accent)]"
                 >
                   {d.kind} · {macHex(d.mac)}
