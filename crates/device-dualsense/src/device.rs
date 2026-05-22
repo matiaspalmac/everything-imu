@@ -159,20 +159,57 @@ impl Device for DualSenseDevice {
 fn read_feature_calibration(device: &HidDevice, kind: ControllerKind) -> Option<SonyCalibration> {
     let mut buf_05 = [0u8; 41];
     buf_05[0] = 0x05;
-    if device.get_feature_report(&mut buf_05).is_ok() {
-        if let Some(cal) = parse_feature_calibration(kind, 0x05, &buf_05) {
-            return Some(cal);
-        }
+    match device.get_feature_report(&mut buf_05) {
+        Ok(_) => match parse_feature_calibration(kind, 0x05, &buf_05) {
+            Some(cal) => {
+                tracing::info!(
+                    ?kind,
+                    report = "0x05",
+                    bias_dps = ?cal.gyro_bias_dps,
+                    gyro_scale = ?cal.gyro_scale,
+                    accel_bias_g = ?cal.accel_bias_g,
+                    accel_scale = ?cal.accel_scale,
+                    "DualSense/DS4 factory calibration applied"
+                );
+                return Some(cal);
+            }
+            None => tracing::warn!(
+                ?kind,
+                report = "0x05",
+                "feature report read but parse_feature_calibration rejected payload"
+            ),
+        },
+        Err(e) => tracing::warn!(?kind, report = "0x05", error = %e, "get_feature_report failed"),
     }
     if matches!(kind, ControllerKind::DualShock4) {
         let mut buf_02 = [0u8; 37];
         buf_02[0] = 0x02;
-        if device.get_feature_report(&mut buf_02).is_ok() {
-            if let Some(cal) = parse_feature_calibration(kind, 0x02, &buf_02) {
-                return Some(cal);
+        match device.get_feature_report(&mut buf_02) {
+            Ok(_) => match parse_feature_calibration(kind, 0x02, &buf_02) {
+                Some(cal) => {
+                    tracing::info!(
+                        ?kind,
+                        report = "0x02",
+                        bias_dps = ?cal.gyro_bias_dps,
+                        "DS4 USB factory calibration applied"
+                    );
+                    return Some(cal);
+                }
+                None => tracing::warn!(
+                    ?kind,
+                    report = "0x02",
+                    "DS4 USB cal payload rejected by parser"
+                ),
+            },
+            Err(e) => {
+                tracing::warn!(?kind, report = "0x02", error = %e, "DS4 USB get_feature_report failed")
             }
         }
     }
+    tracing::warn!(
+        ?kind,
+        "no factory calibration loaded; gyro bias relies on VQF rest-bias estimator (capped ~2 deg/s)"
+    );
     None
 }
 
