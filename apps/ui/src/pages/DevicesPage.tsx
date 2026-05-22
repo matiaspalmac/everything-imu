@@ -145,6 +145,7 @@ export function DevicesPage() {
         <label className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-1.5 text-[11px] text-[var(--fg-muted)]">
           <input
             type="checkbox"
+            aria-label={allSelected ? t("devices.deselect_all") : t("devices.select_all")}
             checked={allSelected}
             onChange={toggleAll}
             className="size-3.5 accent-[var(--accent)]"
@@ -155,6 +156,7 @@ export function DevicesPage() {
           <MagnifyingGlass size={13} className="text-[var(--fg-muted)]" />
           <input
             type="text"
+            aria-label={t("devices.search_placeholder")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("devices.search_placeholder")}
@@ -253,10 +255,12 @@ function DeviceCard({
   if (d.has_battery) caps.push("battery");
   if (d.has_rumble) caps.push("rumble");
   return (
-    <article
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onOpen();
+        if (e.key === "Enter" || e.key === " ") onOpen();
       }}
       className={`group/dev relative flex cursor-pointer flex-col gap-2 rounded-[var(--radius-md)] border bg-[var(--bg-panel)] p-3 transition ${
         selected
@@ -267,6 +271,7 @@ function DeviceCard({
       <div className="flex items-center justify-between gap-2">
         <input
           type="checkbox"
+          aria-label={t("devices.select")}
           checked={selected}
           onClick={(e) => e.stopPropagation()}
           onChange={onToggle}
@@ -322,7 +327,7 @@ function DeviceCard({
           />
         </div>
       </div>
-    </article>
+    </div>
   );
 }
 

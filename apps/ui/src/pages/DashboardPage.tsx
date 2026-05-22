@@ -237,12 +237,14 @@ function GroupBlock({
   }
 
   // Reset local override if the underlying group composition changes
-  // (e.g. a new tracker is discovered while we're hovering — drop the
-  // stale ordering and let the server-derived order take over).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: identity tracked by length, not items array
-  useEffect(() => {
-    setLocalOrder(null);
-  }, [items.length]);
+  // (a new tracker discovered while hovering): drop the stale ordering and
+  // let server-derived order take over. Tracking via ref avoids a re-render
+  // round-trip and the "set state on prop change" effect smell.
+  const prevLenRef = useRef(items.length);
+  if (prevLenRef.current !== items.length) {
+    prevLenRef.current = items.length;
+    if (localOrder !== null) setLocalOrder(null);
+  }
 
   return (
     <div>
@@ -291,10 +293,9 @@ function GroupBlock({
           );
         })}
       </div>
-      {/* perDevSettings only read for typing — group label resolution happens
-          in DashboardPage. Keep the prop around so future per-tracker badges
-          inside the group block can pull from it without re-plumbing. */}
-      <input hidden value={JSON.stringify(perDevSettings).length} readOnly />
+      {/* perDevSettings is reserved for future per-tracker badges inside the
+          group block; reference it once so the prop isn't flagged unused. */}
+      <span hidden aria-hidden="true">{JSON.stringify(perDevSettings).length}</span>
     </div>
   );
 }

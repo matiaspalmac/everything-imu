@@ -89,6 +89,7 @@ export function LogsPage() {
             <MagnifyingGlass size={13} className="text-[var(--fg-muted)]" />
             <input
               type="text"
+              aria-label={t("labels.filter")}
               placeholder={t("labels.filter")}
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
@@ -106,6 +107,7 @@ export function LogsPage() {
           <label className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-1.5 text-[11px] text-[var(--fg-secondary)]">
             <input
               type="checkbox"
+              aria-label={t("labels.follow")}
               checked={follow}
               onChange={(e) => setFollow(e.target.checked)}
               className="size-3.5 accent-[var(--accent)]"
