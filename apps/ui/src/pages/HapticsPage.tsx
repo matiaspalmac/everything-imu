@@ -23,18 +23,23 @@ export function HapticsPage() {
   const { t } = useTranslation();
   const devices = useDeviceStore((s) => s.devices);
   const discovered = useHapticStore((s) => s.discovered);
+  const config = useHapticStore((s) => s.config);
+  const setConfig = useHapticStore((s) => s.setConfig);
+  const configLoaded = useHapticStore((s) => s.configLoaded);
   const pushToast = useToastStore((s) => s.push);
 
-  const [config, setConfig] = useState<HapticConfigDto | null>(null);
   const [saving, setSaving] = useState(false);
 
   const rumbleDevices = Object.values(devices).filter((d) => d.has_rumble);
 
   useEffect(() => {
+    // Fetch only once per session. Refetching on every remount would
+    // clobber unsaved edits when switching tabs.
+    if (configLoaded) return;
     api.getHapticConfig().then((res) => {
       if (res.status === "ok") setConfig(res.data);
     });
-  }, []);
+  }, [configLoaded, setConfig]);
 
   if (!config) {
     return <div className="p-6 text-xs text-[var(--fg-muted)]">…</div>;

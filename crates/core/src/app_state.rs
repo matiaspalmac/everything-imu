@@ -16,7 +16,7 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, watch, RwLock};
+use tokio::sync::{broadcast, mpsc, watch, RwLock};
 
 pub struct AppState {
     slime_addr: SocketAddr,
@@ -28,6 +28,10 @@ pub struct AppState {
     /// without killing the bridge process.
     pub paused: Arc<AtomicBool>,
     devices: RwLock<HashMap<DeviceId, DeviceHandle>>,
+    /// Broadcasts the metadata of each device the moment it is registered.
+    /// The app layer subscribes and forwards a `DeviceDiscovered` event to
+    /// the UI, so the device store stays current after first paint.
+    device_events_tx: broadcast::Sender<DeviceMetadata>,
 }
 
 struct DeviceHandle {
@@ -61,13 +65,21 @@ impl AppState {
         settings: Arc<dyn SettingsStore>,
         bias_store: Arc<dyn BiasStore>,
     ) -> Result<Self, AppError> {
+        let (device_events_tx, _) = broadcast::channel(16);
         Ok(Self {
             slime_addr,
             settings,
             bias_store,
             paused: Arc::new(AtomicBool::new(false)),
             devices: RwLock::new(HashMap::new()),
+            device_events_tx,
         })
+    }
+
+    /// Subscribe to device-registration events. Each registered device's
+    /// metadata is broadcast once, right after it enters the registry.
+    pub fn subscribe_device_events(&self) -> broadcast::Receiver<DeviceMetadata> {
+        self.device_events_tx.subscribe()
     }
 
     pub fn set_paused(&self, paused: bool) {
@@ -120,6 +132,7 @@ impl AppState {
             config,
         );
         let id = meta.id.clone();
+        let meta_event = meta.clone();
         let task = tokio::spawn(pipeline.run(events, stop_rx));
         self.devices.write().await.insert(
             id,
@@ -141,6 +154,9 @@ impl AppState {
                 mag_cal_result_rx: handles.mag_cal_result_rx,
             },
         );
+        // Notify the app layer so it can push a DeviceDiscovered event.
+        // A send error only means no subscriber yet — harmless.
+        let _ = self.device_events_tx.send(meta_event);
         Ok(())
     }
 
