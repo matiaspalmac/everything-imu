@@ -59,6 +59,15 @@ pub async fn get_settings(handle: State<'_, AppHandle>) -> Result<SettingsDto, I
     if let Some(v) = handle.db.get_setting("close_to_tray")? {
         s.close_to_tray = v == "1";
     }
+    if let Some(v) = handle.db.get_setting("auto_update_on_startup")? {
+        s.auto_update_on_startup = v != "0";
+    }
+    if let Some(v) = handle.db.get_setting("auto_install_on_startup")? {
+        s.auto_install_on_startup = v != "0";
+    }
+    if let Some(v) = handle.db.get_setting("crash_report_enabled")? {
+        s.crash_report_enabled = v == "1";
+    }
     Ok(s)
 }
 
@@ -740,8 +749,24 @@ pub async fn test_rumble(
     mac: [u8; 6],
     duration_ms: u32,
 ) -> Result<(), IpcError> {
+    test_rumble_at(handle, mac, 1.0, duration_ms).await
+}
+
+/// Pulse rumble at a specific intensity. Used by the haptic calibration
+/// wizard, which steps through 0.1 .. 1.0 to find the user's perception
+/// floor + ceiling. Intensity is clamped to [0, 1]; durations beyond
+/// 1500ms are capped for the same runaway-motor reason as `test_rumble`.
+#[tauri::command]
+#[specta::specta]
+pub async fn test_rumble_at(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+    intensity: f32,
+    duration_ms: u32,
+) -> Result<(), IpcError> {
+    let i = intensity.clamp(0.0, 1.0);
     let dur = std::time::Duration::from_millis(duration_ms.min(1500) as u64);
-    if !handle.state.set_rumble(mac, 1.0).await {
+    if !handle.state.set_rumble(mac, i).await {
         return Ok(());
     }
     let state = handle.state.clone();
@@ -749,6 +774,72 @@ pub async fn test_rumble(
         tokio::time::sleep(dur).await;
         let _ = state.set_rumble(mac, 0.0).await;
     });
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
+pub struct HapticCalibrationDto {
+    /// Perception floor (0..1). Any intensity input <= floor is treated
+    /// as silence — the motor needs more than this to be felt.
+    pub floor: f32,
+    /// Gain applied to intensities above the floor. 1.0 is identity;
+    /// >1.0 pre-emphasizes weak signals, <1.0 dampens.
+    pub gain: f32,
+}
+
+impl Default for HapticCalibrationDto {
+    fn default() -> Self {
+        Self { floor: 0.0, gain: 1.0 }
+    }
+}
+
+/// Read the user's perception-calibrated rumble curve for a single
+/// device. Returns identity (floor=0, gain=1) when nothing is stored.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_haptic_calibration(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+) -> Result<HapticCalibrationDto, IpcError> {
+    let mk = mac_key(mac);
+    let floor = handle
+        .db
+        .get_setting(&format!("haptic_floor:{mk}"))?
+        .and_then(|s| s.parse::<f32>().ok())
+        .filter(|v| v.is_finite() && (0.0..=1.0).contains(v))
+        .unwrap_or(0.0);
+    let gain = handle
+        .db
+        .get_setting(&format!("haptic_gain:{mk}"))?
+        .and_then(|s| s.parse::<f32>().ok())
+        .filter(|v| v.is_finite() && (0.0..=4.0).contains(v))
+        .unwrap_or(1.0);
+    Ok(HapticCalibrationDto { floor, gain })
+}
+
+/// Persist the per-device haptic floor + gain. The runtime rumble path
+/// reads these via the same settings store, so a change takes effect
+/// on the next OSC-driven pulse without a reconnect.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_haptic_calibration(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+    cal: HapticCalibrationDto,
+) -> Result<(), IpcError> {
+    if !cal.floor.is_finite() || !(0.0..=1.0).contains(&cal.floor) {
+        return Err(IpcError::Invalid("floor must be in [0, 1]".into()));
+    }
+    if !cal.gain.is_finite() || !(0.0..=4.0).contains(&cal.gain) {
+        return Err(IpcError::Invalid("gain must be in [0, 4]".into()));
+    }
+    let mk = mac_key(mac);
+    handle
+        .db
+        .set_setting(&format!("haptic_floor:{mk}"), &cal.floor.to_string())?;
+    handle
+        .db
+        .set_setting(&format!("haptic_gain:{mk}"), &cal.gain.to_string())?;
     Ok(())
 }
 
@@ -1047,6 +1138,101 @@ pub async fn clear_mag_calibration(
     handle.state.set_mag_calibration(mac, None).await;
     tracing::info!(mac = ?mac, "mag calibration cleared");
     Ok(())
+}
+
+/// List the configured UDP haptic targets. The MAC field is a synthesized
+/// locally-administered identifier — useful for binding OSC rules — and
+/// not the receiver's real network MAC.
+#[tauri::command]
+#[specta::specta]
+pub async fn udp_haptic_list(
+    handle: State<'_, AppHandle>,
+) -> Result<Vec<crate::udp_haptic::UdpHapticTarget>, IpcError> {
+    let json = handle
+        .db
+        .get_setting(crate::udp_haptic::save_settings_key())?
+        .unwrap_or_default();
+    Ok(crate::udp_haptic::load_from_settings_json(&json))
+}
+
+/// Add or update a UDP haptic target. The synthesized MAC is derived
+/// deterministically from `host:port`, so re-adding the same endpoint
+/// returns the original MAC and keeps existing OSC bindings intact.
+#[tauri::command]
+#[specta::specta]
+pub async fn udp_haptic_upsert(
+    handle: State<'_, AppHandle>,
+    alias: String,
+    host: String,
+    port: u16,
+) -> Result<crate::udp_haptic::UdpHapticTarget, IpcError> {
+    let mac = crate::udp_haptic::synth_mac(&host, port);
+    let target = crate::udp_haptic::UdpHapticTarget {
+        mac,
+        alias,
+        host,
+        port,
+    };
+    let key = crate::udp_haptic::save_settings_key();
+    let mut list = crate::udp_haptic::load_from_settings_json(
+        &handle.db.get_setting(key)?.unwrap_or_default(),
+    );
+    if let Some(slot) = list.iter_mut().find(|t| t.mac == mac) {
+        *slot = target.clone();
+    } else {
+        list.push(target.clone());
+    }
+    handle.db.set_setting(key, &serde_json::to_string(&list).unwrap_or_default())?;
+    Ok(target)
+}
+
+/// Delete a UDP haptic target by its synthesized MAC.
+#[tauri::command]
+#[specta::specta]
+pub async fn udp_haptic_remove(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+) -> Result<(), IpcError> {
+    let key = crate::udp_haptic::save_settings_key();
+    let mut list = crate::udp_haptic::load_from_settings_json(
+        &handle.db.get_setting(key)?.unwrap_or_default(),
+    );
+    list.retain(|t| t.mac != mac);
+    handle.db.set_setting(key, &serde_json::to_string(&list).unwrap_or_default())?;
+    Ok(())
+}
+
+/// Fire a one-shot test pulse at a UDP haptic target. Intended for
+/// confirming the receiver firmware is wired correctly before binding
+/// the target into an OSC rule.
+#[tauri::command]
+#[specta::specta]
+pub async fn udp_haptic_test(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+    intensity: f32,
+    duration_ms: u16,
+) -> Result<(), IpcError> {
+    let key = crate::udp_haptic::save_settings_key();
+    let list = crate::udp_haptic::load_from_settings_json(
+        &handle.db.get_setting(key)?.unwrap_or_default(),
+    );
+    let target = list
+        .into_iter()
+        .find(|t| t.mac == mac)
+        .ok_or(IpcError::NotFound)?;
+    crate::udp_haptic::send(&target, intensity, duration_ms)
+        .map_err(|e| IpcError::Internal(e.to_string()))
+}
+
+/// Write the embedded udev ruleset to `/etc/udev/rules.d/` via pkexec so
+/// non-root Linux users can open the Joy-Con / DualSense / PSMove HID
+/// nodes. Returns a no-op error on Windows and macOS — the UI uses that
+/// to flip the button into a "Linux only" hint.
+#[tauri::command]
+#[specta::specta]
+pub async fn install_udev_rules() -> Result<String, IpcError> {
+    crate::udev_install::install().map_err(|e| IpcError::Internal(e.to_string()))
 }
 
 /// Look up the latest GitHub release and report whether an update is

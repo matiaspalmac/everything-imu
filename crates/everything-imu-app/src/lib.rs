@@ -1,6 +1,7 @@
 //! everything-imu Tauri 2 binary entrypoint.
 
 pub mod commands;
+pub mod crash_report;
 pub mod dto;
 pub mod error;
 pub mod events;
@@ -11,6 +12,9 @@ pub mod steam_blacklist;
 pub mod supervisor_boot;
 pub mod tracker_emitter;
 pub mod tray;
+pub mod udev_install;
+pub mod udp_haptic;
+pub mod update_boot;
 pub mod updater;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -102,6 +106,13 @@ pub fn run() {
                 .flatten()
                 .map(|v| v == "1")
                 .unwrap_or(false);
+            let crash_report_enabled = db
+                .get_setting("crash_report_enabled")
+                .ok()
+                .flatten()
+                .map(|v| v == "1")
+                .unwrap_or(false);
+            crash_report::init_if_opted_in(crash_report_enabled);
 
             let state = tauri::async_runtime::block_on(async {
                 std::sync::Arc::new(
@@ -173,6 +184,7 @@ pub fn run() {
             tray::init_tray(app.handle())?;
             tracker_emitter::spawn(app.handle());
             supervisor_boot::spawn(app.handle(), auto_start_synthetic);
+            update_boot::spawn(app.handle());
 
             Ok(())
         })
@@ -227,6 +239,9 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
             commands::get_output_profile,
             commands::set_output_profile,
             commands::test_rumble,
+            commands::test_rumble_at,
+            commands::get_haptic_calibration,
+            commands::set_haptic_calibration,
             commands::get_calibration_wizard_status,
             commands::apply_calibration_wizard,
             commands::get_advanced_telemetry,
@@ -242,6 +257,11 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
             commands::steam_blacklist_apply_fix,
             commands::check_for_update,
             commands::apply_update,
+            commands::install_udev_rules,
+            commands::udp_haptic_list,
+            commands::udp_haptic_upsert,
+            commands::udp_haptic_remove,
+            commands::udp_haptic_test,
         ])
         .events(tauri_specta::collect_events![
             events::TrackerUpdate,
@@ -254,5 +274,6 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
             events::LatencyUpdate,
             events::ConnectionStatusUpdate,
             events::HapticAddressDiscovered,
+            events::UpdateStatus,
         ])
 }

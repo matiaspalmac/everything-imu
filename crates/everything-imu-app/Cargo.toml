@@ -55,6 +55,11 @@ keyvalues-parser = "0.2"
 regex = "1.11"
 itertools = "0.13"
 self_update = { version = "0.42", default-features = false, features = ["rustls", "compression-zip-deflate", "archive-zip"] }
+sentry = { version = "0.34", default-features = false, features = ["backtrace", "contexts", "panic", "rustls", "reqwest"], optional = true }
+
+[features]
+default = []
+crash-reporting = ["dep:sentry"]
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

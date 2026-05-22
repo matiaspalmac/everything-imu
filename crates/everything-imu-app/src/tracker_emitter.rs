@@ -62,7 +62,15 @@ fn spawn_tracker_and_samples(app: &TauriAppHandle) {
                     });
                 }
             }
-            crate::tray::update_tray_tooltip(&app, trackers.len());
+            let low_battery = trackers
+                .iter()
+                .filter(|t| {
+                    t.battery_fraction.is_finite()
+                        && t.battery_fraction > 0.0
+                        && t.battery_fraction < 0.15
+                })
+                .count();
+            crate::tray::update_tray_tooltip(&app, trackers.len(), low_battery);
             let _ = TrackerUpdate { trackers }.emit(&app);
             if !sample_entries.is_empty() {
                 let _ = ImuSampleUpdate {

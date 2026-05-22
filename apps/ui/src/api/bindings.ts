@@ -244,6 +244,45 @@ async testRumble(mac: [number, number, number, number, number, number], duration
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Pulse rumble at a specific intensity. Used by the haptic calibration
+ * wizard, which steps through 0.1 .. 1.0 to find the user's perception
+ * floor + ceiling. Intensity is clamped to [0, 1]; durations beyond
+ * 1500ms are capped for the same runaway-motor reason as `test_rumble`.
+ */
+async testRumbleAt(mac: [number, number, number, number, number, number], intensity: number, durationMs: number) : Promise<Result<null, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("test_rumble_at", { mac, intensity, durationMs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Read the user's perception-calibrated rumble curve for a single
+ * device. Returns identity (floor=0, gain=1) when nothing is stored.
+ */
+async getHapticCalibration(mac: [number, number, number, number, number, number]) : Promise<Result<HapticCalibrationDto, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_haptic_calibration", { mac }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Persist the per-device haptic floor + gain. The runtime rumble path
+ * reads these via the same settings store, so a change takes effect
+ * on the next OSC-driven pulse without a reconnect.
+ */
+async setHapticCalibration(mac: [number, number, number, number, number, number], cal: HapticCalibrationDto) : Promise<Result<null, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_haptic_calibration", { mac, cal }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getCalibrationWizardStatus(mac: [number, number, number, number, number, number]) : Promise<Result<CalibrationWizardStatusDto, IpcError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_calibration_wizard_status", { mac }) };
@@ -406,6 +445,70 @@ async applyUpdate() : Promise<Result<UpdateInfo, IpcError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Write the embedded udev ruleset to `/etc/udev/rules.d/` via pkexec so
+ * non-root Linux users can open the Joy-Con / DualSense / PSMove HID
+ * nodes. Returns a no-op error on Windows and macOS — the UI uses that
+ * to flip the button into a "Linux only" hint.
+ */
+async installUdevRules() : Promise<Result<string, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("install_udev_rules") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * List the configured UDP haptic targets. The MAC field is a synthesized
+ * locally-administered identifier — useful for binding OSC rules — and
+ * not the receiver's real network MAC.
+ */
+async udpHapticList() : Promise<Result<UdpHapticTarget[], IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("udp_haptic_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Add or update a UDP haptic target. The synthesized MAC is derived
+ * deterministically from `host:port`, so re-adding the same endpoint
+ * returns the original MAC and keeps existing OSC bindings intact.
+ */
+async udpHapticUpsert(alias: string, host: string, port: number) : Promise<Result<UdpHapticTarget, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("udp_haptic_upsert", { alias, host, port }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Delete a UDP haptic target by its synthesized MAC.
+ */
+async udpHapticRemove(mac: [number, number, number, number, number, number]) : Promise<Result<null, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("udp_haptic_remove", { mac }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Fire a one-shot test pulse at a UDP haptic target. Intended for
+ * confirming the receiver firmware is wired correctly before binding
+ * the target into an OSC rule.
+ */
+async udpHapticTest(mac: [number, number, number, number, number, number], intensity: number, durationMs: number) : Promise<Result<null, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("udp_haptic_test", { mac, intensity, durationMs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -422,7 +525,8 @@ hapticAddressDiscovered: HapticAddressDiscovered,
 imuSampleUpdate: ImuSampleUpdate,
 latencyUpdate: LatencyUpdate,
 logEntry: LogEntry,
-trackerUpdate: TrackerUpdate
+trackerUpdate: TrackerUpdate,
+updateStatus: UpdateStatus
 }>({
 biasUpdate: "bias-update",
 connectionStatusUpdate: "connection-status-update",
@@ -433,7 +537,8 @@ hapticAddressDiscovered: "haptic-address-discovered",
 imuSampleUpdate: "imu-sample-update",
 latencyUpdate: "latency-update",
 logEntry: "log-entry",
-trackerUpdate: "tracker-update"
+trackerUpdate: "tracker-update",
+updateStatus: "update-status"
 })
 
 /** user-defined constants **/
@@ -463,6 +568,17 @@ export type FusionAlgoDto = "vqf" | "madgwick" | "basic_vqf"
  * contact in-game and bind the address that lights up.
  */
 export type HapticAddressDiscovered = { address: string }
+export type HapticCalibrationDto = { 
+/**
+ * Perception floor (0..1). Any intensity input <= floor is treated
+ * as silence — the motor needs more than this to be felt.
+ */
+floor: number; 
+/**
+ * Gain applied to intensities above the floor. 1.0 is identity;
+ * >1.0 pre-emphasizes weak signals, <1.0 dampens.
+ */
+gain: number }
 export type HapticConfigDto = { enabled: boolean; listen_port: number; rules: HapticRuleDto[] }
 export type HapticModeDto = { kind: "proximity"; gain: number; min_threshold: number } | { kind: "pulse"; pulse_ms: number }
 export type HapticRuleDto = { osc_address: string; 
@@ -553,7 +669,25 @@ export type SettingsDto = { slime_server_addr: string; log_filter: string; theme
  * the tray instead of exiting. Quit is still reachable via the
  * tray menu's Quit entry. Default false to match pre-tray behavior.
  */
-close_to_tray: boolean }
+close_to_tray: boolean; 
+/**
+ * Check GitHub Releases for a newer build a few seconds after the
+ * UI mounts. Default on; toggle off for offline / locked-down
+ * installs.
+ */
+auto_update_on_startup: boolean; 
+/**
+ * When an update is found at startup, install + swap the binary
+ * automatically. Default on. With this off the user still gets a
+ * toast and the manual "Install update" button on Settings.
+ */
+auto_install_on_startup: boolean; 
+/**
+ * Opt-in crash reporting via Sentry. Off by default; flipping on
+ * only enables uploads when the binary was built with the
+ * `crash-reporting` feature AND `EVERYTHING_IMU_SENTRY_DSN` is set.
+ */
+crash_report_enabled: boolean }
 /**
  * Result surfaced to the UI: which devices need to be blacklisted and a
  * human-readable hint. `needs_fix` drives whether a "Fix" button shows.
@@ -576,7 +710,22 @@ steam_not_found: boolean;
 info: string }
 export type TrackerSnapshot = { mac: [number, number, number, number, number, number]; serial: string; quat_xyzw: [number, number, number, number]; battery_fraction: number; rate_hz: number }
 export type TrackerUpdate = { trackers: TrackerSnapshot[] }
+/**
+ * One configured UDP haptic receiver. `mac` is a synthesized
+ * locally-administered MAC used to identify the target when binding
+ * OSC rules; it has nothing to do with the receiver's real network
+ * MAC. The alias is purely cosmetic.
+ */
+export type UdpHapticTarget = { mac: [number, number, number, number, number, number]; alias: string; host: string; port: number }
 export type UpdateInfo = { current: string; latest: string; url: string; update_available: boolean }
+/**
+ * Lifecycle event for the boot-time + manual updater. The UI listens
+ * to drive a small toast/banner — `Checking → Available → Installing →
+ * Installed` for the happy path; `NoUpdate` for the quiet path; the
+ * `message` field surfaces backend errors verbatim on `Failed`.
+ */
+export type UpdateStage = { stage: "checking" } | { stage: "no_update"; current: string } | { stage: "available"; current: string; latest: string } | { stage: "installing"; current: string; latest: string } | { stage: "installed"; latest: string } | { stage: "failed"; message: string }
+export type UpdateStatus = { stage: UpdateStage }
 
 /** tauri-specta globals **/
 

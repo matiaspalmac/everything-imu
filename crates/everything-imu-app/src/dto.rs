@@ -49,6 +49,18 @@ pub struct SettingsDto {
     /// the tray instead of exiting. Quit is still reachable via the
     /// tray menu's Quit entry. Default false to match pre-tray behavior.
     pub close_to_tray: bool,
+    /// Check GitHub Releases for a newer build a few seconds after the
+    /// UI mounts. Default on; toggle off for offline / locked-down
+    /// installs.
+    pub auto_update_on_startup: bool,
+    /// When an update is found at startup, install + swap the binary
+    /// automatically. Default on. With this off the user still gets a
+    /// toast and the manual "Install update" button on Settings.
+    pub auto_install_on_startup: bool,
+    /// Opt-in crash reporting via Sentry. Off by default; flipping on
+    /// only enables uploads when the binary was built with the
+    /// `crash-reporting` feature AND `EVERYTHING_IMU_SENTRY_DSN` is set.
+    pub crash_report_enabled: bool,
 }
 
 impl Default for SettingsDto {
@@ -59,6 +71,9 @@ impl Default for SettingsDto {
             theme: "dark".into(),
             auto_start_synthetic: false,
             close_to_tray: false,
+            auto_update_on_startup: true,
+            auto_install_on_startup: true,
+            crash_report_enabled: false,
         }
     }
 }

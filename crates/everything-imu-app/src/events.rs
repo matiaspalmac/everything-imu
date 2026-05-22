@@ -116,3 +116,23 @@ pub struct ConnectionStatusUpdate {
     pub last_send_ms_ago: Option<u64>,
     pub last_handshake_ms_ago: Option<u64>,
 }
+
+/// Lifecycle event for the boot-time + manual updater. The UI listens
+/// to drive a small toast/banner — `Checking → Available → Installing →
+/// Installed` for the happy path; `NoUpdate` for the quiet path; the
+/// `message` field surfaces backend errors verbatim on `Failed`.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case", tag = "stage")]
+pub enum UpdateStage {
+    Checking,
+    NoUpdate { current: String },
+    Available { current: String, latest: String },
+    Installing { current: String, latest: String },
+    Installed { latest: String },
+    Failed { message: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+pub struct UpdateStatus {
+    pub stage: UpdateStage,
+}

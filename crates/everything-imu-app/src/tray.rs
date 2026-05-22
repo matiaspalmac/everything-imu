@@ -142,12 +142,21 @@ fn quit_app(app: &TauriAppHandle) {
     app.exit(0);
 }
 
-pub fn update_tray_tooltip(app: &TauriAppHandle, count: usize) {
+pub fn update_tray_tooltip(app: &TauriAppHandle, count: usize, low_battery: usize) {
     if let Some(handle) = app.try_state::<TrayHandle>() {
-        let label = if count == 1 {
+        let base = if count == 1 {
             "everything-imu — 1 device connected".to_string()
         } else {
             format!("everything-imu — {count} devices connected")
+        };
+        // The OS tray tooltip can't render a real badge cross-platform,
+        // so we append a single warning line when at least one device is
+        // below the low-battery threshold. Hidden when nothing is low so
+        // healthy operation stays quiet.
+        let label = if low_battery > 0 {
+            format!("{base}\n⚠ {low_battery} low battery")
+        } else {
+            base
         };
         let _ = handle.0.set_tooltip(Some(label));
     }
