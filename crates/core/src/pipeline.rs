@@ -4,7 +4,7 @@ use crate::error::AppError;
 use crate::latency::{LatencySnapshot, LatencyTracker};
 use crate::quat::QuatXyzw;
 use device_traits::{BiasStore, ChannelInfo, DeviceMetadata, ResetKind};
-use imu_fusion::{BasicVqf, Madgwick, Vqf};
+use imu_fusion::{BasicVqf, Madgwick, Vqf, VqfParams};
 use imu_math::coord;
 use imu_math::mag_cal::{self, MagCalibration};
 use nalgebra::Vector3;
@@ -178,7 +178,20 @@ impl FilterImpl {
                 // rest-only estimation to trigger). The defaults also match
                 // the validated C# legacy, which ran stock VQF plus a
                 // separate rest-only gyro-bias calibrator.
-                Self::Vqf(Vqf::new(gyr_ts_s))
+                // VQF's stock biasClip is 2 deg/s. The rest detector treats
+                // any gyro reading whose absolute value exceeds biasClip as
+                // "in motion", which silences the fast rest-bias estimator
+                // for that sample. On controllers whose true per-axis gyro
+                // bias sits near the cap (observed -1.5 dps on a DualSense
+                // yaw axis where the factory cal byte was zero) the live
+                // reading is always close to the cap even when stationary,
+                // so rest is never declared and the bias converges only
+                // through the slow motion-bias path. Raising the clip to
+                // 5 deg/s lets rest detection fire at real rest and the
+                // estimator catches up in seconds instead of minutes.
+                let mut params = VqfParams::default();
+                params.bias_clip = 5.0;
+                Self::Vqf(Vqf::with_params(gyr_ts_s, params))
             }
             FusionAlgo::Madgwick => Self::Madgwick(Madgwick::new(gyr_ts_s as f32)),
             FusionAlgo::BasicVqf => Self::BasicVqf(BasicVqf::new(gyr_ts_s)),
@@ -338,7 +351,10 @@ impl Pipeline {
             // session at the same ceiling — a self-reinforcing loop that
             // produces phantom yaw drift on devices without a magnetometer.
             // Treat anything ≥ 1.9 deg/s as suspect and discard.
-            const BIAS_CAP_DPS: f64 = 1.9;
+            // Real factory-calibrated gyro bias on these chips lives at <0.5 deg/s; the
+// VQF biasClip is 2 deg/s. Anything at or above 1.0 deg/s is treated as
+// saturation artifact, never a legitimate per-unit offset.
+const BIAS_CAP_DPS: f64 = 1.0;
             let bias_dps = [
                 bias[0].to_degrees(),
                 bias[1].to_degrees(),
@@ -653,7 +669,10 @@ impl Pipeline {
         // near VQF's biasClip ceiling. Such values are saturation artifacts,
         // not real per-unit gyro offsets, and re-seeding them on the next
         // session would lock VQF at the cap and produce phantom yaw drift.
-        const BIAS_CAP_DPS: f64 = 1.9;
+        // Real factory-calibrated gyro bias on these chips lives at <0.5 deg/s; the
+// VQF biasClip is 2 deg/s. Anything at or above 1.0 deg/s is treated as
+// saturation artifact, never a legitimate per-unit offset.
+const BIAS_CAP_DPS: f64 = 1.0;
         let saturated = bias
             .iter()
             .any(|v| v.to_degrees().abs() >= BIAS_CAP_DPS);
