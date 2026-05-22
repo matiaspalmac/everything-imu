@@ -1,10 +1,12 @@
 //! Sony controller input report parser.
 //!
 //! Three known input report shapes are recognized:
-//! - DualSense USB report 0x01 (64 bytes, IMU at offset 15/21 from byte 0 after id).
-//! - DualSense BT report 0x31 (78 bytes, payload shifted +1 vs USB to make room for
-//!   the firmware tag byte at offset 1; trailing 4-byte CRC32 is ignored on input).
-//! - DualShock 4 USB report 0x01 (64 bytes, IMU at offset 13/19).
+//! - DualSense USB report 0x01 (64 bytes; buf[0]=report ID, gyro at buf[16], accel at buf[22]).
+//! - DualSense BT report 0x31 (78 bytes; buf[0]=0x31, buf[1]=tag, payload shifted +1 vs USB → gyro at buf[18], accel at buf[24]). Trailing 4-byte CRC32 ignored on input.
+//! - DualShock 4 USB report 0x01 (64 bytes; gyro at buf[14], accel at buf[20]).
+//! Offsets follow pydualsense / hid-playstation canonical layout: hidapi returns
+//! the report ID at buf[0] for numbered reports, so payload-relative offsets must
+//! be biased by +1 (USB) or +2 (BT, ID + tag).
 //!
 //! IMU scaling:
 //! - gyro: i16 raw → rad/s.  Default sensitivity = ±2000 deg/s.
@@ -43,20 +45,20 @@ impl ImuOffsets {
     pub fn for_report(kind: ControllerKind, len: usize) -> Option<Self> {
         match (kind, len) {
             (ControllerKind::DualSense | ControllerKind::DualSenseEdge, 64) => Some(Self {
-                gyro: 15,
-                accel: 21,
+                gyro: 16,
+                accel: 22,
                 battery: Some(53),
                 buttons_2: Some(9),
             }),
             (ControllerKind::DualSense | ControllerKind::DualSenseEdge, 78) => Some(Self {
-                gyro: 16,
-                accel: 22,
+                gyro: 18,
+                accel: 24,
                 battery: Some(54),
                 buttons_2: Some(10),
             }),
             (ControllerKind::DualShock4, 64) => Some(Self {
-                gyro: 13,
-                accel: 19,
+                gyro: 14,
+                accel: 20,
                 battery: Some(30),
                 buttons_2: Some(7),
             }),
@@ -129,17 +131,21 @@ pub fn parse_report(
         }
     }
 
+    // Bias subtraction + sensitivity scaling above run in the chip's native
+    // frame because that is what feature report 0x05 calibrates against.
+    let gyro_chip = [
+        gyro_dps[0] * RAD_PER_DEG,
+        gyro_dps[1] * RAD_PER_DEG,
+        gyro_dps[2] * RAD_PER_DEG,
+    ];
+    let accel_chip = [
+        accel_g[0] * 9.806_65,
+        accel_g[1] * 9.806_65,
+        accel_g[2] * 9.806_65,
+    ];
     let sample = ImuSample {
-        gyro: [
-            gyro_dps[0] * RAD_PER_DEG,
-            gyro_dps[1] * RAD_PER_DEG,
-            gyro_dps[2] * RAD_PER_DEG,
-        ],
-        accel: [
-            accel_g[0] * 9.806_65,
-            accel_g[1] * 9.806_65,
-            accel_g[2] * 9.806_65,
-        ],
+        gyro: crate::axis_remap::apply(kind, gyro_chip),
+        accel: crate::axis_remap::apply(kind, accel_chip),
         mag: None,
         timestamp_us: 0,
     };
@@ -278,12 +284,12 @@ mod tests {
     #[test]
     fn dualsense_usb_report_emits_imu_sample() {
         let mut buf = [0u8; 64];
-        buf[15..17].copy_from_slice(&1000i16.to_le_bytes());
-        buf[17..19].copy_from_slice(&(-500i16).to_le_bytes());
-        buf[19..21].copy_from_slice(&250i16.to_le_bytes());
-        buf[21..23].copy_from_slice(&0i16.to_le_bytes());
-        buf[23..25].copy_from_slice(&8192i16.to_le_bytes());
-        buf[25..27].copy_from_slice(&0i16.to_le_bytes());
+        buf[16..18].copy_from_slice(&1000i16.to_le_bytes());
+        buf[18..20].copy_from_slice(&(-500i16).to_le_bytes());
+        buf[20..22].copy_from_slice(&250i16.to_le_bytes());
+        buf[22..24].copy_from_slice(&0i16.to_le_bytes());
+        buf[24..26].copy_from_slice(&8192i16.to_le_bytes());
+        buf[26..28].copy_from_slice(&0i16.to_le_bytes());
 
         let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
         assert!(parse_report(ControllerKind::DualSense, &buf, None, &tx));
@@ -293,9 +299,10 @@ mod tests {
             ChannelInfo::ImuSamples(samples) => {
                 assert_eq!(samples.len(), 1);
                 let s = &samples[0];
-                // 1000 LSB * (2000/32767) deg/LSB * π/180 ≈ 1.066 rad/s
+                // chip gx 1000 LSB → ~1.066 rad/s on JSL X (X passthrough).
                 assert!((s.gyro[0] - 1.066).abs() < 0.01);
-                // 8192 LSB * (4/32767) g/LSB * 9.80665 ≈ 9.806 m/s²
+                // chip ay 8192 LSB → ~9.806 m/s² on JSL -Z after chip→JSL remap
+                // (chip Y up → JSL Y up requires (x, z, -y), so chip ay lands on JSL.z = -ay).
                 assert!((s.accel[1] - 9.806).abs() < 0.05);
             }
             _ => panic!("expected ImuSamples"),
@@ -331,7 +338,7 @@ mod tests {
     #[test]
     fn ds4_usb_offsets() {
         let mut buf = [0u8; 64];
-        buf[13..15].copy_from_slice(&100i16.to_le_bytes());
+        buf[14..16].copy_from_slice(&100i16.to_le_bytes());
         let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
         assert!(parse_report(ControllerKind::DualShock4, &buf, None, &tx));
         match rx.try_recv().expect("imu event") {

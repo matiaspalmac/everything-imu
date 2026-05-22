@@ -18,6 +18,7 @@
 
 pub mod ids;
 
+pub(crate) mod axis_remap;
 pub(crate) mod hid;
 pub(crate) mod report;
 
