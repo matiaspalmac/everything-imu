@@ -698,6 +698,29 @@ pub async fn set_output_profile(
     Ok(())
 }
 
+/// Pulse a controller's rumble motor briefly so a tester can confirm the
+/// device receives commands. Clamped to 1500 ms server-side to avoid
+/// runaway motors if the frontend forgets to send the stop. No-op if the
+/// device is gone or has no rumble.
+#[tauri::command]
+#[specta::specta]
+pub async fn test_rumble(
+    handle: State<'_, AppHandle>,
+    mac: [u8; 6],
+    duration_ms: u32,
+) -> Result<(), IpcError> {
+    let dur = std::time::Duration::from_millis(duration_ms.min(1500) as u64);
+    if !handle.state.set_rumble(mac, 1.0).await {
+        return Ok(());
+    }
+    let state = handle.state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(dur).await;
+        let _ = state.set_rumble(mac, 0.0).await;
+    });
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct CalibrationWizardStatusDto {
     pub suggested_mounting: MountingOrientationDto,

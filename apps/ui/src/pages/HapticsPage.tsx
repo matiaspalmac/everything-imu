@@ -137,6 +137,28 @@ export function HapticsPage() {
         </div>
       </Tile>
 
+      <Tile title={t("haptics.test_title")}>
+        {rumbleDevices.length === 0 ? (
+          <p className="text-xs text-[var(--fg-muted)]">{t("haptics.no_devices")}</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] text-[var(--fg-muted)]">{t("haptics.test_hint")}</p>
+            <div className="flex flex-wrap gap-2">
+              {rumbleDevices.map((d) => (
+                <button
+                  key={macKey(d.mac)}
+                  type="button"
+                  onClick={() => void api.testRumble(d.mac as unknown as number[], 400)}
+                  className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-1.5 text-xs text-[var(--fg-primary)] hover:border-[var(--accent)]"
+                >
+                  {d.kind} · {macHex(d.mac)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </Tile>
+
       <Tile title={t("haptics.rules")}>
         {rumbleDevices.length === 0 && (
           <p className="mb-3 text-xs text-[var(--warn)]">{t("haptics.no_devices")}</p>

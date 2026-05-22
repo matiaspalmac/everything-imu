@@ -223,6 +223,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
             commands::get_emission_paused,
             commands::get_output_profile,
             commands::set_output_profile,
+            commands::test_rumble,
             commands::get_calibration_wizard_status,
             commands::apply_calibration_wizard,
             commands::get_advanced_telemetry,

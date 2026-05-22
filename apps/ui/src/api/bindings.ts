@@ -216,6 +216,20 @@ async setOutputProfile(mac: [number, number, number, number, number, number], pr
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Pulse a controller's rumble motor briefly so a tester can confirm the
+ * device receives commands. Clamped to 1500 ms server-side to avoid
+ * runaway motors if the frontend forgets to send the stop. No-op if the
+ * device is gone or has no rumble.
+ */
+async testRumble(mac: [number, number, number, number, number, number], durationMs: number) : Promise<Result<null, IpcError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("test_rumble", { mac, durationMs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getCalibrationWizardStatus(mac: [number, number, number, number, number, number]) : Promise<Result<CalibrationWizardStatusDto, IpcError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_calibration_wizard_status", { mac }) };
