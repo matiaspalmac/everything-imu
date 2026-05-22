@@ -261,6 +261,7 @@ export function TrackerDetailPage() {
             <div className="flex items-center gap-3">
               <input
                 type="range"
+                aria-label={t("labels.rotation_offset") ?? "rotation offset"}
                 min={-180}
                 max={180}
                 step={1}

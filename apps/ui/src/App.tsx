@@ -22,6 +22,7 @@ const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })),
 );
 const HelpPage = lazy(() => import("./pages/HelpPage").then((m) => ({ default: m.HelpPage })));
+const DebugPage = lazy(() => import("./pages/DebugPage").then((m) => ({ default: m.DebugPage })));
 
 function RouteFallback() {
   return (
@@ -96,6 +97,14 @@ export function App() {
           element={
             <Suspense fallback={<RouteFallback />}>
               <HelpPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/debug"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <DebugPage />
             </Suspense>
           }
         />

@@ -1,4 +1,5 @@
 import {
+  Bug,
   GearSix,
   House,
   ListBullets,
@@ -28,6 +29,7 @@ const PRIMARY: Item[] = [
   { to: "/devices", labelKey: "nav.devices", icon: Plugs },
   { to: "/haptics", labelKey: "nav.haptics", icon: VibrateIcon },
   { to: "/logs", labelKey: "nav.logs", icon: ListBullets },
+  { to: "/debug", labelKey: "nav.debug", icon: Bug },
 ];
 
 export function AppShell() {

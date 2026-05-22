@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { FusionAlgoDto, MountingOrientationDto, PerDeviceSettingsDto } from "../api/client";
 import { api } from "../api/client";
+import { HapticCalibratorDialog } from "./HapticCalibratorDialog";
 import { MagCalibrationPanel } from "./MagCalibrationPanel";
 
 const FUSION_IDS: FusionAlgoDto[] = ["vqf", "madgwick", "basic_vqf"];
@@ -25,6 +26,7 @@ export function PerDeviceConfig({
   const [settings, setSettings] = useState<PerDeviceSettingsDto | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [hapticCalOpen, setHapticCalOpen] = useState(false);
 
   const FUSION_OPTIONS = FUSION_IDS.map((id) => ({
     id,
@@ -148,6 +150,7 @@ export function PerDeviceConfig({
       <Section label={t("labels.label")}>
         <input
           type="text"
+          aria-label={t("labels.label")}
           value={settings?.label ?? ""}
           maxLength={64}
           placeholder={t("label_placeholder")}
@@ -165,6 +168,7 @@ export function PerDeviceConfig({
       <Section label={t("labels.group")}>
         <input
           type="text"
+          aria-label={t("labels.group")}
           value={settings?.group ?? ""}
           maxLength={32}
           placeholder={t("group_placeholder")}
@@ -227,10 +231,24 @@ export function PerDeviceConfig({
         </div>
       </Section>
 
+      <Section label={t("haptic_cal.title")}>
+        <button
+          type="button"
+          onClick={() => setHapticCalOpen(true)}
+          className="self-start rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+        >
+          {t("haptic_cal.title")}
+        </button>
+        {hapticCalOpen && (
+          <HapticCalibratorDialog mac={mac} onClose={() => setHapticCalOpen(false)} />
+        )}
+      </Section>
+
       <Section label={t("labels.gyro_scale")}>
         <div className="flex items-center gap-3">
           <input
             type="range"
+            aria-label={t("labels.gyro_scale")}
             min={0.5}
             max={2.0}
             step={0.01}
@@ -263,6 +281,7 @@ export function PerDeviceConfig({
             <label className="flex items-center gap-2 text-sm text-[var(--fg-secondary)]">
               <input
                 type="checkbox"
+                aria-label={t("hints.feed_mag")}
                 checked={settings?.magnetometer_enabled ?? false}
                 disabled={busy === "mag"}
                 onChange={(e) => void toggleMag(e.target.checked)}

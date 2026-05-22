@@ -126,6 +126,53 @@ export function EventBridge() {
       }),
       events.logEntry.listen((e) => pushLog(e.payload)),
       events.hapticAddressDiscovered.listen((e) => addHapticAddress(e.payload.address)),
+      events.updateStatus.listen((e) => {
+        // Boot-time + manual updater pings the UI through this stream so a
+        // user sees what's happening without having to poke Settings. We
+        // surface a toast for the user-relevant transitions only; the
+        // "checking" / "no_update" beats are noise.
+        const stage = e.payload.stage;
+        const tr = tRef.current;
+        switch (stage.stage) {
+          case "available":
+            pushToast({
+              level: "info",
+              title: tr("updater.title"),
+              message: tr("updater.available", {
+                current: stage.current,
+                latest: stage.latest,
+              }),
+              ttlMs: 5000,
+            });
+            break;
+          case "installing":
+            pushToast({
+              level: "info",
+              title: tr("updater.title"),
+              message: tr("updater.applying"),
+              ttlMs: 4000,
+            });
+            break;
+          case "installed":
+            pushToast({
+              level: "info",
+              title: tr("updater.title"),
+              message: tr("updater.installed_restart", { latest: stage.latest }),
+              ttlMs: 8000,
+            });
+            break;
+          case "failed":
+            pushToast({
+              level: "warn",
+              title: tr("updater.title"),
+              message: stage.message,
+              ttlMs: 6000,
+            });
+            break;
+          default:
+            break;
+        }
+      }),
     ];
 
     return () => {

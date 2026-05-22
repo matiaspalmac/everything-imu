@@ -122,6 +122,7 @@ export function SettingsPage() {
           <Field label={t("labels.server_address")}>
             <input
               type="text"
+              aria-label={t("labels.server_address")}
               value={serverAddrDraft}
               onChange={(e) => setServerAddrDraft(e.target.value)}
               onBlur={() => void commitServerAddr()}
@@ -179,6 +180,7 @@ export function SettingsPage() {
           <label className="flex items-center gap-2 text-sm text-[var(--fg-secondary)]">
             <input
               type="checkbox"
+              aria-label={t("labels.launch_on_startup")}
               checked={autostart}
               disabled={saving}
               onChange={(e) => void toggleAutostart(e.target.checked)}
@@ -191,6 +193,7 @@ export function SettingsPage() {
           <label className="mt-3 flex items-center gap-2 text-sm text-[var(--fg-secondary)]">
             <input
               type="checkbox"
+              aria-label={t("labels.close_to_tray")}
               checked={settings.close_to_tray}
               onChange={(e) => {
                 setLocal({ close_to_tray: e.target.checked });
@@ -205,6 +208,25 @@ export function SettingsPage() {
             {t("labels.close_to_tray")}
           </label>
           <p className="text-[11px] text-[var(--fg-muted)]">{t("hints.close_to_tray")}</p>
+
+          <label className="mt-3 flex items-center gap-2 text-sm text-[var(--fg-secondary)]">
+            <input
+              type="checkbox"
+              aria-label={t("labels.crash_report")}
+              checked={settings.crash_report_enabled}
+              onChange={(e) => {
+                setLocal({ crash_report_enabled: e.target.checked });
+                void autosave(
+                  "crash_report_enabled",
+                  e.target.checked ? "1" : "0",
+                  t("msg.crash_report_updated"),
+                );
+              }}
+              className="size-4 accent-[var(--accent)]"
+            />
+            {t("labels.crash_report")}
+          </label>
+          <p className="text-[11px] text-[var(--fg-muted)]">{t("hints.crash_report")}</p>
         </Card>
 
         <Card title={t("cards.tips")}>
@@ -216,6 +238,7 @@ export function SettingsPage() {
           <label className="flex items-center gap-2 text-sm text-[var(--fg-secondary)]">
             <input
               type="checkbox"
+              aria-label={t("labels.auto_start_synthetic") ?? "auto-start synthetic"}
               checked={settings.auto_start_synthetic}
               onChange={(e) => {
                 setLocal({ auto_start_synthetic: e.target.checked });
@@ -254,6 +277,7 @@ export function SettingsPage() {
           </div>
           <p className="pt-2 text-[11px] text-[var(--fg-muted)]">{t("hints.about_app")}</p>
           <UpdaterPanel />
+          <UdevPanel />
         </Card>
       </div>
     </div>
@@ -375,6 +399,8 @@ function LocalePicker() {
 /// a one-click way to check, regardless of whether an update is pending.
 function UpdaterPanel() {
   const { t } = useTranslation();
+  const settings = useSettingsStore((s) => s.settings);
+  const setLocal = useSettingsStore((s) => s.set);
   const [info, setInfo] = useState<{
     current: string;
     latest: string;
@@ -382,6 +408,15 @@ function UpdaterPanel() {
   } | null>(null);
   const [busy, setBusy] = useState<"check" | "apply" | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  async function toggleAutoCheck(next: boolean) {
+    setLocal({ auto_update_on_startup: next });
+    await api.setSetting("auto_update_on_startup", next ? "1" : "0");
+  }
+  async function toggleAutoInstall(next: boolean) {
+    setLocal({ auto_install_on_startup: next });
+    await api.setSetting("auto_install_on_startup", next ? "1" : "0");
+  }
 
   async function check() {
     setBusy("check");
@@ -436,6 +471,67 @@ function UpdaterPanel() {
         </span>
       )}
       {err && <span className="text-[11px] text-[var(--warn)]">{err}</span>}
+      <div className="flex flex-col gap-1 pt-1">
+        <label className="flex items-center gap-2 text-[11px] text-[var(--fg-secondary)]">
+          <input
+            type="checkbox"
+            aria-label={t("updater.auto_check")}
+            checked={settings.auto_update_on_startup}
+            onChange={(e) => void toggleAutoCheck(e.target.checked)}
+            className="size-3.5 accent-[var(--accent)]"
+          />
+          {t("updater.auto_check")}
+        </label>
+        <label className="flex items-center gap-2 text-[11px] text-[var(--fg-secondary)]">
+          <input
+            type="checkbox"
+            aria-label={t("updater.auto_install")}
+            checked={settings.auto_install_on_startup}
+            disabled={!settings.auto_update_on_startup}
+            onChange={(e) => void toggleAutoInstall(e.target.checked)}
+            className="size-3.5 accent-[var(--accent)]"
+          />
+          {t("updater.auto_install")}
+        </label>
+      </div>
+    </div>
+  );
+}
+
+/// "Install udev rules" entry. Always rendered so Windows / macOS users
+/// see why it doesn't apply; clicking it on those platforms returns the
+/// "Linux only" error which we surface verbatim.
+function UdevPanel() {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function install() {
+    setBusy(true);
+    setMsg(null);
+    const res = await api.installUdevRules();
+    setBusy(false);
+    if (res.status === "ok") setMsg(res.data);
+    else setMsg("message" in res.error ? res.error.message : res.error.type);
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-2 border-t border-[var(--border-subtle)] pt-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
+          {t("udev.title")}
+        </span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void install()}
+          className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)] disabled:opacity-50"
+        >
+          {busy ? t("udev.installing") : t("udev.install")}
+        </button>
+      </div>
+      <p className="text-[11px] text-[var(--fg-muted)]">{t("udev.body")}</p>
+      {msg && <span className="text-[11px] text-[var(--fg-secondary)]">{msg}</span>}
     </div>
   );
 }

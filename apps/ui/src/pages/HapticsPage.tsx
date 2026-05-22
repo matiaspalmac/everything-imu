@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { HapticConfigDto, HapticModeDto, HapticRuleDto } from "../api/client";
 import { api } from "../api/client";
 import { EmptyState } from "../components/EmptyState";
+import { UdpHaptics } from "../components/UdpHaptics";
 import { macHex, macKey } from "../lib/macFormat";
 import { useDeviceStore } from "../stores/useDeviceStore";
 import { useHapticStore } from "../stores/useHapticStore";
@@ -120,6 +121,7 @@ export function HapticsPage() {
           <label className="flex items-center gap-2 text-xs text-[var(--fg-secondary)]">
             <input
               type="checkbox"
+              aria-label={t("haptics.enabled")}
               checked={config.enabled}
               onChange={(e) => patch({ enabled: e.target.checked })}
             />
@@ -129,6 +131,7 @@ export function HapticsPage() {
             {t("haptics.listen_port")}
             <input
               type="number"
+              aria-label={t("haptics.listen_port")}
               value={config.listen_port}
               onChange={(e) => patch({ listen_port: Number(e.target.value) || 0 })}
               className="w-24 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 font-mono text-[var(--fg-primary)]"
@@ -174,8 +177,7 @@ export function HapticsPage() {
           <div className="flex flex-col gap-3">
             {config.rules.map((rule, idx) => (
               <RuleRow
-                // biome-ignore lint/suspicious/noArrayIndexKey: no reorder UI; rules are positional
-                key={idx}
+                key={`${rule.osc_address}|${idx}`}
                 rule={rule}
                 devices={rumbleDevices}
                 onChange={(next) => patchRule(idx, next)}
@@ -213,6 +215,8 @@ export function HapticsPage() {
           </div>
         )}
       </Tile>
+
+      <UdpHaptics />
     </div>
   );
 }
@@ -241,6 +245,7 @@ function RuleRow({
     <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] p-2">
       <input
         type="text"
+        aria-label={t("haptics.osc_address_ph")}
         value={rule.osc_address}
         placeholder={t("haptics.osc_address_ph")}
         onChange={(e) => onChange({ osc_address: e.target.value })}
@@ -251,7 +256,7 @@ function RuleRow({
         onChange={(e) => onChange({ device_mac: e.target.value })}
         className={fieldCls}
       >
-        {devices.length === 0 && <option value="">—</option>}
+        {devices.length === 0 && <option value="">(none)</option>}
         {devices.map((d) => (
           <option key={macKey(d.mac)} value={macKey(d.mac)}>
             {d.kind} · {macHex(d.mac)}
@@ -333,6 +338,7 @@ function NumField({
       {label}
       <input
         type="number"
+        aria-label={label}
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value) || 0)}

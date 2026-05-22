@@ -6,6 +6,8 @@ import { api } from "../api/client";
 import { macHex, macKey } from "../lib/macFormat";
 import { usePerDeviceSettingsStore } from "../stores/usePerDeviceSettingsStore";
 import { useToastStore } from "../stores/useToastStore";
+import { BatteryRing } from "./BatteryRing";
+import { SignalMeter } from "./SignalMeter";
 import { StatusBadge } from "./StatusBadge";
 import { TrackerViz } from "./TrackerViz";
 
@@ -22,19 +24,16 @@ export function TrackerCard({ snap, targetHz }: { snap: TrackerSnapshot; targetH
   const [editing, setEditing] = useState(false);
   const [draftLabel, setDraftLabel] = useState("");
   // One-shot pulse animation the first time a card sees rate_hz > 0 — the
-  // "device just woke up" affordance. Persists across the card's lifetime
-  // so it doesn't re-fire on every render once started.
+  // "device just woke up" affordance. Set during render (not in an effect)
+  // so it sticks the first time the condition is met.
   const [pulsed, setPulsed] = useState(false);
-  useEffect(() => {
-    if (!pulsed && snap.rate_hz > 0) {
-      setPulsed(true);
-    }
-  }, [pulsed, snap.rate_hz]);
+  if (!pulsed && snap.rate_hz > 0) {
+    setPulsed(true);
+  }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: snap.mac is identified by `key`
   useEffect(() => {
     void ensure(snap.mac);
-  }, [key, ensure]);
+  }, [snap.mac, ensure]);
 
   const label = settings?.label ?? "";
   const group = settings?.group ?? "";
@@ -108,6 +107,7 @@ export function TrackerCard({ snap, targetHz }: { snap: TrackerSnapshot; targetH
             <span className="flex flex-1 items-center gap-1">
               <input
                 ref={(el) => el?.focus()}
+                aria-label={t("actions.rename")}
                 value={draftLabel}
                 onChange={(e) => setDraftLabel(e.target.value)}
                 onClick={(e) => e.preventDefault()}
@@ -145,6 +145,7 @@ export function TrackerCard({ snap, targetHz }: { snap: TrackerSnapshot; targetH
             </span>
           )}
           <StatusBadge rateHz={snap.rate_hz} targetHz={targetHz} />
+          <SignalMeter mac={snap.mac} rateHz={snap.rate_hz} targetHz={targetHz} compact />
         </div>
 
         <div className="flex items-center gap-2">
@@ -160,11 +161,14 @@ export function TrackerCard({ snap, targetHz }: { snap: TrackerSnapshot; targetH
 
         {battery !== null && (
           <div className="flex items-center gap-2 text-xs text-[var(--fg-secondary)]">
-            <span>battery</span>
+            <BatteryRing fraction={snap.battery_fraction} size={20} />
             <div className="h-1.5 flex-1 overflow-hidden rounded bg-[var(--bg-elevated)]">
-              <div className="h-full rounded bg-[var(--accent)]" style={{ width: `${battery}%` }} />
+              <div
+                className={`h-full rounded ${battery < 15 ? "bg-[var(--warn)]" : "bg-[var(--accent)]"}`}
+                style={{ width: `${battery}%` }}
+              />
             </div>
-            <span className="font-mono">{battery}%</span>
+            <span className="metric-num font-mono">{battery}%</span>
           </div>
         )}
       </div>
