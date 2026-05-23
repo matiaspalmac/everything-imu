@@ -5,8 +5,9 @@
   <p>
     <a href="https://github.com/matiaspalmac/everything-imu/actions/workflows/ci.yml"><img src="https://github.com/matiaspalmac/everything-imu/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
-    <img src="https://img.shields.io/badge/status-alpha-orange.svg" alt="Status: alpha">
+    <img src="https://img.shields.io/badge/status-beta-yellow.svg" alt="Status: beta">
     <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg" alt="Platform">
+    <a href="https://github.com/matiaspalmac/everything-imu/releases/latest"><img src="https://img.shields.io/github/v/release/matiaspalmac/everything-imu?include_prereleases&label=release" alt="Latest release"></a>
   </p>
 </div>
 
@@ -19,9 +20,29 @@ The bridge reads the controller's built-in IMU at its native sample rate, runs a
 sensor fusion filter (VQF or Madgwick) in Rust, and forwards the resulting
 quaternion to SlimeVR-Server over UDP using the official protocol.
 
-> **Heads-up:** alpha. The protocol and pipeline are stable; the UI, settings
-> persistence, and packaging are still in flux. Expect rough edges and please
-> file issues with reproduction steps + the logs from the **Logs** tab.
+> **Heads-up:** beta. Core fusion + protocol pipeline are stable and validated
+> on hardware; the UI, settings persistence, and bundle packaging are still
+> iterating. Expect rough edges and please file issues with reproduction
+> steps + the logs from the **Logs** tab.
+
+## Features
+
+- **9 controller families** supported across USB · BT Classic · BLE · TCP.
+- **VQF / Madgwick / BasicVQF** fusion, switchable per-device.
+- **Magnetometer calibration wizard** for Joy-Con 2 and PS Move ZCM1 (sphere
+  fit + coverage meter).
+- **Reset Yaw / Reset Full / Reset Mounting** from the UI, system tray, global
+  hotkey, or on-device gesture.
+- **VRChat OSC → rumble bridge** with per-rule gain, threshold, pulse mode,
+  and a per-device haptic calibration wizard (floor / gain mapping).
+- **UDP-forwarded haptic targets** — register `host:port` endpoints as virtual
+  rumble devices for remote setups.
+- **Linux udev installer** — one-click hidraw access for Joy-Con / DualSense /
+  PSMove without sudo.
+- **Auto-update at startup** (GitHub Releases), with optional crash reporting
+  via Sentry. Both opt-in, both off by default.
+- **Live diagnostics** — per-tracker rate panels, bridge latency, raw IMU
+  charts on the Debug page, circular battery rings, signal meter.
 
 ## Why this exists
 
@@ -51,6 +72,18 @@ only.
 
 Deep-dive on each: [DEVICES.md](DEVICES.md).
 
+## Install
+
+Grab the latest installer from the
+[**Releases**](https://github.com/matiaspalmac/everything-imu/releases/latest)
+page:
+
+- **Windows**: `everything-imu_<version>_x64-setup.exe`
+- **Linux (Debian/Ubuntu)**: `everything-imu_<version>_amd64.deb`
+- **Linux (any)**: `everything-imu_<version>_amd64.AppImage`
+
+Or build from source — see [Building from source](#building-from-source) below.
+
 ## Quickstart
 
 1. **Install SlimeVR-Server** and leave it running. The default UDP port is `6969`.
@@ -60,9 +93,12 @@ Deep-dive on each: [DEVICES.md](DEVICES.md).
    tracker for it shows up automatically in SlimeVR-Server.
 4. **Mount the controller** to your body (waist, knee, ankle, etc.) and assign it
    in SlimeVR-Server's *Body Proportions* flow.
-5. **Reset orientation** with the in-app button or via the global hotkey
-   `R` (yaw) / `Shift+R` (full). Some devices accept on-device gestures — see
-   the per-device sections in [DEVICES.md](DEVICES.md).
+5. **Reset orientation**: `R` (yaw) / `Shift+R` (full) from the global hotkeys,
+   or click *Reset Yaw* / *Reset Full* / *Reset Mounting* on the device card.
+   On controllers without a magnetometer (Joy-Con 1, DualSense, DualShock 4,
+   Wii Remote) yaw drifts on body rotation — re-yaw facing forward, or use
+   Reset Mounting right after strapping the tracker. Some devices accept
+   on-device gestures — see [DEVICES.md](DEVICES.md).
 
 ### Global hotkeys
 
@@ -73,6 +109,9 @@ Deep-dive on each: [DEVICES.md](DEVICES.md).
 | `Ctrl+Enter` | Cinema mode (immersive overlay) |
 | `Ctrl+Shift+B` | Kill-switch the bridge (pause emission) |
 | `R` / `Shift+R` | Broadcast yaw / full reset |
+
+Mounting reset is per-device — click *Reset Mounting* on the device card or
+the tracker detail page.
 
 ## Building from source
 
@@ -109,16 +148,16 @@ no-UI driver useful for tracing protocol-level issues.
 |------|---------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Crate graph + responsibilities |
 | [DEVICES.md](DEVICES.md) | Per-device IMU, transport, calibration |
-| [docs/PLAN.md](docs/PLAN.md) | Sprint plan + delivery state |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Long-term direction |
-| [docs/RISKS.md](docs/RISKS.md) | Known hazards |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | ADR-style design decisions |
+| [PROTOCOL.md](PROTOCOL.md) | SlimeVR UDP wire format notes |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Dev workflow, style, PR rules |
+| [SECURITY.md](SECURITY.md) | Reporting vulnerabilities |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community ground rules |
 
 ## Stack
 
 - **Core**: Rust, `tokio`, `hidapi`, `btleplug`, `nalgebra`
 - **Math & fusion**: VQF (Laidig 2023), Madgwick, BasicVQF
+- **Haptics**: `rosc` OSC listener, per-device rumble drivers
 - **Persistence**: SQLite via `rusqlite`
 - **Desktop shell**: Tauri 2 + tauri-specta (typed IPC)
 - **Frontend**: React 19, TypeScript, Vite, TailwindCSS 4, Zustand 5,
