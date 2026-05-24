@@ -98,8 +98,19 @@ pub struct SlimeClient {
     last_send_ms_unix: Arc<AtomicU64>,
     last_handshake_ms_unix: Arc<AtomicU64>,
     last_inbound_ms_unix: Arc<AtomicU64>,
-    _receive_task: tokio::task::JoinHandle<()>,
-    _watchdog_task: tokio::task::JoinHandle<()>,
+    receive_task: tokio::task::JoinHandle<()>,
+    watchdog_task: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for SlimeClient {
+    fn drop(&mut self) {
+        // JoinHandle::drop does NOT abort the underlying task — without an
+        // explicit abort, the receive and watchdog loops outlive every
+        // `SlimeClient` and leak forever. Each device reconnect would
+        // accumulate two more zombie tasks (recv + watchdog) per cycle.
+        self.receive_task.abort();
+        self.watchdog_task.abort();
+    }
 }
 
 fn now_ms_unix() -> u64 {
@@ -165,8 +176,8 @@ impl SlimeClient {
             last_send_ms_unix,
             last_handshake_ms_unix,
             last_inbound_ms_unix,
-            _receive_task: receive_task,
-            _watchdog_task: watchdog_task,
+            receive_task,
+            watchdog_task,
         })
     }
 
@@ -310,7 +321,8 @@ impl SlimeClient {
         .to_bytes()?;
 
         let inners = [(17u32, &rot_bytes[12..]), (4u32, &accel_bytes[12..])];
-        let bundle = encode_bundle(self.next_seq(), &inners);
+        let bundle = encode_bundle(self.next_seq(), &inners)
+            .map_err(|_| ClientError::Encode(deku::DekuError::Assertion("bundle too large".into())))?;
         self.send_packet(&bundle).await?;
         Ok(())
     }

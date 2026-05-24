@@ -72,23 +72,37 @@ pub struct SlimeString {
     data: Vec<u8>,
 }
 
+/// Largest `SlimeString` payload that fits in the wire's `u8` length prefix.
+const SLIME_STRING_MAX: usize = u8::MAX as usize;
+
 impl From<&str> for SlimeString {
     fn from(s: &str) -> Self {
         let bytes = s.as_bytes();
+        // Truncate explicitly when the payload exceeds the u8 length cap —
+        // an `as u8` cast would wrap around (260 -> 4) and silently corrupt
+        // the on-wire framing.
+        let data = if bytes.len() > SLIME_STRING_MAX {
+            #[cfg(feature = "client")]
+            tracing::warn!(
+                len = bytes.len(),
+                max = SLIME_STRING_MAX,
+                "SlimeString payload exceeds u8 length prefix; truncating"
+            );
+            bytes[..SLIME_STRING_MAX].to_vec()
+        } else {
+            bytes.to_vec()
+        };
         Self {
-            count: bytes.len() as _,
-            data: bytes.to_vec(),
+            count: data.len() as u8,
+            data,
         }
     }
 }
 
 impl From<String> for SlimeString {
     fn from(s: String) -> Self {
-        let bytes = s.into_bytes();
-        Self {
-            count: bytes.len() as _,
-            data: bytes,
-        }
+        // Delegate to the &str impl so the same truncation rule applies once.
+        Self::from(s.as_str())
     }
 }
 
@@ -198,7 +212,11 @@ pub const BUNDLE_TAG: u32 = 100;
 ///
 /// Inner format on the wire: `[u16 BE inner_len][u32 BE inner_type][payload]`,
 /// where `inner_len = 4 + payload.len()`.
-pub fn encode_bundle(seq: u64, inners: &[(u32, &[u8])]) -> Vec<u8> {
+///
+/// Returns `Err(SerializeError::BufferTooSmall)` if any inner payload would
+/// make `inner_len` exceed the u16 length prefix — a `debug_assert!` here
+/// would silently truncate in release builds and corrupt the wire framing.
+pub fn encode_bundle(seq: u64, inners: &[(u32, &[u8])]) -> Result<Vec<u8>, SerializeError> {
     let mut total = 4 + 8;
     for (_, payload) in inners {
         total += 2 + 4 + payload.len();
@@ -208,15 +226,14 @@ pub fn encode_bundle(seq: u64, inners: &[(u32, &[u8])]) -> Vec<u8> {
     buf.extend_from_slice(&seq.to_be_bytes());
     for (inner_type, payload) in inners {
         let inner_len = 4 + payload.len();
-        debug_assert!(
-            inner_len <= u16::MAX as usize,
-            "BUNDLE inner length must fit in u16"
-        );
+        if inner_len > u16::MAX as usize {
+            return Err(SerializeError::BufferTooSmall);
+        }
         buf.extend_from_slice(&(inner_len as u16).to_be_bytes());
         buf.extend_from_slice(&inner_type.to_be_bytes());
         buf.extend_from_slice(payload);
     }
-    buf
+    Ok(buf)
 }
 
 /// One inner entry inside a [`decode_bundle`] result: `(inner_type, payload_slice)`.

@@ -217,7 +217,7 @@ fn bundle_2_inners_round_trip_byte_compat() {
         (17u32, rot_payload.as_slice()),
         (4u32, acc_payload.as_slice()),
     ];
-    let bytes = encode_bundle(123, &inners);
+    let bytes = encode_bundle(123, &inners).expect("encode_bundle");
 
     let mut expected = header(BUNDLE_TAG, 123);
     expected.extend_from_slice(&((4 + rot_payload.len()) as u16).to_be_bytes()); // 23
