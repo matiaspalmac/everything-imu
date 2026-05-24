@@ -321,8 +321,9 @@ impl SlimeClient {
         .to_bytes()?;
 
         let inners = [(17u32, &rot_bytes[12..]), (4u32, &accel_bytes[12..])];
-        let bundle = encode_bundle(self.next_seq(), &inners)
-            .map_err(|_| ClientError::Encode(deku::DekuError::Assertion("bundle too large".into())))?;
+        let bundle = encode_bundle(self.next_seq(), &inners).map_err(|_| {
+            ClientError::Encode(deku::DekuError::Assertion("bundle too large".into()))
+        })?;
         self.send_packet(&bundle).await?;
         Ok(())
     }

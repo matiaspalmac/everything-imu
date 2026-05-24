@@ -340,7 +340,9 @@ impl AppState {
             // driver thread) must not block global app shutdown.
             match tokio::time::timeout(Duration::from_secs(2), h.task).await {
                 Ok(_) => {}
-                Err(_) => tracing::warn!(id = %id, "pipeline task did not exit within 2s; abandoning"),
+                Err(_) => {
+                    tracing::warn!(id = %id, "pipeline task did not exit within 2s; abandoning")
+                }
             }
         }
     }
