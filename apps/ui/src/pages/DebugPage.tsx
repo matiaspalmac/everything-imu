@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { macHex, macKey } from "../lib/macFormat";
+import { macHex } from "../lib/macFormat";
 import { useBiasStore } from "../stores/useBiasStore";
 import { useConnectionStore } from "../stores/useConnectionStore";
 import { useDeviceStore } from "../stores/useDeviceStore";
@@ -127,8 +127,3 @@ export function DebugPage() {
     </div>
   );
 }
-
-// Keep the unused-imports lint happy: macKey is only used when we later
-// gain a packet-inspector stream; reference it once so the import stays
-// when adding that without churning the file's import block.
-void macKey;

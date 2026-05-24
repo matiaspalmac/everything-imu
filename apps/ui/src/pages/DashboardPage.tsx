@@ -1,7 +1,7 @@
 import { ArrowsClockwise, Crosshair, Eye, Plugs, Target } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, type Mac, type TrackerSnapshot } from "../api/client";
 import { ConnectionStatusCard } from "../components/ConnectionStatusCard";
 import { EmptyState } from "../components/EmptyState";
@@ -21,6 +21,7 @@ export function DashboardPage() {
   const ensure = usePerDeviceSettingsStore((s) => s.ensure);
   const patch = usePerDeviceSettingsStore((s) => s.patch);
   const pushToast = useToastStore((s) => s.push);
+  const navigate = useNavigate();
   const rawList = useMemo(() => Object.values(trackers), [trackers]);
 
   // Hydrate per-device settings once per tracker.
@@ -142,9 +143,7 @@ export function DashboardPage() {
             description={t("empty.no_trackers_desc")}
             cta={{
               label: t("empty.no_trackers_cta"),
-              onClick: () => {
-                window.location.hash = "#/devices";
-              },
+              onClick: () => navigate("/devices"),
             }}
           />
         ) : (

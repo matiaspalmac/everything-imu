@@ -1,5 +1,5 @@
 import { CircleNotch, Keyboard, Pause, Play, Plug, PlugsConnected } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useConnectionStore } from "../stores/useConnectionStore";
@@ -19,11 +19,10 @@ export function StatusBar() {
   const paused = useEmissionStore((s) => s.paused);
   const toggle = useEmissionStore((s) => s.toggle);
 
-  const rateHistory = useRef<number[]>([]);
-  const [, force] = useState(0);
-  // Tick once per second: append the current mean rate to the sparkline
-  // ring buffer and force a re-render so all duration-relative labels
-  // (last_send_ms_ago etc) update too.
+  // Sparkline memoizes on the `values` array identity, so we keep state
+  // (not a ref): every tick produces a new array so Sparkline actually
+  // repaints. Tick also refreshes duration-relative labels.
+  const [rateHistory, setRateHistory] = useState<number[]>([]);
   useEffect(() => {
     const id = window.setInterval(() => {
       const trackerList = Object.values(useTrackerStore.getState().trackers);
@@ -31,10 +30,11 @@ export function StatusBar() {
         trackerList.length === 0
           ? 0
           : trackerList.reduce((acc, t) => acc + t.rate_hz, 0) / trackerList.length;
-      const buf = rateHistory.current;
-      buf.push(mean);
-      if (buf.length > RATE_HISTORY_LEN) buf.shift();
-      force((n) => n + 1);
+      setRateHistory((prev) => {
+        const next = prev.length >= RATE_HISTORY_LEN ? prev.slice(1) : prev.slice();
+        next.push(mean);
+        return next;
+      });
     }, 1000);
     return () => window.clearInterval(id);
   }, []);
@@ -77,7 +77,7 @@ export function StatusBar() {
         <>
           <span className="text-[var(--border-strong)]">·</span>
           <span className="flex items-center gap-1">
-            <Sparkline values={rateHistory.current} width={48} height={14} />
+            <Sparkline values={rateHistory} width={48} height={14} />
             <span className="metric-num font-mono">{meanRate.toFixed(0)} Hz</span>
           </span>
         </>

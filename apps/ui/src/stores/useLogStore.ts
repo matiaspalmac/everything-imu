@@ -29,10 +29,12 @@ export const useLogStore = create<State>((set, get) => ({
       entries: s.entries.length >= CAP ? [...s.entries.slice(1), e] : [...s.entries, e],
     }));
   },
-  pushBatch: (es) =>
+  pushBatch: (es) => {
+    if (get().paused) return;
     set((s) => ({
       entries: [...s.entries, ...es].slice(-CAP),
-    })),
+    }));
+  },
   setFilterLevel: (l) => set({ filterLevel: l }),
   setFilterText: (t) => set({ filterText: t }),
   setPaused: (p) => set({ paused: p }),

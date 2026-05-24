@@ -77,7 +77,7 @@ export function MagCalibrationPanel({ mac }: { mac: Mac }) {
         setPhase("idle");
         setProgress(null);
       } else {
-        setError(JSON.stringify(res.error));
+        setError("message" in res.error ? res.error.message : res.error.type);
         setPhase("error");
       }
     } finally {

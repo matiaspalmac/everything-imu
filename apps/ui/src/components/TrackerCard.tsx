@@ -106,7 +106,8 @@ export function TrackerCard({ snap, targetHz }: { snap: TrackerSnapshot; targetH
           {editing ? (
             <span className="flex flex-1 items-center gap-1">
               <input
-                ref={(el) => el?.focus()}
+                // oxlint-disable-next-line jsx-a11y/no-autofocus -- rename button just clicked; user expects focus inside the input on mount
+                autoFocus
                 aria-label={t("actions.rename")}
                 value={draftLabel}
                 onChange={(e) => setDraftLabel(e.target.value)}

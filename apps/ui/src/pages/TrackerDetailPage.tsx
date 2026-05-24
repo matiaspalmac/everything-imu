@@ -39,6 +39,9 @@ export function TrackerDetailPage() {
   const [rotationStatus, setRotationStatus] = useState<"idle" | "saving" | "saved">("idle");
   const rotationSaveTimer = useRef<number | null>(null);
   const rotationSavedTimer = useRef<number | null>(null);
+  // True until the persisted rotation has been hydrated from the backend.
+  // Suppresses the autosave effect during the initial setRotationDeg() so
+  // we don't echo the loaded value straight back to the IPC.
   const rotationInitial = useRef(true);
 
   const macBytes = useMemo<[number, number, number, number, number, number] | null>(() => {
@@ -72,9 +75,24 @@ export function TrackerDetailPage() {
     }
   }
 
+  // Hydrate the persisted rotation offset on mount / mac change so the
+  // slider matches what the pipeline is actually applying.
+  useEffect(() => {
+    if (!macBytes) return;
+    let cancelled = false;
+    rotationInitial.current = true;
+    void api.getPerDeviceSettings(macBytes).then((res) => {
+      if (cancelled) return;
+      if (res.status === "ok") setRotationDeg(res.data.rotation_offset_deg ?? 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [macBytes]);
+
   // Autosave: debounced commit of rotation offset every time the slider
-  // (or a preset button) updates `rotationDeg`. Skips the first render so
-  // the initial 0° default does not echo to the backend.
+  // (or a preset button) updates `rotationDeg`. Skips the first hydrated
+  // value so loading the persisted setting does not echo to the backend.
   useEffect(() => {
     if (!macBytes) return;
     if (rotationInitial.current) {

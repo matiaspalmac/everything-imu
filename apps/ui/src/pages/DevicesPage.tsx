@@ -101,7 +101,7 @@ export function DevicesPage() {
     await Promise.all(macs.map((d) => api.setTrackerHidden(d.mac, true)));
     pushToast({
       level: "info",
-      message: t("toast.tracker_hidden", { mac: `${macs.length}` }),
+      message: t("toast.trackers_hidden_count", { count: macs.length }),
       ttlMs: 2000,
     });
     setSelected(new Set());

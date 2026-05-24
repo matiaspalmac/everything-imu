@@ -181,8 +181,8 @@ export function HapticsPage() {
           <div className="flex flex-col gap-3">
             {config.rules.map((rule, idx) => (
               <RuleRow
-                // biome-ignore lint/suspicious/noArrayIndexKey: rules can have duplicate osc_address and are re-ordered via remove/patch; index is the stable identity.
-                key={`${rule.osc_address}|${idx}`}
+                // biome-ignore lint/suspicious/noArrayIndexKey: rules array uses positional identity — keying off rule fields would remount the row on every keystroke and steal input focus.
+                key={idx}
                 rule={rule}
                 devices={rumbleDevices}
                 onChange={(next) => patchRule(idx, next)}
