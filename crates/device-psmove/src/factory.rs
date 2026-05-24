@@ -92,6 +92,16 @@ impl PsMoveFactory {
                     .collect()
             };
 
+            // Forget devices no longer present on the HID bus so a PS Move
+            // unplugged mid-session is re-emitted as soon as it reappears.
+            // Without this, `known` retains the path forever and auto-
+            // reconnect requires an app restart. Aligned with joycon/dualsense.
+            let present: HashSet<String> = infos
+                .iter()
+                .map(|(path, _, _, iface)| format!("{path:?}#{iface}"))
+                .collect();
+            known.retain(|key| present.contains(key));
+
             for (path, pid_value, serial, iface) in infos {
                 let key = format!("{path:?}#{iface}");
                 if !known.insert(key.clone()) {

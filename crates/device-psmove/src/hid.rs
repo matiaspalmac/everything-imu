@@ -38,6 +38,17 @@ impl HidReaderHandle {
     }
 }
 
+impl Drop for HidReaderHandle {
+    fn drop(&mut self) {
+        // Owner forgot to call shutdown(): still flip the atomic so the
+        // reader thread exits on its next read_timeout boundary and
+        // releases the HidDevice mutex.
+        if self.join.is_some() {
+            self.shutdown.store(true, Ordering::Relaxed);
+        }
+    }
+}
+
 pub fn spawn_reader<F>(device: Arc<Mutex<HidDevice>>, mut parse: F) -> HidReaderHandle
 where
     F: FnMut(&[u8], &mpsc::Sender<device_traits::ChannelInfo>) + Send + 'static,

@@ -96,6 +96,17 @@ impl DualSenseFactory {
                     .collect()
             };
 
+            // Drop devices that have left the HID bus so a DualSense which
+            // disconnects mid-session (USB unplug, BT drop) is re-emitted as
+            // a fresh device the moment it reappears. Without this prune
+            // the entry sticks in `known` forever and auto-reconnect needs
+            // an app restart — same fix already in device-joycon.
+            let present: HashSet<String> = infos
+                .iter()
+                .map(|(path, _, _, iface)| format!("{path:?}#{iface}"))
+                .collect();
+            known.retain(|key| present.contains(key));
+
             for (path, pid_value, serial, iface) in infos {
                 let key = format!("{path:?}#{iface}");
                 if !known.insert(key.clone()) {

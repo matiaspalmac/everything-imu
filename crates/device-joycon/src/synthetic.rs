@@ -51,6 +51,11 @@ impl Device for SyntheticJoyConL {
         let h = tokio::spawn(async move {
             let _ = tx.send(ChannelInfo::Connected(id.clone())).await;
             let mut interval = tokio::time::interval(Duration::from_millis(15));
+            // Default tokio behavior fires every missed tick back-to-back if
+            // the loop body lagged, producing a burst that floods the
+            // consumer and skews the rate counter. `Skip` keeps cadence
+            // honest at the cost of dropping samples during stalls.
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             let mut t = 0.0_f32;
             let mut packet_idx = 0_u32;
             loop {

@@ -92,8 +92,18 @@ async fn handle_client(
             break;
         }
         if n % PACKET_LEN != 0 {
-            write_response(&mut stream, &base_ip, &rumble_state).await?;
-            continue;
+            // Stream is out of sync with the 17-byte packet grid. Resyncing
+            // in-place is unreliable because we cannot tell which byte
+            // started the next packet. Close the connection so the companion
+            // reconnects cleanly rather than feeding garbage to the parser
+            // and emitting bogus IMU samples downstream.
+            tracing::warn!(
+                peer = %base_ip,
+                bytes = n,
+                packet_len = PACKET_LEN,
+                "wii stream out of sync; closing connection so companion can reconnect"
+            );
+            return Ok(());
         }
 
         for chunk in read_buf[..n].chunks_exact(PACKET_LEN) {

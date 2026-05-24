@@ -36,6 +36,19 @@ impl HidReaderHandle {
     }
 }
 
+impl Drop for HidReaderHandle {
+    fn drop(&mut self) {
+        // If the owner forgot to call shutdown(), still flip the atomic so
+        // the reader thread exits on its next read_timeout boundary instead
+        // of running forever holding the HidDevice mutex.
+        if self.join.is_some() {
+            self.shutdown.store(true, Ordering::Relaxed);
+            // Drop the join handle without blocking — same rationale as
+            // `shutdown()`. Thread terminates within ~50 ms.
+        }
+    }
+}
+
 /// Spawn the blocking HID reader thread.
 ///
 /// The device handle is shared (`Arc<Mutex<HidDevice>>`) rather than moved so
