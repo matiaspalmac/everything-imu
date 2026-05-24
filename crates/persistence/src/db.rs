@@ -2,7 +2,7 @@
 
 use crate::error::PersistenceError;
 use crate::history::DeviceHistoryRow;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
 use std::path::Path;
 use std::sync::{LazyLock, Mutex};
@@ -42,13 +42,15 @@ impl PersistenceDb {
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, PersistenceError> {
         let conn = self.conn.lock().unwrap();
+        // optional() distinguishes "no such row" (legitimate None) from
+        // an underlying SQLite error (worth surfacing to the caller).
         let v: Option<String> = conn
             .query_row(
                 "SELECT value FROM settings WHERE key = ?1",
                 params![key],
                 |r| r.get(0),
             )
-            .ok();
+            .optional()?;
         Ok(v)
     }
 
@@ -70,6 +72,15 @@ impl PersistenceDb {
         let rows = stmt.query_map([], |r| {
             let mac_blob: Vec<u8> = r.get(0)?;
             let mut mac = [0u8; 6];
+            // A non-6-byte MAC blob is a corrupted row — zero-padding it
+            // silently would produce a phantom device with a near-null
+            // identity. Surface it as a warning so the cause is visible.
+            if mac_blob.len() != 6 {
+                tracing::warn!(
+                    actual_len = mac_blob.len(),
+                    "device_history row has malformed mac blob; padding/truncating to 6 bytes"
+                );
+            }
             let take = 6.min(mac_blob.len());
             mac[..take].copy_from_slice(&mac_blob[..take]);
             Ok(DeviceHistoryRow {

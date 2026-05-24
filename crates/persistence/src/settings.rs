@@ -14,8 +14,13 @@ impl SqliteSettingsStore {
     }
 
     fn key_for(id: &DeviceId) -> String {
+        // Lower-case hex for parity with the other per-device keys built in
+        // `core::pipeline_config_from_settings` (`fusion_algo:<mac>`,
+        // `mounting_orientation:<mac>`, etc.). Uniform format makes raw DB
+        // inspection straightforward and prevents subtle case-mismatch bugs
+        // if another path ever writes the same key.
         format!(
-            "rotation_offset_deg:{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}",
+            "rotation_offset_deg:{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
             id.mac[0], id.mac[1], id.mac[2], id.mac[3], id.mac[4], id.mac[5]
         )
     }
@@ -28,11 +33,23 @@ impl SettingsStore for SqliteSettingsStore {
             .get_setting(&key)
             .ok()
             .flatten()
-            .and_then(|v| v.parse().ok())
+            .and_then(|v| v.parse::<f32>().ok())
+            // Filter NaN/inf even on the read path: if a poisoned value
+            // ever lands in the DB (external write, older code, manual
+            // edit), surface a clean 0.0 instead of propagating NaN into
+            // the fusion pipeline.
+            .filter(|v| v.is_finite())
             .unwrap_or(0.0)
     }
 
     fn set_rotation_offset_deg(&self, id: &DeviceId, deg: f32) {
+        // Contract: stores MUST reject non-finite values. A NaN rotation
+        // offset reloaded into the pipeline produces a NaN quaternion that
+        // poisons every downstream rotation packet.
+        if !deg.is_finite() {
+            tracing::warn!(deg = deg, "refusing to persist non-finite rotation offset");
+            return;
+        }
         let key = Self::key_for(id);
         if let Err(e) = self.db.set_setting(&key, &deg.to_string()) {
             tracing::warn!(error = %e, key = %key, "failed to persist rotation offset");

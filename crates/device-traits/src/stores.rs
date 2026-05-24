@@ -6,6 +6,9 @@ use std::sync::RwLock;
 
 pub trait SettingsStore: Send + Sync {
     fn get_rotation_offset_deg(&self, id: &DeviceId) -> f32;
+    /// Implementations MUST reject non-finite values (NaN, ±inf) — a poisoned
+    /// value reloaded into the fusion pipeline propagates NaN through every
+    /// rotation packet downstream.
     fn set_rotation_offset_deg(&self, id: &DeviceId, deg: f32);
 
     /// Free-form key/value lookup. Used by the pipeline to read per-device
@@ -27,6 +30,8 @@ pub trait BiasStore: Send + Sync {
     /// Returns persisted gyro bias seed (rad/s) for this device, if any.
     fn load_bias(&self, id: &DeviceId) -> Option<[f64; 3]>;
     /// Persist the latest bias estimate. Called periodically by `core::Pipeline`.
+    /// Implementations MUST reject non-finite values on any axis — a poisoned
+    /// NaN bias reseeded into VQF locks the filter into a permanent NaN state.
     fn store_bias(&self, id: &DeviceId, bias: [f64; 3]);
 }
 
@@ -41,6 +46,9 @@ impl SettingsStore for InMemorySettingsStore {
         *self.rot.read().unwrap().get(id).unwrap_or(&0.0)
     }
     fn set_rotation_offset_deg(&self, id: &DeviceId, deg: f32) {
+        if !deg.is_finite() {
+            return;
+        }
         self.rot.write().unwrap().insert(id.clone(), deg);
     }
     fn get(&self, key: &str) -> Option<String> {
@@ -64,6 +72,9 @@ impl BiasStore for InMemoryBiasStore {
         self.bias.read().unwrap().get(id).copied()
     }
     fn store_bias(&self, id: &DeviceId, bias: [f64; 3]) {
+        if !bias.iter().all(|v| v.is_finite()) {
+            return;
+        }
         self.bias.write().unwrap().insert(id.clone(), bias);
     }
 }
