@@ -7,6 +7,18 @@ project follows [SemVer](https://semver.org/).
 Unreleased changes are tracked on `main`. Tagged releases are listed in
 reverse-chronological order below.
 
+## [1.0.0-beta.8] - 2026-05-24
+
+### Security
+- Bumped `sentry` 0.34 → 0.48 to drop the vulnerable `rustls` 0.22.4 /
+  `rustls-webpki` 0.102.8 subtree. Closes GHSA-82j2-j2ch-gfr8 (high —
+  DoS via panic on malformed CRL BIT STRING) and three medium/low
+  `rustls-webpki` advisories (CRL distribution-point matching and
+  name-constraint handling).
+- pnpm override forces transitive `ws` to `>=8.20.1` (8.21.0 lands),
+  closing GHSA-58qx-3vcg-4xpx (medium — uninitialized memory disclosure
+  in `ws` receive path) reachable via `jsdom` from vitest.
+
 ## [1.0.0-beta.7] - 2026-05-24
 
 ### Fixed
@@ -81,6 +93,7 @@ reverse-chronological order below.
 - Drivers: Joy-Con (1st gen), DualSense, PSMove, Wii Remote.
 - IMU fusion (VQF + Madgwick) and SlimeVR tracker protocol bridge.
 
+[1.0.0-beta.8]: https://github.com/matiaspalmac/everything-imu/releases/tag/v1.0.0-beta.8
 [1.0.0-beta.7]: https://github.com/matiaspalmac/everything-imu/releases/tag/v1.0.0-beta.7
 [1.0.0-beta.6]: https://github.com/matiaspalmac/everything-imu/releases/tag/v1.0.0-beta.6
 [1.0.0-beta.1]: https://github.com/matiaspalmac/everything-imu/releases/tag/v1.0.0-beta.1
