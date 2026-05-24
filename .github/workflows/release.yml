@@ -15,8 +15,26 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    name: Prepare release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - id: meta
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" =~ -(alpha|beta|rc) ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build ${{ matrix.os }}
+    needs: prepare
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -41,7 +59,7 @@ jobs:
             libudev-dev \
             patchelf
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.84.0
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -64,9 +82,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: 'everything-imu ${{ github.event.inputs.tag || github.ref_name }}'
-          releaseBody: 'See CHANGELOG.md for details.'
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: 'everything-imu ${{ needs.prepare.outputs.tag }}'
+          releaseBody: 'See the auto-generated release notes below and CHANGELOG.md in the repository for the full history.'
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
           projectPath: crates/everything-imu-app
