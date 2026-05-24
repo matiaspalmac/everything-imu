@@ -25,7 +25,7 @@ pub struct SphereFit {
 }
 
 /// Persisted hard-iron calibration for one device.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct MagCalibration {
     /// Hard-iron offset (µT) subtracted from raw mag samples before fusion.
     pub offset: [f32; 3],

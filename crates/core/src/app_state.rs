@@ -112,7 +112,7 @@ impl AppState {
             imu: ImuType::Bno085,
             mcu: McuType::Unknown,
             mag_status,
-            firmware: "everything-imu 1.0.0-alpha".into(),
+            firmware: concat!("everything-imu ", env!("CARGO_PKG_VERSION")).into(),
             mac_address: meta.id.mac,
         };
         let slime = Arc::new(
@@ -209,6 +209,9 @@ impl AppState {
     }
 
     pub async fn set_rotation_offset_deg(&self, mac: [u8; 6], deg: f32) -> bool {
+        if !deg.is_finite() {
+            return false;
+        }
         let devices = self.devices.read().await;
         let Some(h) = devices.values().find(|h| h.metadata.id.mac == mac) else {
             return false;
@@ -331,9 +334,14 @@ impl AppState {
 
     pub async fn shutdown(&self) {
         let mut devices = self.devices.write().await;
-        for (_, h) in devices.drain() {
+        for (id, h) in devices.drain() {
             let _ = h.stop.send(true);
-            let _ = h.task.await;
+            // Bound the wait: a hung pipeline (stuck in UDP send, locked
+            // driver thread) must not block global app shutdown.
+            match tokio::time::timeout(Duration::from_secs(2), h.task).await {
+                Ok(_) => {}
+                Err(_) => tracing::warn!(id = %id, "pipeline task did not exit within 2s; abandoning"),
+            }
         }
     }
 
@@ -456,9 +464,15 @@ fn pipeline_config_from_settings(settings: &dyn SettingsStore, id: &DeviceId) ->
     // A persisted hard-iron calibration only exists for a device that has a
     // magnetometer, so its presence is a sufficient auto-enable signal — no
     // need to consult device capabilities here.
-    let mag_calibration = settings
-        .get(&format!("mag_cal:{mac_key}"))
-        .and_then(|json| serde_json::from_str::<MagCalibration>(&json).ok());
+    let mag_calibration = settings.get(&format!("mag_cal:{mac_key}")).and_then(|json| {
+        match serde_json::from_str::<MagCalibration>(&json) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                tracing::warn!(id = %id, error = %e, "stored mag calibration unparseable; ignoring");
+                None
+            }
+        }
+    });
     // Auto-enable the magnetometer once a calibration exists. An explicit
     // `magnetometer_enabled` setting still overrides (the user can calibrate
     // and then deliberately turn it off).

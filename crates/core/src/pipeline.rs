@@ -584,12 +584,34 @@ impl Pipeline {
                 // Live-read mounting orientation + rotation offset each
                 // batch so command-side changes apply without a reconnect.
                 let mut q_xyzw_arr = q_estimate.0;
+                let mut mutated = false;
                 if cfg.mounting != MountingOrientation::Identity {
                     q_xyzw_arr = quat_mul_xyzw(cfg.mounting.quat_xyzw(), q_xyzw_arr);
+                    mutated = true;
                 }
-                if cfg.rotation_offset_deg.abs() > f32::EPSILON {
+                // Threshold in degrees (not f32::EPSILON which is ~1e-7 rad-
+                // equivalent — far below any visible rotation).
+                if cfg.rotation_offset_deg.abs() > 1e-4 {
                     q_xyzw_arr =
                         quat_mul_xyzw(yaw_offset_quat(cfg.rotation_offset_deg), q_xyzw_arr);
+                    mutated = true;
+                }
+                // Re-normalize only when we actually composed. f64→f32 cast
+                // plus repeated quaternion products accumulate ‖q‖ drift; an
+                // un-normalized rotation propagates as a non-rigid transform
+                // downstream in SlimeVR-Server.
+                if mutated {
+                    let n2 = q_xyzw_arr[0] * q_xyzw_arr[0]
+                        + q_xyzw_arr[1] * q_xyzw_arr[1]
+                        + q_xyzw_arr[2] * q_xyzw_arr[2]
+                        + q_xyzw_arr[3] * q_xyzw_arr[3];
+                    if n2 > 0.0 {
+                        let inv = 1.0 / n2.sqrt();
+                        q_xyzw_arr[0] *= inv;
+                        q_xyzw_arr[1] *= inv;
+                        q_xyzw_arr[2] *= inv;
+                        q_xyzw_arr[3] *= inv;
+                    }
                 }
                 let q_xyzw = QuatXyzw(q_xyzw_arr);
                 let _ = self.quat_tx.send(q_xyzw);
@@ -632,8 +654,20 @@ impl Pipeline {
                     k: q_xyzw.0[2],
                     w: q_xyzw.0[3],
                 };
-                let last = samples.last().unwrap();
-                let accel_tuple = (last.accel[0], last.accel[1], last.accel[2]);
+                // Rotation packet rides in the VQF/SlimeVR frame; the accel
+                // sibling must match — emitting raw device-frame accel
+                // alongside a remapped quaternion gives the server a
+                // mismatched gravity vector and breaks tilt-based features.
+                let accel_vqf_last = coord::jsl_to_vqf_body(Vector3::new(
+                    last_raw.accel[0],
+                    last_raw.accel[1],
+                    last_raw.accel[2],
+                ));
+                let accel_tuple = (
+                    accel_vqf_last[0] as f32,
+                    accel_vqf_last[1] as f32,
+                    accel_vqf_last[2] as f32,
+                );
                 if !self.paused.load(std::sync::atomic::Ordering::Acquire) {
                     let send_start = Instant::now();
                     self.slime
@@ -641,9 +675,21 @@ impl Pipeline {
                         .await
                         .map_err(|e| AppError::Slime(e.to_string()))?;
                     if cfg.magnetometer_enabled {
-                        if let Some(m) = last.mag {
+                        if let Some(m) = last_raw.mag {
+                            // Apply hard-iron correction before forwarding —
+                            // matches what the local fusion ingests, so any
+                            // server-side consumer of the mag channel sees a
+                            // calibrated field, not a raw biased one.
+                            let (mx, my, mz) = match cfg.mag_calibration {
+                                Some(cal) => (
+                                    m[0] - cal.offset[0],
+                                    m[1] - cal.offset[1],
+                                    m[2] - cal.offset[2],
+                                ),
+                                None => (m[0], m[1], m[2]),
+                            };
                             self.slime
-                                .send_magnetometer(self.sensor_id, (m[0], m[1], m[2]))
+                                .send_magnetometer(self.sensor_id, (mx, my, mz))
                                 .await
                                 .map_err(|e| AppError::Slime(e.to_string()))?;
                         }
