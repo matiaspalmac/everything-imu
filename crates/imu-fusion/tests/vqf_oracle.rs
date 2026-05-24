@@ -59,8 +59,8 @@ fn vqf_oracle_replay_matches_reference() {
             + got[2] * expected_q6[i][2]
             + got[3] * expected_q6[i][3])
             .signum();
-        for c in 0..4 {
-            let err = (sign * got[c] - expected_q6[i][c]).abs();
+        for (c, g) in got.iter().enumerate() {
+            let err = (sign * g - expected_q6[i][c]).abs();
             if err > max_err {
                 max_err = err;
             }
