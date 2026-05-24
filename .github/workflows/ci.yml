@@ -36,7 +36,7 @@ jobs:
             libudev-dev \
             patchelf
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.84.0
         with:
           components: rustfmt, clippy
 
@@ -81,6 +81,9 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Test (vitest)
+        run: pnpm test
 
       - name: Build
         run: pnpm build
