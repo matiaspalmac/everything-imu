@@ -36,7 +36,7 @@ jobs:
             libudev-dev \
             patchelf
 
-      - uses: dtolnay/rust-toolchain@1.84.0
+      - uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: rustfmt, clippy
 

@@ -19,7 +19,7 @@ members = [
 [workspace.package]
 version = "1.0.0-beta.7"
 edition = "2021"
-rust-version = "1.84"
+rust-version = "1.88"
 authors = ["Matias Palma <matiaspalma2594@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/matiaspalmac/everything-imu"
