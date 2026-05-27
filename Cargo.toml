@@ -10,6 +10,7 @@ members = [
     "crates/device-psmove",
     "crates/device-wii",
     "crates/osc-haptics",
+    "crates/device-tesla",
     "crates/persistence",
     "crates/core",
     "crates/everything-imu-app",
@@ -48,6 +49,9 @@ arc-swap = "1.7"
 rusqlite = { version = "0.34", features = ["bundled"] }
 rusqlite_migration = "2"
 tempfile = "3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+url = "2"
 
 [profile.dev]
 opt-level = 0
