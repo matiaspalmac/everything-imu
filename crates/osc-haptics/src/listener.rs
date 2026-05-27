@@ -241,12 +241,44 @@ async fn handle_packet(
                     let _ = tx.try_send(msg.addr.clone());
                 }
             }
-            let Some(arg) = msg.args.first() else { return };
+            // Per-packet trace so users can confirm VRChat is reaching us
+            // and whether their rule's address actually matches. Gated at
+            // trace level so it doesn't flood at info; users debugging set
+            // RUST_LOG=osc_haptics=trace.
+            tracing::trace!(
+                addr = %msg.addr,
+                args = ?msg.args,
+                "haptic osc: received"
+            );
+            let Some(arg) = msg.args.first() else {
+                tracing::trace!(addr = %msg.addr, "haptic osc: message with no args, ignored");
+                return;
+            };
             let Some(value) = osc_arg_value(arg) else {
+                tracing::trace!(
+                    addr = %msg.addr,
+                    arg = ?arg,
+                    "haptic osc: unsupported arg type, ignored"
+                );
                 return;
             };
             let now = Instant::now();
-            for action in resolve(rules, &msg.addr, value) {
+            let actions = resolve(rules, &msg.addr, value);
+            if actions.is_empty() {
+                tracing::trace!(
+                    addr = %msg.addr,
+                    value,
+                    "haptic osc: no matching rule"
+                );
+            } else {
+                tracing::debug!(
+                    addr = %msg.addr,
+                    value,
+                    matched = actions.len(),
+                    "haptic osc: matched rule(s)"
+                );
+            }
+            for action in actions {
                 apply_action(action, state, sink, now).await;
             }
         }
