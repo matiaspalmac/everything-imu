@@ -49,7 +49,7 @@ pub trait RumbleSink: Send + Sync {
 /// while `enabled` is false. `discovery_tx`, if provided, receives every
 /// distinct OSC address seen — the config UI uses it for live binding.
 pub async fn run_bridge(
-    mut config_rx: watch::Receiver<HapticConfig>,
+    config_rx: watch::Receiver<HapticConfig>,
     sink: Arc<dyn RumbleSink>,
     discovery_tx: Option<mpsc::Sender<String>>,
 ) {

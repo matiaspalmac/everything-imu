@@ -259,7 +259,7 @@ async fn stream_once(
     let subscribe_payload =
         serde_json::to_string(&subscribe).map_err(|e| format!("subscribe encode: {e}"))?;
     socket
-        .send(Message::Text(subscribe_payload.into()))
+        .send(Message::Text(subscribe_payload))
         .await
         .map_err(|e| format!("subscribe send: {e}"))?;
 
@@ -285,8 +285,7 @@ async fn stream_once(
                     }
                 }
             }
-            timeout = tokio::time::sleep(config.idle_timeout) => {
-                let _ = timeout;
+            _ = tokio::time::sleep(config.idle_timeout) => {
                 return Err("idle timeout".into());
             }
             _ = stop_rx.changed() => {
@@ -411,13 +410,12 @@ mod tests {
         // Drain a few samples — synthetic loop emits once per tick.
         let mut got_sample = false;
         for _ in 0..20 {
-            if let Ok(Some(evt)) = tokio::time::timeout(Duration::from_millis(200), rx.recv()).await
+            if let Ok(Some(ChannelInfo::ImuSamples(samples))) =
+                tokio::time::timeout(Duration::from_millis(200), rx.recv()).await
             {
-                if let ChannelInfo::ImuSamples(samples) = evt {
-                    if !samples.is_empty() {
-                        got_sample = true;
-                        break;
-                    }
+                if !samples.is_empty() {
+                    got_sample = true;
+                    break;
                 }
             }
         }
