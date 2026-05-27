@@ -45,6 +45,7 @@ pub enum DeviceKind {
     PsMoveZcm1,
     PsMoveZcm2,
     Wii,
+    Tesla,
 }
 
 #[derive(Debug, Clone)]
