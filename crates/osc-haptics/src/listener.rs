@@ -2,13 +2,23 @@
 
 use crate::config::HapticConfig;
 use crate::mapping::{osc_value_to_f32, resolve, HapticAction};
+use crate::sniffer::Sniffer;
 use rosc::{OscPacket, OscType};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
+
+/// Thread-safe handle on the live OSC parameter sniffer.
+///
+/// Held by both the listener (which writes via `ingest`) and the UI / Tauri
+/// command layer (which reads via `snapshot`). Wrapped in `std::sync::Mutex`
+/// so callers from sync contexts (Tauri commands, tests) can grab a snapshot
+/// without entering an async runtime.
+pub type SnifferHandle = Arc<StdMutex<Sniffer>>;
 
 /// Minimum gap between rumble writes to the same device. Caps Bluetooth
 /// traffic (~66 Hz) so a flood of proximity updates can't disconnect a pad.
@@ -43,6 +53,19 @@ pub async fn run_bridge(
     sink: Arc<dyn RumbleSink>,
     discovery_tx: Option<mpsc::Sender<String>>,
 ) {
+    run_bridge_with_sniffer(config_rx, sink, discovery_tx, None).await
+}
+
+/// Same as [`run_bridge`] but with an optional [`SnifferHandle`] that the
+/// listener writes every routed message into. Construct via
+/// `Arc::new(StdMutex::new(Sniffer::new(512)))` and pass the same handle to
+/// the UI command layer for live `snapshot()` reads.
+pub async fn run_bridge_with_sniffer(
+    mut config_rx: watch::Receiver<HapticConfig>,
+    sink: Arc<dyn RumbleSink>,
+    discovery_tx: Option<mpsc::Sender<String>>,
+    sniffer: Option<SnifferHandle>,
+) {
     loop {
         let config = config_rx.borrow_and_update().clone();
         if !config.enabled {
@@ -70,7 +93,14 @@ pub async fn run_bridge(
             "haptic bridge listening"
         );
 
-        let rebind = serve(&socket, &mut config_rx, &sink, discovery_tx.as_ref()).await;
+        let rebind = serve(
+            &socket,
+            &mut config_rx,
+            &sink,
+            discovery_tx.as_ref(),
+            sniffer.as_ref(),
+        )
+        .await;
         match rebind {
             ServeExit::Shutdown => return,
             ServeExit::Rebind => continue,
@@ -92,6 +122,7 @@ async fn serve(
     config_rx: &mut watch::Receiver<HapticConfig>,
     sink: &Arc<dyn RumbleSink>,
     discovery_tx: Option<&mpsc::Sender<String>>,
+    sniffer: Option<&SnifferHandle>,
 ) -> ServeExit {
     let mut state = LoopState::new();
     let mut buf = [0u8; 2048];
@@ -121,7 +152,7 @@ async fn serve(
                     Ok((len, _addr)) => {
                         state.last_packet = Instant::now();
                         if let Ok((_, packet)) = rosc::decoder::decode_udp(&buf[..len]) {
-                            handle_packet(&packet, &rules, &mut state, sink, discovery_tx).await;
+                            handle_packet(&packet, &rules, &mut state, sink, discovery_tx, sniffer).await;
                         }
                     }
                     Err(e) => {
@@ -233,6 +264,7 @@ async fn handle_packet(
     state: &mut LoopState,
     sink: &Arc<dyn RumbleSink>,
     discovery_tx: Option<&mpsc::Sender<String>>,
+    sniffer: Option<&SnifferHandle>,
 ) {
     match packet {
         OscPacket::Message(msg) => {
@@ -262,6 +294,15 @@ async fn handle_packet(
                 );
                 return;
             };
+            // Feed the live sniffer so the UI can render exactly which
+            // addresses VRChat is sending and their numeric range. Done
+            // *before* the rule resolve so users see addresses even when
+            // no rule matches yet — that's the whole point of the sniffer.
+            if let Some(handle) = sniffer {
+                if let Ok(mut s) = handle.lock() {
+                    s.ingest(&msg.addr, value);
+                }
+            }
             let now = Instant::now();
             let actions = resolve(rules, &msg.addr, value);
             if actions.is_empty() {
@@ -284,7 +325,7 @@ async fn handle_packet(
         }
         OscPacket::Bundle(bundle) => {
             for inner in &bundle.content {
-                Box::pin(handle_packet(inner, rules, state, sink, discovery_tx)).await;
+                Box::pin(handle_packet(inner, rules, state, sink, discovery_tx, sniffer)).await;
             }
         }
     }
@@ -377,7 +418,7 @@ mod tests {
         let sink_clone: Arc<dyn RumbleSink> = sink.clone();
 
         tokio::spawn(async move {
-            serve(&socket, &mut cfg_rx.clone(), &sink_clone, None).await;
+            serve(&socket, &mut cfg_rx.clone(), &sink_clone, None, None).await;
         });
 
         // Send a proximity hit from a separate socket.
@@ -396,5 +437,88 @@ mod tests {
 
         let calls = sink.calls.lock().unwrap();
         assert_eq!(calls[0], (mac, 0.8));
+    }
+
+    #[tokio::test]
+    async fn sniffer_records_addresses_even_without_matching_rule() {
+        // Rule that matches nothing the test sends. Sniffer must still
+        // record both addresses so the UI can show "VRChat is talking, no
+        // rule matches".
+        let mac = [0x02, 0, 0, 0, 0, 0x99];
+        let config = HapticConfig {
+            enabled: true,
+            listen_port: 0,
+            rules: vec![HapticRule {
+                osc_address: "/avatar/parameters/NeverFires".into(),
+                device_mac: mac,
+                mode: HapticMode::Proximity {
+                    gain: 1.0,
+                    min_threshold: 0.05,
+                },
+            }],
+        };
+
+        let socket = UdpSocket::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = socket.local_addr().unwrap().port();
+
+        let (signal_tx, _signal_rx) = mpsc::unbounded_channel();
+        let sink = Arc::new(RecordingSink {
+            calls: Mutex::new(Vec::new()),
+            tx: signal_tx,
+        });
+        let (_cfg_tx, cfg_rx) = watch::channel(config);
+        let sink_clone: Arc<dyn RumbleSink> = sink.clone();
+        let sniffer: SnifferHandle = Arc::new(StdMutex::new(Sniffer::new(32)));
+        let sniffer_clone = sniffer.clone();
+
+        tokio::spawn(async move {
+            serve(
+                &socket,
+                &mut cfg_rx.clone(),
+                &sink_clone,
+                None,
+                Some(&sniffer_clone),
+            )
+            .await;
+        });
+
+        let client = UdpSocket::bind(("127.0.0.1", 0)).await.unwrap();
+        for (addr, val) in [
+            ("/avatar/parameters/A", 0.1f32),
+            ("/avatar/parameters/B", 0.5),
+            ("/avatar/parameters/A", 0.9),
+        ] {
+            client
+                .send_to(&encode_msg(addr, val), ("127.0.0.1", port))
+                .await
+                .unwrap();
+        }
+
+        // Spin until the sniffer has both addresses or we time out.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+        loop {
+            {
+                let s = sniffer.lock().unwrap();
+                if s.len() >= 2 {
+                    break;
+                }
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("sniffer never captured both addresses");
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+
+        let snap = sniffer.lock().unwrap().snapshot();
+        let by_addr: HashMap<_, _> = snap
+            .iter()
+            .map(|e| (e.address.clone(), e.clone()))
+            .collect();
+        let a = by_addr.get("/avatar/parameters/A").expect("addr A captured");
+        assert_eq!(a.count, 2, "two A packets");
+        assert!((a.min_value - 0.1).abs() < 1e-4);
+        assert!((a.max_value - 0.9).abs() < 1e-4);
+        let b = by_addr.get("/avatar/parameters/B").expect("addr B captured");
+        assert_eq!(b.count, 1);
     }
 }

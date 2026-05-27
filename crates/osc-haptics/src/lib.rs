@@ -19,7 +19,7 @@ pub mod sniffer;
 pub mod test_fire;
 
 pub use config::{normalize_address, HapticConfig, HapticMode, HapticRule, DEFAULT_OSC_PORT};
-pub use listener::{run_bridge, RumbleSink};
+pub use listener::{run_bridge, run_bridge_with_sniffer, RumbleSink, SnifferHandle};
 pub use mapping::{resolve, HapticAction};
 pub use sniffer::{Sniffer, SnifferEntry};
 pub use test_fire::{simulate_dispatch, TestFireOutcome};
