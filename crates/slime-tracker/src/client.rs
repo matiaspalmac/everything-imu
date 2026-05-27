@@ -19,6 +19,28 @@ use std::time::Duration;
 
 use deku::DekuContainerWrite;
 use tokio::net::UdpSocket;
+use tokio::sync::broadcast;
+
+/// Push notification emitted whenever the handshake-confirmed flag flips.
+/// `true` means the server has just acknowledged the handshake (or PINGed
+/// after a previous disconnect); `false` means the watchdog tripped after
+/// 2 s of silence.
+///
+/// Subscribers obtain a receiver via [`SlimeClient::subscribe_handshake`].
+/// The UI uses this to surface toasts and to highlight which device tile
+/// just lost connectivity, without having to poll [`ClientStats`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HandshakeEvent {
+    pub confirmed: bool,
+    /// Same value as [`ClientStats::handshake_reset_count`] at the moment
+    /// the event was emitted. Useful to deduplicate replayed events.
+    pub reset_count: u64,
+}
+
+/// Broadcast buffer depth — small because consumers should never lag the
+/// producer for more than a couple of transitions; 32 absorbs UI render
+/// stalls without growing memory.
+const HANDSHAKE_EVENT_CAPACITY: usize = 32;
 
 use crate::clientbound::server_feature_flag_bits;
 use crate::{
@@ -107,6 +129,7 @@ pub struct SlimeClient {
     last_inbound_ms_unix: Arc<AtomicU64>,
     handshake_reset_count: Arc<AtomicU64>,
     last_reset_ms_unix: Arc<AtomicU64>,
+    handshake_events: broadcast::Sender<HandshakeEvent>,
     receive_task: tokio::task::JoinHandle<()>,
     watchdog_task: tokio::task::JoinHandle<()>,
 }
@@ -151,6 +174,7 @@ impl SlimeClient {
         let last_inbound_ms_unix = Arc::new(AtomicU64::new(0));
         let handshake_reset_count = Arc::new(AtomicU64::new(0));
         let last_reset_ms_unix = Arc::new(AtomicU64::new(0));
+        let (handshake_events, _) = broadcast::channel(HANDSHAKE_EVENT_CAPACITY);
 
         // Send initial handshake before spawning the receive loop so the
         // socket has something to receive.
@@ -164,6 +188,8 @@ impl SlimeClient {
             server_supports_bundle.clone(),
             handshake_confirmed.clone(),
             last_inbound_ms_unix.clone(),
+            handshake_reset_count.clone(),
+            handshake_events.clone(),
         ));
 
         let info_arc = Arc::new(info.clone());
@@ -178,6 +204,7 @@ impl SlimeClient {
             last_inbound_ms_unix.clone(),
             handshake_reset_count.clone(),
             last_reset_ms_unix.clone(),
+            handshake_events.clone(),
         ));
 
         Ok(Self {
@@ -191,9 +218,17 @@ impl SlimeClient {
             last_inbound_ms_unix,
             handshake_reset_count,
             last_reset_ms_unix,
+            handshake_events,
             receive_task,
             watchdog_task,
         })
+    }
+
+    /// Subscribe to handshake-state transitions. Each subscriber gets its
+    /// own receiver; lagged consumers see [`broadcast::error::RecvError::Lagged`]
+    /// and may drop events.
+    pub fn subscribe_handshake(&self) -> broadcast::Receiver<HandshakeEvent> {
+        self.handshake_events.subscribe()
     }
 
     fn next_seq(&self) -> u64 {
@@ -468,6 +503,8 @@ async fn receive_loop(
     server_supports_bundle: Arc<AtomicBool>,
     handshake_confirmed: Arc<AtomicBool>,
     last_inbound_ms_unix: Arc<AtomicU64>,
+    handshake_reset_count: Arc<AtomicU64>,
+    handshake_events: broadcast::Sender<HandshakeEvent>,
 ) {
     // Collapse the WSAECONNRESET / ConnectionRefused flood when the SlimeVR
     // server is down: at 200 Hz each device generates 200 of these per
@@ -483,7 +520,16 @@ async fn receive_loop(
                 let tag = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
                 last_inbound_ms_unix.store(now_ms_unix(), Ordering::Release);
                 // Any reply from the server confirms the handshake landed.
-                handshake_confirmed.store(true, Ordering::Release);
+                // Detect the false→true transition so we emit exactly one
+                // HandshakeEvent per recovery — otherwise the UI would see
+                // hundreds of events per second once PINGs start streaming.
+                let was_confirmed = handshake_confirmed.swap(true, Ordering::AcqRel);
+                if !was_confirmed {
+                    let _ = handshake_events.send(HandshakeEvent {
+                        confirmed: true,
+                        reset_count: handshake_reset_count.load(Ordering::Relaxed),
+                    });
+                }
                 handle_inbound(tag, payload, &server_supports_bundle, &socket).await;
             }
             Ok(_) => {
@@ -536,6 +582,7 @@ async fn handshake_watchdog(
     last_inbound_ms_unix: Arc<AtomicU64>,
     handshake_reset_count: Arc<AtomicU64>,
     last_reset_ms_unix: Arc<AtomicU64>,
+    handshake_events: broadcast::Sender<HandshakeEvent>,
 ) {
     loop {
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -553,8 +600,12 @@ async fn handshake_watchdog(
             // counter would tick once every 500 ms while disconnected,
             // which would make the UI look like the server is flapping
             // even though we're just in a stable disconnected state.
-            handshake_reset_count.fetch_add(1, Ordering::Relaxed);
+            let new_count = handshake_reset_count.fetch_add(1, Ordering::Relaxed) + 1;
             last_reset_ms_unix.store(now_ms_unix(), Ordering::Release);
+            let _ = handshake_events.send(HandshakeEvent {
+                confirmed: false,
+                reset_count: new_count,
+            });
         }
 
         if !handshake_confirmed.load(Ordering::Acquire) {
@@ -643,6 +694,52 @@ mod tests {
             flag.store(bundle_bit, Ordering::Release);
         }
         assert!(!flag.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn handshake_event_subscription_receives_initial_confirm() {
+        // Spin a tiny echo "server" that replies to the very first inbound
+        // datagram. The client should fire one confirmed=true event after
+        // its first inbound packet lands.
+        let listener = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let info = HandshakeInfo {
+            board: BoardType::Custom,
+            imu: ImuType::Lsm6ds3trc,
+            mcu: McuType::Unknown,
+            mag_status: 0,
+            firmware: "test".into(),
+            mac_address: [1, 2, 3, 4, 5, 6],
+        };
+        let client = SlimeClient::connect(addr, &info).await.unwrap();
+        let mut events = client.subscribe_handshake();
+
+        // Drain one datagram from the listener and reply with anything
+        // (the receive loop only cares that *some* packet came back).
+        let mut buf = [0u8; 256];
+        let (n, from) = tokio::time::timeout(
+            Duration::from_secs(1),
+            listener.recv_from(&mut buf),
+        )
+        .await
+        .expect("listener recv timeout")
+        .unwrap();
+        // Echo with a tiny well-formed PING packet (tag 10, seq 0).
+        let reply: Vec<u8> = {
+            let mut v = Vec::new();
+            v.extend_from_slice(&10u32.to_be_bytes());
+            v.extend_from_slice(&0u64.to_be_bytes());
+            v
+        };
+        let _ = n;
+        listener.send_to(&reply, from).await.unwrap();
+
+        let event = tokio::time::timeout(Duration::from_secs(1), events.recv())
+            .await
+            .expect("no handshake event")
+            .expect("event channel closed");
+        assert!(event.confirmed, "first event after reply is confirmed=true");
+        assert_eq!(event.reset_count, 0);
     }
 
     #[tokio::test]
