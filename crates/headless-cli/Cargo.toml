@@ -17,6 +17,7 @@ device-joycon = { path = "../device-joycon", features = ["synthetic-source"] }
 device-dualsense = { path = "../device-dualsense", features = ["synthetic-source"] }
 device-psmove = { path = "../device-psmove", features = ["synthetic-source"] }
 device-wii = { path = "../device-wii" }
+device-tesla = { path = "../device-tesla", features = ["synthetic-source"] }
 device-traits = { path = "../device-traits" }
 persistence = { path = "../persistence" }
 clap = { workspace = true }

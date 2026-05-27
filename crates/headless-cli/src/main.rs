@@ -2,6 +2,7 @@ use clap::Parser;
 use device_dualsense::DualSenseFactory;
 use device_joycon::JoyconFactory;
 use device_psmove::PsMoveFactory;
+use device_tesla::{TeslaConfig, TeslaFactory};
 use device_traits::{
     BiasStore, DeviceFactory, InMemoryBiasStore, InMemorySettingsStore, SettingsStore,
 };
@@ -35,6 +36,17 @@ struct Cli {
     /// Spawn N synthetic PS Move controllers alongside the JC synth pool.
     #[arg(long, default_value_t = 0)]
     synth_move: u8,
+
+    /// Run a synthetic Tesla tracker (figure-eight drive trace) alongside the
+    /// other factories. Useful for end-to-end smoke tests without a vehicle.
+    #[arg(long, default_value_t = false)]
+    synth_tesla: bool,
+
+    /// Connect to a real Tesla vehicle via the Fleet API. Requires
+    /// `TESLA_REFRESH_TOKEN`, `TESLA_CLIENT_ID`, and `TESLA_VEHICLE_ID`
+    /// environment variables. Optional `TESLA_REGION=eu|cn|na`.
+    #[arg(long, default_value_t = false)]
+    tesla: bool,
 
     /// Optional path to SQLite state DB. When omitted, uses in-memory stores
     /// (no persistence across restarts — useful for synthetic smoke runs).
@@ -255,8 +267,11 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState::new(args.server, settings, bias_store).await?);
 
-    let any_synth = args.synthetic.is_some() || args.synth_ds > 0 || args.synth_move > 0;
-    let factories: Vec<Arc<dyn DeviceFactory>> = if any_synth {
+    let any_synth = args.synthetic.is_some()
+        || args.synth_ds > 0
+        || args.synth_move > 0
+        || args.synth_tesla;
+    let mut factories: Vec<Arc<dyn DeviceFactory>> = if any_synth {
         let jc_count = args.synthetic.unwrap_or(0);
         let mut v: Vec<Arc<dyn DeviceFactory>> = Vec::new();
         if jc_count > 0 {
@@ -268,6 +283,9 @@ async fn main() -> anyhow::Result<()> {
         if args.synth_move > 0 {
             v.push(Arc::new(PsMoveFactory::synthetic(args.synth_move)));
         }
+        if args.synth_tesla {
+            v.push(Arc::new(TeslaFactory::synthetic()));
+        }
         v
     } else {
         vec![
@@ -277,6 +295,19 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(WiiFactory::new()),
         ]
     };
+    if args.tesla {
+        match TeslaConfig::from_env() {
+            Some(cfg) => {
+                tracing::info!("tesla bridge: live Fleet API mode enabled");
+                factories.push(Arc::new(TeslaFactory::new(cfg)));
+            }
+            None => {
+                tracing::warn!(
+                    "tesla bridge requested but TESLA_REFRESH_TOKEN / TESLA_CLIENT_ID / TESLA_VEHICLE_ID not all set; skipping"
+                );
+            }
+        }
+    }
     let sup = Supervisor::new(state.clone(), factories);
 
     let state_for_shutdown = state.clone();
