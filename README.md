@@ -5,7 +5,7 @@
   <p>
     <a href="https://github.com/matiaspalmac/everything-imu/actions/workflows/ci.yml"><img src="https://github.com/matiaspalmac/everything-imu/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
-    <img src="https://img.shields.io/badge/status-beta-yellow.svg" alt="Status: beta">
+    <img src="https://img.shields.io/badge/status-stable-brightgreen.svg" alt="Status: stable">
     <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-lightgrey.svg" alt="Platform">
     <a href="https://github.com/matiaspalmac/everything-imu/releases/latest"><img src="https://img.shields.io/github/v/release/matiaspalmac/everything-imu?include_prereleases&label=release" alt="Latest release"></a>
   </p>
@@ -20,10 +20,10 @@ The bridge reads the controller's built-in IMU at its native sample rate, runs a
 sensor fusion filter (VQF or Madgwick) in Rust, and forwards the resulting
 quaternion to SlimeVR-Server over UDP using the official protocol.
 
-> **Heads-up:** beta. Core fusion + protocol pipeline are stable and validated
-> on hardware; the UI, settings persistence, and bundle packaging are still
-> iterating. Expect rough edges and please file issues with reproduction
-> steps + the logs from the **Logs** tab.
+> **Status:** 1.0.2. The core fusion + protocol pipeline is stable and
+> hardware-validated across the supported controllers. If you hit a snag,
+> please file an issue with reproduction steps and the logs from the **Logs**
+> tab.
 
 ## Features
 
@@ -92,10 +92,17 @@ protocol the desktop bridge speaks — no PC controller required.
 - EN / ES localisation, persisted in DataStore.
 - Native VQF fusion via JNI (`crates/jni-android`), with a pure-Kotlin
   Madgwick fallback when the `.so` is unavailable.
+- **Wear OS standalone setup** — the watch no longer needs the phone to know
+  the server address. A paired watch auto-syncs `host:port` from the phone over
+  the Wearable Data Layer; any watch (including AOSP / de-Googled builds with no
+  Play Services) can enter the IP directly with an on-watch wheel picker —
+  rotary crown or swipe, no keyboard, no companion app required.
 
 Install: grab `everything-imu-phone-<tag>.apk` (and optionally
 `everything-imu-wear-<tag>.apk`) from the [latest release](https://github.com/matiaspalmac/everything-imu/releases/latest).
-Build locally from `mobile/` with `./gradlew :app-mobile:assembleDebug`.
+The release APKs are signed; if you are upgrading from an earlier unsigned
+build, uninstall it first — Android blocks an in-place upgrade when the signing
+key changes. Build locally from `mobile/` with `./gradlew :app-mobile:assembleDebug`.
 
 ## Install
 
