@@ -28,7 +28,12 @@ data class DiagnosticsReport(
  */
 object NetworkDiagnostics {
 
+    // WifiInfo.connectionInfo/ipAddress are deprecated (API 31) in favour of an
+    // async NetworkCallback + WifiInfo from TransportInfo, which also needs a
+    // location permission just to read the SSID. For a one-shot diagnostic the
+    // legacy synchronous reads are the pragmatic choice; suppress the noise.
     @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
     suspend fun run(
         context: Context,
         host: String,
