@@ -46,6 +46,8 @@ pub enum DeviceKind {
     PsMoveZcm2,
     Wii,
     Tesla,
+    SteamDeck,
+    SteamController,
 }
 
 #[derive(Debug, Clone)]
