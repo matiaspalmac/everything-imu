@@ -5,6 +5,7 @@
 //! dead-code lints crate-wide for this phase.
 #![allow(dead_code)]
 
+pub mod clone_detection;
 pub mod ids;
 
 pub(crate) mod axis_remap;
@@ -23,6 +24,9 @@ pub mod synthetic;
 
 pub mod factory;
 
+pub use clone_detection::{
+    classify_serial as classify_pro_controller_serial, ProControllerVariant,
+};
 pub use device_traits::{Device, DeviceFactory};
 pub use factory::{JoyconFactory, PairedJoycon};
 pub use ids::{ControllerKind, JOYCON_VID};

@@ -2,6 +2,7 @@
 
 use crate::axis_remap;
 use crate::calibration::{accel_sample_m_s2, gyro_sample_rad_s};
+use crate::clone_detection::{classify_serial, ProControllerVariant};
 use crate::hid::{spawn_reader, HidReaderHandle};
 use crate::ids::ControllerKind;
 use crate::report::{parse_0x21_spi_reply, parse_0x30};
@@ -47,11 +48,23 @@ impl JoyCon1Device {
         serial: String,
         mac: [u8; 6],
     ) -> Self {
+        let variant = if kind == ControllerKind::ProController {
+            classify_serial(&serial)
+        } else {
+            ProControllerVariant::Nintendo
+        };
+        if variant.is_clone() {
+            tracing::info!(serial = %serial, variant = %variant.label(), "pro controller clone detected — SPI cal will fall back to nominal coefficients");
+        }
         let id = DeviceId { mac, serial };
         let metadata = DeviceMetadata {
             id,
             kind: kind.into_device_kind(),
-            firmware: None,
+            firmware: if variant.is_clone() {
+                Some(variant.label().into())
+            } else {
+                None
+            },
             capabilities: DeviceCapabilities {
                 has_magnetometer: false,
                 has_battery: true,
