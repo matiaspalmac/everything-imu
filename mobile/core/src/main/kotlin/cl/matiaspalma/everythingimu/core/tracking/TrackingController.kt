@@ -27,6 +27,7 @@ import cl.matiaspalma.everythingimu.core.sensors.SensorRepository
 import cl.matiaspalma.everythingimu.core.sensors.SensorSnapshot
 import cl.matiaspalma.everythingimu.core.sensors.Vec3
 import cl.matiaspalma.everythingimu.core.service.TrackingService
+import cl.matiaspalma.everythingimu.core.wearable.WearableConfigSender
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -282,6 +283,21 @@ object TrackingController {
     suspend fun persistServer(host: String, port: Int) {
         prefs?.setServer(host, port)
     }
+
+    /**
+     * Phone-side persist that also pushes the address to a paired watch over the
+     * Wearable Data Layer. The wear app must NOT call this — it would re-emit the
+     * DataItem its own listener just consumed and loop. Wear uses [persistServer].
+     */
+    suspend fun persistAndSyncServer(context: Context, host: String, port: Int) {
+        prefs?.setServer(host, port)
+        if (host.isNotBlank()) {
+            scope.launch { WearableConfigSender.push(context, host, port) }
+        }
+    }
+
+    /** Wear waits on this for a phone-pushed host before falling back to the picker. */
+    fun serverHostFlow(): kotlinx.coroutines.flow.Flow<String>? = prefs?.serverHost
 
     suspend fun savedHost(): String = prefs?.serverHost?.first() ?: ""
     suspend fun savedPort(): Int = (prefs?.serverPort?.first() ?: 6969).let { if (it == 0) 6969 else it }
