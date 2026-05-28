@@ -88,3 +88,64 @@ jobs:
           releaseDraft: true
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           projectPath: crates/everything-imu-app
+
+  android:
+    name: Android (phone + wear)
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r27c
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Assemble release APKs (phone + wear) with native VQF
+        working-directory: mobile
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: gradle :app-mobile:assembleRelease :app-wear:assembleRelease --stacktrace
+
+      - name: Collect APK artifacts
+        run: |
+          mkdir -p mobile-artifacts
+          TAG="${{ needs.prepare.outputs.tag }}"
+          cp mobile/app-mobile/build/outputs/apk/release/app-mobile-release-unsigned.apk \
+             "mobile-artifacts/everything-imu-phone-${TAG}.apk"
+          cp mobile/app-wear/build/outputs/apk/release/app-wear-release-unsigned.apk \
+             "mobile-artifacts/everything-imu-wear-${TAG}.apk"
+          ls -la mobile-artifacts
+
+      - name: Attach APKs to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: 'everything-imu ${{ needs.prepare.outputs.tag }}'
+          draft: true
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          files: mobile-artifacts/*.apk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
