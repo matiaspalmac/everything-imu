@@ -26,7 +26,11 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          if [[ "$TAG" =~ -(alpha|beta|rc) ]]; then
+          # Only alpha + rc count as prerelease for GitHub's "Latest" badge;
+          # beta tags must stay non-prerelease so the updater endpoint at
+          # /releases/latest/download/latest.json resolves to the newest
+          # beta (GitHub refuses to mark a prerelease as Latest).
+          if [[ "$TAG" =~ -(alpha|rc) ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
@@ -92,6 +96,7 @@ jobs:
           projectPath: crates/everything-imu-app
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
+          makeLatest: true
 
   android:
     name: Android (phone + wear)
