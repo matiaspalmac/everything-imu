@@ -131,20 +131,36 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
+      - name: Decode release keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "ANDROID_RELEASE_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "release keystore decoded — APKs will be signed"
+          else
+            echo "no ANDROID_RELEASE_KEYSTORE_B64 secret — building unsigned"
+          fi
+
       - name: Assemble release APKs (phone + wear) with native VQF
         working-directory: mobile
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: gradle :app-mobile:assembleRelease :app-wear:assembleRelease --stacktrace
 
       - name: Collect APK artifacts
         run: |
           mkdir -p mobile-artifacts
           TAG="${{ needs.prepare.outputs.tag }}"
-          cp mobile/app-mobile/build/outputs/apk/release/app-mobile-release-unsigned.apk \
-             "mobile-artifacts/everything-imu-phone-${TAG}.apk"
-          cp mobile/app-wear/build/outputs/apk/release/app-wear-release-unsigned.apk \
-             "mobile-artifacts/everything-imu-wear-${TAG}.apk"
+          # Signed builds drop the -unsigned suffix; glob picks whichever exists.
+          phone=$(ls mobile/app-mobile/build/outputs/apk/release/app-mobile-release*.apk | head -n1)
+          wear=$(ls mobile/app-wear/build/outputs/apk/release/app-wear-release*.apk | head -n1)
+          cp "$phone" "mobile-artifacts/everything-imu-phone-${TAG}.apk"
+          cp "$wear" "mobile-artifacts/everything-imu-wear-${TAG}.apk"
           ls -la mobile-artifacts
 
       - name: Attach APKs to release
