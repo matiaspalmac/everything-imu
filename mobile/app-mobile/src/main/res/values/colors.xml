@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#1A1820</color>
+    <color name="brand_bg_base">#16191E</color>
+    <color name="brand_bg_panel">#1B1E25</color>
+    <color name="brand_bg_elevated">#22262E</color>
+    <color name="brand_fg_primary">#EDF0F4</color>
+    <color name="brand_fg_secondary">#B0B6C0</color>
+    <color name="brand_fg_muted">#7B838F</color>
+    <color name="brand_accent">#9CB4DA</color>
+    <color name="brand_accent_bright">#B7CCEC</color>
+    <color name="brand_accent_deep">#6B86B0</color>
+    <color name="brand_danger">#D86A4F</color>
+    <color name="brand_success">#5CC8A0</color>
+    <color name="brand_warn">#D9C173</color>
+</resources>
