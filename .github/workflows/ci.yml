@@ -36,7 +36,7 @@ jobs:
             libudev-dev \
             patchelf
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: rustfmt, clippy
 
@@ -103,7 +103,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
 
