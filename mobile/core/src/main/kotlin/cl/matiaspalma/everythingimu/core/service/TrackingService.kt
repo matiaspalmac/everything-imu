@@ -91,8 +91,18 @@ class TrackingService : LifecycleService() {
     private fun acquireWifiLock() {
         if (wifiLock?.isHeld == true) return
         val wifi = getSystemService<WifiManager>() ?: return
+        // LOW_LATENCY (API 29+) keeps Wi-Fi awake with the screen off and cuts
+        // UDP latency — critical on Wear OS, which otherwise parks Wi-Fi and
+        // routes through the Bluetooth companion proxy. HIGH_PERF is the
+        // pre-29 fallback.
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+        } else {
+            @Suppress("DEPRECATION")
+            WifiManager.WIFI_MODE_FULL_HIGH_PERF
+        }
         try {
-            wifiLock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "everythingimu:wifi").apply {
+            wifiLock = wifi.createWifiLock(mode, "everythingimu:wifi").apply {
                 setReferenceCounted(false)
                 acquire()
             }

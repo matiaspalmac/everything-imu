@@ -25,9 +25,13 @@ class WifiBinder(context: Context) {
     fun bindToWifi() {
         if (callback != null) return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        // Transport only — do NOT require NET_CAPABILITY_INTERNET. A LAN with no
+        // WAN, or a Wear Wi-Fi that drops "validated internet" when the screen
+        // turns off, would otherwise stop matching, unbind the process, and let
+        // UDP fall back to the Bluetooth companion proxy that can't reach the
+        // SlimeVR server. Matches moveTrackVR's request.
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
