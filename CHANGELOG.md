@@ -7,6 +7,13 @@ project follows [SemVer](https://semver.org/).
 Unreleased changes are tracked on `main`. Tagged releases are listed in
 reverse-chronological order below.
 
+## [1.0.2] - 2026-05-28
+
+### Changed
+- Desktop app promoted to stable `1.0.2`, aligning the version line with the
+  mobile clients. Supersedes the `1.0.0-beta.x` / `1.0.1-beta.0` pre-releases;
+  no functional change beyond the version bump.
+
 ## [mobile/1.0.2] - 2026-05-28
 
 ### Added
