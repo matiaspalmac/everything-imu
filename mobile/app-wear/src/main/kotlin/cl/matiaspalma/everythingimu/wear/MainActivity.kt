@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +34,8 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import cl.matiaspalma.everythingimu.core.net.ConnectionState
 import cl.matiaspalma.everythingimu.core.tracking.TrackingController
+import cl.matiaspalma.everythingimu.core.update.UpdateChecker
+import cl.matiaspalma.everythingimu.wear.BuildConfig
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -67,9 +71,14 @@ private fun WearApp() {
 
         var host by remember { mutableStateOf("") }
         var port by remember { mutableStateOf(6969) }
+        var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
         LaunchedEffect(Unit) {
             host = TrackingController.savedHost()
             port = TrackingController.savedPort()
+            // Background update check. Wear has no browser of its own, so the
+            // ACTION_VIEW intent below typically prompts the user to open the
+            // release page on the paired phone instead.
+            updateInfo = UpdateChecker.check(BuildConfig.VERSION_NAME)
         }
 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -115,6 +124,21 @@ private fun WearApp() {
                     onClick = { TrackingController.sendRecenter() },
                     enabled = connection == ConnectionState.Connected,
                 ) { Text("Recenter") }
+
+                if (updateInfo?.updateAvailable == true) {
+                    val target = updateInfo!!
+                    Text(
+                        "Update: v${target.latestVersion}",
+                        style = MaterialTheme.typography.caption2,
+                    )
+                    Button(onClick = {
+                        if (target.releaseUrl.isNotBlank()) {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(target.releaseUrl)),
+                            )
+                        }
+                    }) { Text("Open release") }
+                }
             }
         }
     }

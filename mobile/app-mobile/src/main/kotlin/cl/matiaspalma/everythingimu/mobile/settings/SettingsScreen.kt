@@ -50,6 +50,7 @@ import cl.matiaspalma.everythingimu.core.net.NetworkDiagnostics
 import cl.matiaspalma.everythingimu.core.prefs.AppPrefs
 import cl.matiaspalma.everythingimu.core.service.BatteryOptHelper
 import cl.matiaspalma.everythingimu.core.tracking.TrackingController
+import cl.matiaspalma.everythingimu.core.update.UpdateChecker
 import cl.matiaspalma.everythingimu.mobile.BuildConfig
 import cl.matiaspalma.everythingimu.mobile.i18n.Language
 import cl.matiaspalma.everythingimu.mobile.i18n.tr
@@ -326,6 +327,17 @@ fun SettingsScreen() {
             TipRow(t.settings_tip_wifi, t.settings_tip_wifi_body)
         }
 
+        // Updates — checks GitHub releases on demand and surfaces a one-tap
+        // deep-link to the release page. The OS package installer handles the
+        // actual APK swap because Android forbids in-place self-replacement
+        // without REQUEST_INSTALL_PACKAGES, which is too invasive a permission
+        // to ask of every user.
+        SectionHeader("Updates")
+        EimuCard {
+            CardTitle("Updates")
+            UpdaterRow()
+        }
+
         SectionHeader(t.settings_about)
         EimuCard {
             CardTitle(t.settings_about)
@@ -427,6 +439,87 @@ private fun TipRow(title: String, body: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(title, color = EimuPalette.FgPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
         Text(body, color = EimuPalette.FgSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun UpdaterRow() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var info by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    var checked by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        // One-shot check on screen open. Surface the result either way so the
+        // user can verify the check ran and didn't silently fail behind some
+        // captive-portal Wi-Fi.
+        checking = true
+        info = UpdateChecker.check(BuildConfig.VERSION_NAME)
+        checking = false
+        checked = true
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val running = "v${BuildConfig.VERSION_NAME}"
+        when {
+            checking -> Text(
+                "Checking for updates… (running $running)",
+                color = EimuPalette.FgSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            info == null && checked -> Text(
+                "Update check failed (running $running). Check your network and retry.",
+                color = EimuPalette.FgSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            info?.updateAvailable == true -> {
+                Text(
+                    "Update available: v${info!!.latestVersion} (you have $running).",
+                    color = EimuPalette.FgPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "The release page opens in your browser. Tap the phone APK to install.",
+                    color = EimuPalette.FgMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            info != null -> Text(
+                "You're on the latest release ($running).",
+                color = EimuPalette.FgSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        checking = true
+                        info = UpdateChecker.check(BuildConfig.VERSION_NAME)
+                        checking = false
+                        checked = true
+                    }
+                },
+                enabled = !checking,
+            ) { Text(if (checking) "Checking…" else "Check again") }
+            val openable = info?.releaseUrl?.takeIf { it.isNotBlank() }
+            Button(
+                onClick = {
+                    val url = openable ?: return@Button
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                },
+                enabled = info?.updateAvailable == true && openable != null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = EimuPalette.Accent,
+                    contentColor = EimuPalette.BgBase,
+                ),
+            ) { Text("Open release") }
+        }
     }
 }
 

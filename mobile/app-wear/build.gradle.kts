@@ -12,8 +12,8 @@ android {
         applicationId = "cl.matiaspalma.everythingimu.wear"
         minSdk = 25
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0-beta.10"
+        versionCode = 2
+        versionName = "1.0.1-beta.0"
     }
 
     compileOptions {
@@ -27,6 +27,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     buildTypes {
