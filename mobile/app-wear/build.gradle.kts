@@ -13,7 +13,7 @@ android {
         minSdk = 25
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0.0-beta.7"
+        versionName = "1.0.0-beta.10"
     }
 
     compileOptions {
