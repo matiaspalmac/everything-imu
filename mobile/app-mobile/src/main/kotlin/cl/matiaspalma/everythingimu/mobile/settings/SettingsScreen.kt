@@ -29,6 +29,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -36,6 +37,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -72,24 +76,43 @@ fun SettingsScreen() {
     val current = Language.fromCode(langCode)
     val themeCode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = "dark")
     val themeMode = ThemeMode.fromCode(themeCode)
-    val ignoring = BatteryOptHelper.isIgnoringOptimizations(ctx)
+    // Re-read on resume: the user leaves to the system battery screen and comes
+    // back, so a value captured once at first composition goes stale.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var ignoring by remember { mutableStateOf(BatteryOptHelper.isIgnoringOptimizations(ctx)) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                ignoring = BatteryOptHelper.isIgnoringOptimizations(ctx)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val stats by TrackingController.clientStats.collectAsStateWithLifecycle()
     val lastError by TrackingController.lastError.collectAsStateWithLifecycle()
     val tps by TrackingController.tps.collectAsStateWithLifecycle()
     val battery by TrackingController.batteryLevel.collectAsStateWithLifecycle()
-    val trackerName by prefs.trackerName.collectAsStateWithLifecycle(initialValue = "")
+    val persistedTrackerName by prefs.trackerName.collectAsStateWithLifecycle(initialValue = "")
     val sendRateHz by prefs.sendRateHz.collectAsStateWithLifecycle(initialValue = 100)
     val magOn by prefs.magEnabled.collectAsStateWithLifecycle(initialValue = true)
     val shakeOn by prefs.shakeRecenter.collectAsStateWithLifecycle(initialValue = true)
+    val osRotationOn by prefs.useOsRotation.collectAsStateWithLifecycle(initialValue = false)
     val t = tr
 
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("6969") }
     var uuid by remember { mutableStateOf("") }
+    var trackerName by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         host = TrackingController.savedHost()
         port = TrackingController.savedPort().toString()
         uuid = TrackingController.deviceUuid()
+    }
+    // Seed the editable field from the persisted value once it first arrives,
+    // then let local state drive it so typing isn't gated on a DataStore round-trip.
+    LaunchedEffect(persistedTrackerName) {
+        if (trackerName == null) trackerName = persistedTrackerName
     }
     val portValid by remember(port) { derivedStateOf { port.toIntOrNull() != null } }
     var diagnostics by remember { mutableStateOf<DiagnosticsReport?>(null) }
@@ -146,8 +169,12 @@ fun SettingsScreen() {
         EimuCard {
             CardTitle(t.settings_tracker_name)
             OutlinedTextField(
-                value = trackerName,
-                onValueChange = { scope.launch { prefs.setTrackerName(it.take(40)) } },
+                value = trackerName ?: persistedTrackerName,
+                onValueChange = {
+                    val v = it.take(40)
+                    trackerName = v
+                    scope.launch { prefs.setTrackerName(v) }
+                },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = fieldColors(),
@@ -189,6 +216,14 @@ fun SettingsScreen() {
                 checked = shakeOn,
                 onChange = { scope.launch { prefs.setShakeRecenter(it) } },
             )
+            if (TrackingController.osRotationAvailable) {
+                SwitchRow(
+                    label = "Use device rotation",
+                    hint = "Use the OS fused orientation (like owoTrack) instead of built-in VQF. Try it if rotation feels less accurate.",
+                    checked = osRotationOn,
+                    onChange = { scope.launch { prefs.setUseOsRotation(it) } },
+                )
+            }
         }
 
         SectionHeader(t.settings_appearance)
@@ -230,6 +265,15 @@ fun SettingsScreen() {
             Text(
                 "${t.debug_fusion_native}: ${if (TrackingController.fusionAvailable) "loaded" else "fallback"}",
                 color = if (TrackingController.fusionAvailable) EimuPalette.Success else EimuPalette.Warn,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+            )
+            // Recomposes ~1 Hz with tps below; reads the measured gyro rate the
+            // fusion engine was actually built with (0 until warmup completes).
+            val fusionRate = TrackingController.fusionRateHz()
+            Text(
+                "fusion rate: ${if (fusionRate > 0) "%.0f Hz".format(fusionRate) else "measuring…"}",
+                color = EimuPalette.FgSecondary,
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace,
             )
