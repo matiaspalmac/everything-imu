@@ -26,6 +26,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -78,6 +80,7 @@ import cl.matiaspalma.everythingimu.mobile.theme.ThemeMode
 import cl.matiaspalma.everythingimu.mobile.theme.applyThemeMode
 import cl.matiaspalma.everythingimu.mobile.theme.SectionHeader
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.PI
@@ -200,7 +203,6 @@ private fun HomeScreen() {
     val scope = rememberCoroutineScope()
     val snapshot by TrackingController.snapshot.collectAsStateWithLifecycle()
     val rates by TrackingController.rates.collectAsStateWithLifecycle()
-    val running by TrackingController.running.collectAsStateWithLifecycle()
     val quat by TrackingController.mountedQuaternion.collectAsStateWithLifecycle()
     val connection by TrackingController.connection.collectAsStateWithLifecycle()
     val clientStats by TrackingController.clientStats.collectAsStateWithLifecycle()
@@ -208,6 +210,7 @@ private fun HomeScreen() {
     val availability = remember { TrackingController.availability }
     val prefs = remember { AppPrefs(context) }
     val sensorWarningDismissed by prefs.sensorWarningDismissed.collectAsStateWithLifecycle(initialValue = false)
+    val autostartHaptics by prefs.autostartHaptics.collectAsStateWithLifecycle(initialValue = false)
     val t = tr
 
     var host by remember { mutableStateOf("") }
@@ -215,10 +218,17 @@ private fun HomeScreen() {
     LaunchedEffect(Unit) {
         host = TrackingController.savedHost()
         port = TrackingController.savedPort().toString()
+        // Auto-connect on launch when enabled and a server is already saved, so
+        // the user doesn't have to tap Connect every session.
+        if (prefs.autoConnect.first() && host.isNotBlank()) {
+            TrackingController.start(context)
+            TrackingController.connect(host.trim(), port.toIntOrNull() ?: 6969)
+            if (prefs.autostartHaptics.first()) TrackingController.hapticBridge()?.start()
+        }
     }
 
-    val canConnect by remember(host, running) {
-        derivedStateOf { running && host.isNotBlank() && port.toIntOrNull() != null }
+    val canConnect by remember(host, port) {
+        derivedStateOf { host.isNotBlank() && port.toIntOrNull() != null }
     }
     val missingRequiredSensors = !availability.gyro || !availability.accel
 
@@ -238,25 +248,6 @@ private fun HomeScreen() {
             )
         }
 
-        SectionHeader(t.home_tracking)
-        Button(
-            onClick = {
-                if (running) {
-                    TrackingController.disconnect()
-                    TrackingController.stop(context)
-                } else {
-                    TrackingController.start(context)
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (running) EimuPalette.Danger else EimuPalette.Accent,
-                contentColor = EimuPalette.BgBase,
-            ),
-        ) {
-            Text(if (running) t.action_stop else t.action_start)
-        }
-
         SectionHeader(t.home_connection)
         ConnectCard(
             host = host,
@@ -268,18 +259,32 @@ private fun HomeScreen() {
             onPortChange = { port = it.filter { c -> c.isDigit() }.take(5) },
             onConnect = {
                 val p = port.toIntOrNull() ?: 6969
+                // One action: bring up the foreground service (sensors + wakelock
+                // + Wi-Fi lock) and open the UDP connection together.
+                TrackingController.start(context)
                 scope.launch { TrackingController.connect(host.trim(), p) }
+                if (autostartHaptics) TrackingController.hapticBridge()?.start()
             },
-            onDisconnect = { TrackingController.disconnect() },
+            onDisconnect = {
+                TrackingController.disconnect()
+                TrackingController.stop(context)
+            },
             onDiscover = {
+                val p = port.toIntOrNull() ?: 6969
                 scope.launch {
                     val found = withContext(Dispatchers.IO) {
                         val mac = TrackingController.deviceMac()
-                        SlimeVrClient.discover(context, mac)
+                        SlimeVrClient.discover(context, mac, p)
                     }
                     if (found != null) host = found.hostAddress ?: host
                 }
             },
+        )
+
+        CheckRow(
+            label = "Autostart haptic server",
+            checked = autostartHaptics,
+            onChange = { scope.launch { prefs.setAutostartHaptics(it) } },
         )
 
         SectionHeader(t.home_fusion)
@@ -289,6 +294,26 @@ private fun HomeScreen() {
         SensorCard(t.sensors_gyro, snapshot.gyro, availability.gyro, rates.gyroHz, units = "rad/s")
         SensorCard(t.sensors_accel, snapshot.accel, availability.accel, rates.accelHz, units = "m/s²")
         SensorCard(t.sensors_mag, snapshot.mag, availability.mag, rates.magHz, units = "µT")
+    }
+}
+
+@Composable
+private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = CheckboxDefaults.colors(
+                checkedColor = EimuPalette.Accent,
+                uncheckedColor = EimuPalette.FgMuted,
+                checkmarkColor = EimuPalette.BgBase,
+            ),
+        )
+        Text(label, color = EimuPalette.FgSecondary, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
