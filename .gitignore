@@ -53,3 +53,6 @@ image*.png
 
 # Claude Code runtime artifacts
 .claude/scheduled_tasks.lock
+
+# Updater signing keys (local only — pubkey embedded in tauri.conf, private in GH secrets)
+.secrets/

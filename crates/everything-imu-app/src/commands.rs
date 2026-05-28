@@ -1257,18 +1257,23 @@ pub async fn install_udev_rules() -> Result<String, IpcError> {
 /// can show "you're on the latest build".
 #[tauri::command]
 #[specta::specta]
-pub async fn check_for_update() -> Result<crate::updater::UpdateInfo, IpcError> {
-    crate::updater::check()
+pub async fn check_for_update(
+    app: tauri::AppHandle,
+) -> Result<crate::updater::UpdateInfo, IpcError> {
+    crate::updater::check(app)
         .await
         .map_err(|e| IpcError::Internal(e.to_string()))
 }
 
-/// Download and install the latest release. The Tauri binary is replaced
-/// in place; the UI should prompt the user to restart afterwards.
+/// Download and install the latest release. On Windows the NSIS installer
+/// runs in passive mode and relaunches the app; on Linux the user must
+/// re-open after the AppImage/deb swap.
 #[tauri::command]
 #[specta::specta]
-pub async fn apply_update() -> Result<crate::updater::UpdateInfo, IpcError> {
-    crate::updater::apply()
+pub async fn apply_update(
+    app: tauri::AppHandle,
+) -> Result<crate::updater::UpdateInfo, IpcError> {
+    crate::updater::apply(app)
         .await
         .map_err(|e| IpcError::Internal(e.to_string()))
 }

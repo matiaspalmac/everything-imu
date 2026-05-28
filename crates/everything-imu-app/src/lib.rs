@@ -49,6 +49,7 @@ pub fn run() {
             tracing::info!("second-launch attempt intercepted; focusing existing window");
             tray::focus_main(app);
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,

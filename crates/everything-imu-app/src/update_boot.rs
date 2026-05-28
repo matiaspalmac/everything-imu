@@ -56,7 +56,7 @@ pub fn spawn(app: &TauriAppHandle) {
         }
         .emit(&app);
 
-        let info = match updater::check().await {
+        let info = match updater::check(app.clone()).await {
             Ok(i) => i,
             Err(e) => {
                 let _ = UpdateStatus {
@@ -99,7 +99,7 @@ pub fn spawn(app: &TauriAppHandle) {
         }
         .emit(&app);
 
-        match updater::apply().await {
+        match updater::apply(app.clone()).await {
             Ok(applied) => {
                 let _ = UpdateStatus {
                     stage: UpdateStage::Installed {
