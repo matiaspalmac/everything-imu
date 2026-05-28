@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Process-wide singleton owning sensor + fusion + network components.
@@ -101,6 +102,12 @@ object TrackingController {
 
     val fusionAvailable: Boolean get() = VqfEngine.isAvailable()
 
+    /** Measured gyro delivery rate (Hz); 0 until the warmup estimate lands. */
+    fun fusionRateHz(): Double = sensors?.measuredRateHz ?: 0.0
+
+    /** Whether the device exposes an OS rotation vector to switch fusion to. */
+    val osRotationAvailable: Boolean get() = sensors?.rotationVectorAvailable ?: false
+
     val magCalibrationSession: MagCalibrationSession = MagCalibrationSession()
 
     private var hapticBridge: HapticBridge? = null
@@ -146,6 +153,9 @@ object TrackingController {
             }
         }
         scope.launch { appPrefs.shakeRecenter.collect { shakeEnabled = it } }
+        scope.launch {
+            appPrefs.useOsRotation.collect { sensors?.useOsRotation = it }
+        }
         registerNetworkCallback(app)
         startTpsCounter()
         startBatteryReporter(app)
@@ -223,8 +233,18 @@ object TrackingController {
         }
     }
 
-    fun beginMagCalibration() {
+    @Volatile private var sensorsHeldForCalibration = false
+
+    fun beginMagCalibration(context: Context) {
+        ensureInit(context)
         val repo = sensors ?: return
+        // Calibration needs live sensor samples. If the user isn't streaming,
+        // spin the sensors up temporarily so the figure-8 works without having
+        // to connect first; released again when calibration ends.
+        if (!_running.value) {
+            repo.start()
+            sensorsHeldForCalibration = true
+        }
         magCalibrationSession.start()
         repo.magSampleSink = { sample -> magCalibrationSession.feed(sample) }
     }
@@ -232,6 +252,7 @@ object TrackingController {
     fun cancelMagCalibration() {
         sensors?.magSampleSink = null
         magCalibrationSession.discard()
+        releaseCalibrationSensors()
     }
 
     fun applyMagCalibration(): MagCalibration? {
@@ -240,7 +261,15 @@ object TrackingController {
         sensors?.applyCalibration(calibration.gyroBias, result)
         calibration = calibration.copy(mag = result)
         scope.launch { prefs?.setMagCalibration(result) }
+        releaseCalibrationSensors()
         return result
+    }
+
+    private fun releaseCalibrationSensors() {
+        if (sensorsHeldForCalibration && !_running.value) {
+            sensors?.stop()
+        }
+        sensorsHeldForCalibration = false
     }
 
     fun resetCalibration() {
@@ -264,7 +293,7 @@ object TrackingController {
 
     suspend fun connect(host: String, port: Int) {
         val c = client ?: return
-        c.connect(host, port)
+        withContext(Dispatchers.IO) { c.connect(host, port) }
         prefs?.setServer(host, port)
         startQuaternionPump()
     }
@@ -299,6 +328,8 @@ object TrackingController {
     /** Wear waits on this for a phone-pushed host before falling back to the picker. */
     fun serverHostFlow(): kotlinx.coroutines.flow.Flow<String>? = prefs?.serverHost
 
+    suspend fun autoConnectEnabled(): Boolean = prefs?.autoConnect?.first() ?: true
+
     suspend fun savedHost(): String = prefs?.serverHost?.first() ?: ""
     suspend fun savedPort(): Int = (prefs?.serverPort?.first() ?: 6969).let { if (it == 0) 6969 else it }
     suspend fun deviceUuid(): String = prefs?.deviceUuidOrCreate().orEmpty()
@@ -328,13 +359,23 @@ object TrackingController {
         val flow = sensors?.quaternion ?: return
         pumpJob = scope.launch {
             var lastSendNanos = 0L
+            var lastUiNanos = 0L
             flow.collect { q ->
                 val mounted = applyMountOffset(q)
-                _mountedQuaternion.value = mounted
-                val intervalNs = 1_000_000_000L / sendRateHz.coerceAtLeast(20)
                 val now = System.nanoTime()
+                // UI quaternion at ~60 Hz: the flow emits at gyro rate, and
+                // pushing every sample makes the fusion card recompose at sensor
+                // rate. The network send below keeps its own (sendRateHz) cadence.
+                if (now - lastUiNanos >= UI_QUAT_INTERVAL_NANOS) {
+                    _mountedQuaternion.value = mounted
+                    lastUiNanos = now
+                }
+                val intervalNs = 1_000_000_000L / sendRateHz.coerceAtLeast(20)
                 if (now - lastSendNanos >= intervalNs) {
                     client?.sendRotation(floatArrayOf(mounted.w, mounted.x, mounted.y, mounted.z))
+                    // owoTrack-compat: also stream linear acceleration so SlimeVR
+                    // shows accel data (parity with owoTrack).
+                    sensors?.latestLinearAccel()?.let { client?.sendAccel(it) }
                     lastSendNanos = now
                 }
             }
@@ -357,6 +398,7 @@ object TrackingController {
     private val emptyRates = MutableStateFlow(SensorRates()).asStateFlow()
     private val emptyQuat = MutableStateFlow(Quaternion.IDENTITY).asStateFlow()
 
+    private const val UI_QUAT_INTERVAL_NANOS = 16_000_000L
     private const val DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
     private const val SHAKE_THRESHOLD_MS2 = 25f
     private const val SHAKE_COOLDOWN_NS = 1_500_000_000L
