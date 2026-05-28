@@ -114,7 +114,11 @@ class HapticBridge(context: Context) {
             } catch (_: java.net.SocketTimeoutException) {
                 // expected
             } catch (t: Throwable) {
-                if (!scope.isActive) break
+                // stop() closes the socket out from under a blocking receive(),
+                // which surfaces here as SocketException ("recvfrom failed:
+                // EBADF"). That's a normal teardown — exit quietly. Only a fault
+                // while we're still meant to be listening is worth logging.
+                if (!scope.isActive || socket == null || sock.isClosed) break
                 Log.w("HapticBridge", "recv error", t)
             }
         }
