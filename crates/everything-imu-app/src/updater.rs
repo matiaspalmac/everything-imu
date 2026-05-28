@@ -52,11 +52,7 @@ pub async fn check(app: tauri::AppHandle) -> Result<UpdateInfo, UpdateError> {
 /// success; on Windows NSIS `installMode: passive`, the installer relaunches
 /// the app itself and this function returns after the install kicks off.
 pub async fn apply(app: tauri::AppHandle) -> Result<UpdateInfo, UpdateError> {
-    let update = app
-        .updater()?
-        .check()
-        .await?
-        .ok_or(UpdateError::NoUpdate)?;
+    let update = app.updater()?.check().await?.ok_or(UpdateError::NoUpdate)?;
     let latest = update.version.clone();
     update
         .download_and_install(|_chunk, _total| {}, || {})

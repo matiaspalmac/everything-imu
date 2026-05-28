@@ -1270,9 +1270,7 @@ pub async fn check_for_update(
 /// re-open after the AppImage/deb swap.
 #[tauri::command]
 #[specta::specta]
-pub async fn apply_update(
-    app: tauri::AppHandle,
-) -> Result<crate::updater::UpdateInfo, IpcError> {
+pub async fn apply_update(app: tauri::AppHandle) -> Result<crate::updater::UpdateInfo, IpcError> {
     crate::updater::apply(app)
         .await
         .map_err(|e| IpcError::Internal(e.to_string()))
