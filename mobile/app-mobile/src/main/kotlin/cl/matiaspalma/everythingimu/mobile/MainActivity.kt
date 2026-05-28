@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -154,6 +155,18 @@ private fun RootScreen() {
     val themeCode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = "dark")
     applyThemeMode(ThemeMode.fromCode(themeCode))
 
+    // Auto-connect once per app launch — at the root, not inside a tab, so
+    // switching tabs (which disposes and recomposes the page) can't re-trigger
+    // a connect and bounce the session.
+    LaunchedEffect(Unit) {
+        val savedHost = TrackingController.savedHost()
+        if (savedHost.isNotBlank() && prefs.autoConnect.first()) {
+            TrackingController.start(ctx)
+            TrackingController.connect(savedHost, TrackingController.savedPort())
+            if (prefs.autostartHaptics.first()) TrackingController.hapticBridge()?.start()
+        }
+    }
+
     EimuTheme {
     CompositionLocalProvider(LocalStrings provides strings) {
         Surface(modifier = Modifier.fillMaxSize(), color = EimuPalette.BgBase) {
@@ -218,13 +231,6 @@ private fun HomeScreen() {
     LaunchedEffect(Unit) {
         host = TrackingController.savedHost()
         port = TrackingController.savedPort().toString()
-        // Auto-connect on launch when enabled and a server is already saved, so
-        // the user doesn't have to tap Connect every session.
-        if (prefs.autoConnect.first() && host.isNotBlank()) {
-            TrackingController.start(context)
-            TrackingController.connect(host.trim(), port.toIntOrNull() ?: 6969)
-            if (prefs.autostartHaptics.first()) TrackingController.hapticBridge()?.start()
-        }
     }
 
     val canConnect by remember(host, port) {
@@ -300,7 +306,9 @@ private fun HomeScreen() {
 @Composable
 private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onChange(!checked) },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
