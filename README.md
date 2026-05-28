@@ -6,7 +6,7 @@
     <a href="https://github.com/matiaspalmac/everything-imu/actions/workflows/ci.yml"><img src="https://github.com/matiaspalmac/everything-imu/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
     <img src="https://img.shields.io/badge/status-beta-yellow.svg" alt="Status: beta">
-    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg" alt="Platform">
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-lightgrey.svg" alt="Platform">
     <a href="https://github.com/matiaspalmac/everything-imu/releases/latest"><img src="https://img.shields.io/github/v/release/matiaspalmac/everything-imu?include_prereleases&label=release" alt="Latest release"></a>
   </p>
 </div>
@@ -71,6 +71,31 @@ only.
 | Wii Remote | TCP forwarder (`127.0.0.1:9909`) | 100 Hz | ✗ | hardware-validated |
 
 Deep-dive on each: [DEVICES.md](DEVICES.md).
+
+## Mobile companion (Android + Wear OS)
+
+`mobile/` ships a native Android phone tracker + Wear OS companion that
+streams the phone IMU straight to SlimeVR-Server using the same UDP
+protocol the desktop bridge speaks — no PC controller required.
+
+- 4-tab UI (Home · Calibrate · Haptics · Settings) sharing the desktop
+  sumi-ink theme, with a washi light palette and a follow-system mode.
+- Configurable send rate, magnetometer toggle, tracker name, and shake-to-
+  recenter — all live-applied without restart.
+- Notification quick actions: **Recenter** and **Stop**.
+- Battery level reported to SlimeVR-Server (packet 12) every 30 s.
+- Auto-reconnect on Wi-Fi changes via `ConnectivityManager.NetworkCallback`.
+- Figure-8 magnetometer wizard + automatic gyro-bias estimation.
+- VRChat OSC → device vibration bridge on UDP `9001`.
+- Foreground service with wake + Wi-Fi locks; OEM battery-optimization
+  helper (Xiaomi / Huawei / Samsung / dontkillmyapp guides).
+- EN / ES localisation, persisted in DataStore.
+- Native VQF fusion via JNI (`crates/jni-android`), with a pure-Kotlin
+  Madgwick fallback when the `.so` is unavailable.
+
+Install: grab `everything-imu-phone-<tag>.apk` (and optionally
+`everything-imu-wear-<tag>.apk`) from the [latest release](https://github.com/matiaspalmac/everything-imu/releases/latest).
+Build locally from `mobile/` with `./gradlew :app-mobile:assembleDebug`.
 
 ## Install
 
