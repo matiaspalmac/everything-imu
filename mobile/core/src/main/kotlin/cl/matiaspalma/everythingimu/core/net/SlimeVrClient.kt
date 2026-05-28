@@ -115,7 +115,15 @@ class SlimeVrClient(
     fun sendUserAction(action: Int) {
         val ep = endpoint ?: return
         val sock = socket ?: return
-        sendSilently(sock, ep, SlimeProtocol.userAction(nextSeq(), action))
+        val bytes = SlimeProtocol.userAction(nextSeq(), action)
+        scope.launch { sendSilently(sock, ep, bytes) }
+    }
+
+    /** Legacy owoTrack acceleration packet (4). Linear accel (m/s²), 3 floats. */
+    fun sendAccel(xyz: FloatArray) {
+        val ep = endpoint ?: return
+        val sock = socket ?: return
+        sendSilently(sock, ep, SlimeProtocol.accel(nextSeq(), xyz))
     }
 
     /** SlimeVR battery packet (12). Level 0..1. */
@@ -129,7 +137,8 @@ class SlimeVrClient(
     fun sendButtonPushed() {
         val ep = endpoint ?: return
         val sock = socket ?: return
-        sendSilently(sock, ep, SlimeProtocol.buttonPushed(nextSeq()))
+        val bytes = SlimeProtocol.buttonPushed(nextSeq())
+        scope.launch { sendSilently(sock, ep, bytes) }
     }
 
     private suspend fun heartbeatLoop() = withContext(Dispatchers.IO) {
@@ -282,13 +291,19 @@ class SlimeVrClient(
         }
 
         /** Broadcast discovery: blast a handshake to known broadcast targets and wait for a reply. */
-        fun discover(context: Context, mac: ByteArray, timeoutMs: Int = 1500, attempts: Int = 3): InetAddress? {
+        fun discover(
+            context: Context,
+            mac: ByteArray,
+            port: Int = 6969,
+            timeoutMs: Int = 1500,
+            attempts: Int = 3,
+        ): InetAddress? {
             val sock = DatagramSocket()
             return try {
                 sock.broadcast = true
                 sock.soTimeout = timeoutMs
                 val bytes = SlimeProtocol.handshake(0L, mac)
-                val targets = broadcastTargets(context)
+                val targets = broadcastTargets(context, port)
                 repeat(attempts) {
                     for (target in targets) {
                         sock.send(DatagramPacket(bytes, bytes.size, target.address, target.port))
@@ -310,15 +325,20 @@ class SlimeVrClient(
             }
         }
 
-        private fun broadcastTargets(context: Context): List<InetSocketAddress> {
+        // WifiManager.dhcpInfo is deprecated but remains the only synchronous way
+        // to read the DHCP-assigned netmask needed to compute the subnet
+        // broadcast address. The non-deprecated LinkProperties path is async and
+        // doesn't expose the legacy netmask field, so keep the legacy call.
+        @Suppress("DEPRECATION")
+        private fun broadcastTargets(context: Context, port: Int): List<InetSocketAddress> {
             val targets = LinkedHashSet<InetSocketAddress>()
-            targets.add(InetSocketAddress("255.255.255.255", 35903))
+            targets.add(InetSocketAddress("255.255.255.255", port))
             val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
             val dhcp = wifi?.dhcpInfo
             if (dhcp != null && dhcp.ipAddress != 0 && dhcp.netmask != 0) {
                 val broadcast = (dhcp.ipAddress and dhcp.netmask) or dhcp.netmask.inv()
                 val addr = InetAddress.getByName(intToIpv4(broadcast))
-                targets.add(InetSocketAddress(addr, 35903))
+                targets.add(InetSocketAddress(addr, port))
             }
             return targets.toList()
         }
