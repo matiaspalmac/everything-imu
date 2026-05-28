@@ -135,6 +135,21 @@ object SlimeProtocol {
         return buf.array()
     }
 
+    /**
+     * Legacy owoTrack acceleration packet (id 4): 3 floats (x, y, z), no
+     * timestamp. Byte-for-byte the same envelope owoTrack / moveTrackVR send
+     * in owo-compat mode, so SlimeVR's owoTrack plugin reads it. Values are
+     * linear acceleration (gravity removed), in m/s².
+     */
+    fun accel(seq: Long, xyz: FloatArray): ByteArray {
+        require(xyz.size == 3) { "accel must be 3 floats" }
+        val buf = header(PACKET_ACCEL, seq, 4 * 3)
+        buf.putFloat(xyz[0])
+        buf.putFloat(xyz[1])
+        buf.putFloat(xyz[2])
+        return buf.array()
+    }
+
     fun userAction(seq: Long, action: Int): ByteArray {
         val buf = header(PACKET_USER_ACTION, seq, 4)
         buf.putInt(action)
