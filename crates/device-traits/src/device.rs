@@ -48,6 +48,7 @@ pub enum DeviceKind {
     Tesla,
     SteamDeck,
     SteamController,
+    Hopx,
 }
 
 #[derive(Debug, Clone)]
