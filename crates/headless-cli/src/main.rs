@@ -1,5 +1,6 @@
 use clap::Parser;
 use device_dualsense::DualSenseFactory;
+use device_hopx::HopxFactory;
 use device_joycon::JoyconFactory;
 use device_psmove::PsMoveFactory;
 use device_steam_controller::SteamControllerFactory;
@@ -76,6 +77,47 @@ struct Cli {
     /// check failed.
     #[arg(long)]
     doctor: bool,
+
+    /// Hardware characterisation: connect to a "Triki" HOPX tracker and stream
+    /// its raw int16 IMU channels (no scaling, no SlimeVR). Use to measure scale,
+    /// axis order, and sample rate. Redirect to a file and send the output.
+    #[arg(long)]
+    hopx_raw: bool,
+}
+
+async fn run_hopx_raw() -> anyhow::Result<()> {
+    // Guidance on stderr so it stays visible when stdout is redirected to a
+    // file; the data rows below go to stdout (capture those).
+    eprintln!("everything-imu hopx-raw — raw IMU channel dump");
+    eprintln!("Steps:");
+    eprintln!("  1. Power on the Triki tracker, then keep this running.");
+    eprintln!("  2. HOLD STILL on a flat surface for ~5 s.");
+    eprintln!("  3. Rotate exactly 90 deg about ONE axis, slowly, then back.");
+    eprintln!("  4. Tilt nose-down ~45 deg, then roll left ~45 deg.");
+    eprintln!("  5. Press Ctrl-C and send the whole output back.");
+    eprintln!("Columns: seq  ch0 ch1 ch2 | ch3 ch4 ch5  (raw int16, wire order)  rate");
+    eprintln!();
+
+    let res = tokio::select! {
+        r = device_hopx::diagnostics::stream_raw(|s| {
+            println!(
+                "seq={:3}  {:7} {:7} {:7} | {:7} {:7} {:7}  ~{:.1}Hz",
+                s.seq,
+                s.channels[0], s.channels[1], s.channels[2],
+                s.channels[3], s.channels[4], s.channels[5],
+                s.rate_hz,
+            );
+        }) => r,
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[hopx-raw] stopped.");
+            Ok(())
+        }
+    };
+    if let Err(e) = res {
+        eprintln!("[hopx-raw] error: {e}");
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -209,6 +251,10 @@ async fn main() -> anyhow::Result<()> {
 
     if args.doctor {
         std::process::exit(run_doctor(args.server).await);
+    }
+
+    if args.hopx_raw {
+        return run_hopx_raw().await;
     }
 
     if args.list_devices {
@@ -346,6 +392,7 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(WiiFactory::new()),
             Arc::new(SteamDeckFactory::new()),
             Arc::new(SteamControllerFactory::new()),
+            Arc::new(HopxFactory::new()),
         ]
     };
     if args.tesla {
