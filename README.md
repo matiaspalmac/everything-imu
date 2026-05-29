@@ -187,16 +187,19 @@ If your tracker is going to be at your stomach, your Haptic point should also be
 ***Proximity (variable)*** 
 
 <img width="159" height="64" alt="image" src="https://github.com/user-attachments/assets/de9188e0-7890-4939-babc-a47ad0704e82" />
+
 Variable float strength from 0 to 1, will rumble more when the VRC contact receiver is touched at the center, and less when is touched at the edges. 
 
 ***Pulse (fixed)*** 
 
 <img width="157" height="61" alt="image" src="https://github.com/user-attachments/assets/58e3e542-311d-473a-bd86-0360c71df2a5" />
+
 Activates the Rumble **Once** for a certain amount of time (*Pulse (ms)*) before turning it off. Useful to pair with a VRC contact receiver set to **On Enter**
 
 ***Select available OSC addresses***
 
 <img width="1023" height="150" alt="image" src="https://github.com/user-attachments/assets/9393ee7b-a520-47e7-979f-9526d949248c" />
+
 To avoid typing the address manually, you may add them via the **Discovered OSC Addresses** section.
 
 ## Quickstart
