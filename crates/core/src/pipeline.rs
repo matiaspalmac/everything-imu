@@ -186,31 +186,47 @@ enum FilterImpl {
 }
 
 impl FilterImpl {
-    fn new(algo: FusionAlgo, gyr_ts_s: f64) -> Self {
+    fn new(algo: FusionAlgo, gyr_ts_s: f64, has_mag: bool) -> Self {
         match algo {
             FusionAlgo::Vqf => {
-                // VQF paper-recommended defaults: motion AND rest bias
-                // estimation both enabled, tau_acc 3 s. A previous override
-                // disabled motion bias estimation and set tau_acc to 100 s,
-                // which suppressed VQF's primary drift defence — gyro bias
-                // went uncorrected during sustained motion (the common case
-                // for a body tracker, which is rarely still long enough for
-                // rest-only estimation to trigger). The defaults also match
-                // the validated C# legacy, which ran stock VQF plus a
+                // VQF gyro-bias estimation has two paths: a rest path (gyro
+                // directly observes bias on all 3 axes while still) and a
+                // motion path (a Kalman estimator driven only by accelerometer
+                // inclination correction while moving). The motion path can
+                // only observe the pitch/roll bias components — rotation about
+                // gravity leaves the accelerometer invariant, so on a 6-DOF
+                // device with NO magnetometer the yaw/heading gyro bias is
+                // mathematically unobservable. In that mode VQF only nudges the
+                // heading bias toward zero with a weak artificial pseudo-
+                // measurement, and any systematic error in the observable axes
+                // (e.g. a wrong effective sample dt from a Bluetooth adapter
+                // that delivers HID reports in bursts) leaks into the
+                // unobservable heading channel and rails the estimate to
+                // biasClip. That railed bias is subtracted from the gyro every
+                // sample, producing a constant phantom yaw rate — the tracked
+                // limb slides toward the direction of motion ("ice-skating"),
+                // survives resets, and re-accumulates on the next movement.
+                //
+                // So: enable the motion path ONLY when a magnetometer makes the
+                // heading axis observable (9-DOF). For 6-DOF (no-mag)
+                // controllers, run rest-bias only — it still corrects all three
+                // axes whenever the device is genuinely still (controllers
+                // strapped to a limb micro-rest constantly), and it removes the
+                // sole mechanism that can inject a wrong heading bias. This
+                // matches the validated C# legacy, which ran stock VQF plus a
                 // separate rest-only gyro-bias calibrator.
-                // VQF's stock biasClip is 2 deg/s. The rest detector treats
-                // any gyro reading whose absolute value exceeds biasClip as
-                // "in motion", which silences the fast rest-bias estimator
-                // for that sample. On controllers whose true per-axis gyro
-                // bias sits near the cap (observed -1.5 dps on a DualSense
-                // yaw axis where the factory cal byte was zero) the live
-                // reading is always close to the cap even when stationary,
-                // so rest is never declared and the bias converges only
-                // through the slow motion-bias path. Raising the clip to
-                // 5 deg/s lets rest detection fire at real rest and the
-                // estimator catches up in seconds instead of minutes.
+                //
+                // biasClip stays at VQF's stock 2 deg/s. (A previous build
+                // raised it to 5 to let the rest detector fire on controllers
+                // whose true bias sits near the 2 deg/s cap — e.g. a DualSense
+                // yaw axis with a zero factory-cal byte. With the motion path
+                // disabled, widening the clip only raises the worst-case rail,
+                // so instead that case is handled by seeding the bias from the
+                // persisted rest calibration at connect, which pulls the live
+                // at-rest reading back under the 2 deg/s gate.)
                 let params = VqfParams {
-                    bias_clip: 5.0,
+                    motion_bias_est_enabled: has_mag,
+                    rest_bias_est_enabled: true,
                     ..VqfParams::default()
                 };
                 Self::Vqf(Vqf::with_params(gyr_ts_s, params))
@@ -280,6 +296,19 @@ impl FilterImpl {
             _ => [0.0; 3],
         }
     }
+
+    /// Update the fusion timestep live, preserving the orientation estimate.
+    /// Called by the pipeline once it has measured the device's real delivered
+    /// sample cadence (see [`Pipeline`] rate calibration) — the connect-time
+    /// `native_imu_rate_hz` is only a provisional guess for Bluetooth devices
+    /// whose true rate depends on the negotiated link interval.
+    fn set_timestep(&mut self, gyr_ts: f64) {
+        match self {
+            Self::Vqf(f) => f.set_timestep(gyr_ts),
+            Self::Madgwick(f) => f.set_sample_period(gyr_ts as f32),
+            Self::BasicVqf(f) => f.set_timestep(gyr_ts),
+        }
+    }
 }
 
 /// Last raw IMU sample observed by the pipeline. Published via a `watch`
@@ -329,6 +358,20 @@ pub struct Pipeline {
     mag_cal_result_tx: watch::Sender<Option<MagCalibration>>,
     mag_cal_buffer: Vec<[f32; 3]>,
     mag_cal_active: bool,
+    /// Timestep currently baked into the fusion filter (seconds/sample).
+    /// Seeded from `native_imu_rate_hz`; refined live by rate calibration.
+    gyr_ts_current: f64,
+    /// Wall-clock of the first IMU batch, to time out the connect-backlog
+    /// warmup before rate counting begins.
+    rate_cal_first_batch: Option<Instant>,
+    /// Start of the current rate-count window.
+    rate_cal_window_start: Option<Instant>,
+    /// Samples delivered since the current window opened.
+    rate_cal_window_samples: u64,
+    /// EMA of the per-window throughput (Hz), smoothing the window-to-window
+    /// jitter a contended link produces so the timestep tracks the sustained
+    /// rate instead of chasing noise.
+    rate_cal_ema_hz: Option<f64>,
 }
 
 pub struct PipelineHandles {
@@ -363,7 +406,8 @@ impl Pipeline {
         config: PipelineConfig,
     ) -> (Self, PipelineHandles) {
         let gyr_ts = 1.0 / meta.capabilities.native_imu_rate_hz as f64;
-        let mut fusion = FilterImpl::new(config.fusion, gyr_ts);
+        let mut fusion =
+            FilterImpl::new(config.fusion, gyr_ts, meta.capabilities.has_magnetometer);
         if let Some(bias) = bias_store.load_bias(&meta.id) {
             // VQF's default biasClip is 2 deg/s. A stored bias whose magnitude
             // is at (or extremely near) that cap on any axis is almost
@@ -447,6 +491,11 @@ impl Pipeline {
             mag_cal_result_tx,
             mag_cal_buffer: Vec::new(),
             mag_cal_active: false,
+            gyr_ts_current: gyr_ts,
+            rate_cal_first_batch: None,
+            rate_cal_window_start: None,
+            rate_cal_window_samples: 0,
+            rate_cal_ema_hz: None,
         };
         let handles = PipelineHandles {
             quat_rx,
@@ -543,6 +592,7 @@ impl Pipeline {
                 }
                 let arrival = Instant::now();
                 self.latency.record_arrival(arrival);
+                self.calibrate_rate(samples.len(), arrival);
                 let cfg = *self.config_rx.borrow();
                 for s in &samples {
                     // Collect raw magnetometer samples for an in-progress
@@ -734,6 +784,103 @@ impl Pipeline {
         Ok(())
     }
 
+    /// Live, continuously-adaptive fusion-timestep calibration from real
+    /// delivery throughput.
+    ///
+    /// The fusion filter integrates one step of `gyr_ts_current` per `update()`
+    /// call, and we call `update()` once per delivered sample — so for the
+    /// filter's internal clock to track wall-clock, `gyr_ts_current` must equal
+    /// `1 / (samples delivered per second)`. For Bluetooth HID devices that
+    /// throughput is set by the negotiated link interval, not the sensor ODR,
+    /// and is both unknown at connect (the connect burst makes a connect-time
+    /// probe read garbage) and free to shift mid-session when the stack
+    /// renegotiates the sniff interval under load. So measure it continuously:
+    ///
+    /// **Count samples over a wall-clock window** (`delivered ÷ window_seconds`),
+    /// NOT inter-report deltas. On Linux hidraw the kernel buffers reports and
+    /// hands them back in sub-millisecond clumps; any delta-based statistic
+    /// (mean or median) is then dominated by either the intra-clump zeros or the
+    /// inter-clump gaps and mis-estimates the true rate — a count over a fixed
+    /// window is immune because it only depends on the total and the elapsed
+    /// time, exactly like the on-screen rate meter. The first [`WARMUP_SECS`]
+    /// are skipped so the connect backlog drains before counting, then each
+    /// [`WINDOW_SECS`] window yields a rate and the timestep is re-applied
+    /// whenever it has drifted more than [`APPLY_THRESHOLD`] from the live value
+    /// (the 3 %% hysteresis stops steady-state windows from thrashing the filter;
+    /// each apply resets only the bias covariance, leaving the estimate intact).
+    fn calibrate_rate(&mut self, n_samples: usize, arrival: Instant) {
+        // Plausibility band for the measured per-sample period: 0.8 ms (1250 Hz)
+        // to 25 ms (40 Hz). Covers every supported device (Joy-Con, Joy-Con 2,
+        // DualSense, PS Move, Wii) and clamps a degenerate window.
+        const MIN_TS: f64 = 1.0 / 1250.0;
+        const MAX_TS: f64 = 1.0 / 40.0;
+        // Connect-backlog drain skipped before counting opens.
+        const WARMUP_SECS: f64 = 1.5;
+        // Count window length: long enough to average burst/gap clumping into a
+        // steady throughput, short enough to track a real mid-session shift.
+        const WINDOW_SECS: f64 = 4.0;
+        // EMA weight on each new window. Low enough that one noisy window can't
+        // swing the applied timestep; a sustained shift still converges over a
+        // few windows.
+        const EMA_ALPHA: f64 = 0.25;
+        // Minimum relative gap between the smoothed rate and the live timestep
+        // worth applying. Wide enough that the residual window-to-window jitter
+        // of a contended link does not thrash the filter (each apply resets the
+        // bias covariance, so re-applying every window would stop the bias
+        // estimate from ever settling).
+        const APPLY_THRESHOLD: f64 = 0.05;
+
+        if n_samples == 0 {
+            return;
+        }
+        let first = *self.rate_cal_first_batch.get_or_insert(arrival);
+        if arrival.duration_since(first).as_secs_f64() < WARMUP_SECS {
+            return;
+        }
+        let window_start = *self.rate_cal_window_start.get_or_insert(arrival);
+        self.rate_cal_window_samples += n_samples as u64;
+        let elapsed = arrival.duration_since(window_start).as_secs_f64();
+        if elapsed < WINDOW_SECS {
+            return;
+        }
+
+        let window_samples = self.rate_cal_window_samples;
+        let rate_hz = window_samples as f64 / elapsed;
+        self.rate_cal_window_start = Some(arrival);
+        self.rate_cal_window_samples = 0;
+
+        // Smooth the throughput before acting on it.
+        let ema_hz = match self.rate_cal_ema_hz {
+            Some(prev) => EMA_ALPHA * rate_hz + (1.0 - EMA_ALPHA) * prev,
+            None => rate_hz,
+        };
+        self.rate_cal_ema_hz = Some(ema_hz);
+
+        let measured_ts = (1.0 / ema_hz).clamp(MIN_TS, MAX_TS);
+        if let Some(new_ts) = corrected_timestep(measured_ts, self.gyr_ts_current, APPLY_THRESHOLD) {
+            self.fusion.set_timestep(new_ts);
+            tracing::info!(
+                id = %self.meta.id,
+                from_rate_hz = 1.0 / self.gyr_ts_current,
+                to_rate_hz = 1.0 / new_ts,
+                window_rate_hz = rate_hz,
+                window_samples,
+                "fusion timestep recalibrated from live delivery throughput",
+            );
+            self.gyr_ts_current = new_ts;
+        } else {
+            // Always surface the measured throughput for diagnostics, even when
+            // it confirms the current timestep (no change applied).
+            tracing::debug!(
+                id = %self.meta.id,
+                window_rate_hz = rate_hz,
+                ema_rate_hz = ema_hz,
+                current_rate_hz = 1.0 / self.gyr_ts_current,
+                "live delivery throughput measured; within threshold, no change",
+            );
+        }
+    }
+
     fn persist_bias(&self) {
         let bias = self.fusion.bias_estimate();
         // Mirror the load-side guard: never persist a bias that is at or
@@ -824,6 +971,17 @@ impl Pipeline {
     }
 }
 
+/// Given a measured per-sample period and the timestep currently in the filter,
+/// return the corrected timestep when they differ by more than `threshold`
+/// (relative), else `None` (the live rate was already close enough).
+fn corrected_timestep(measured_ts: f64, current_ts: f64, threshold: f64) -> Option<f64> {
+    if measured_ts <= 0.0 || current_ts <= 0.0 {
+        return None;
+    }
+    let rel = (measured_ts - current_ts).abs() / current_ts;
+    (rel > threshold).then_some(measured_ts)
+}
+
 /// Build a unit quaternion (xyzw) representing a rotation around the
 /// world-frame Y axis by `deg` degrees. Used to apply a per-device yaw
 /// offset on top of the cardinal mounting orientation.
@@ -894,6 +1052,44 @@ mod tests {
         let result = quat_mul_xyzw(id, q);
         for i in 0..4 {
             assert!(approx_eq(result[i], q[i], 1e-6));
+        }
+    }
+
+    #[test]
+    fn corrected_timestep_applies_above_threshold() {
+        // Assumed 200 Hz (5 ms), measured 270 Hz (~3.7 ms): 26% gap → correct.
+        let assumed = 1.0 / 200.0;
+        let measured = 1.0 / 270.0;
+        assert_eq!(corrected_timestep(measured, assumed, 0.03), Some(measured));
+    }
+
+    #[test]
+    fn corrected_timestep_skips_within_threshold() {
+        // Measured 205 Hz vs assumed 200 Hz: 2.5% gap, under 3% → no change.
+        let assumed = 1.0 / 200.0;
+        let measured = 1.0 / 205.0;
+        assert_eq!(corrected_timestep(measured, assumed, 0.03), None);
+    }
+
+    #[test]
+    fn corrected_timestep_rejects_degenerate_input() {
+        assert_eq!(corrected_timestep(0.0, 1.0 / 200.0, 0.03), None);
+        assert_eq!(corrected_timestep(1.0 / 200.0, 0.0, 0.03), None);
+    }
+
+    #[test]
+    fn set_timestep_preserves_orientation() {
+        // Recalibrating the timestep must not jump the orientation estimate.
+        use imu_fusion::Vqf;
+        let mut f = Vqf::new(1.0 / 200.0);
+        for _ in 0..50 {
+            f.update([0.1, -0.2, 0.05], [0.0, 0.0, 9.81], None);
+        }
+        let before = f.quat_6d();
+        f.set_timestep(1.0 / 270.0);
+        let after = f.quat_6d();
+        for i in 0..4 {
+            assert!((before[i] - after[i]).abs() < 1e-9, "quat moved at {i}");
         }
     }
 

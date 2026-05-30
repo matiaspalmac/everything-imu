@@ -345,6 +345,25 @@ impl Vqf {
         self.setup();
     }
 
+    /// Update the sample timestep live and recompute the filter coefficients
+    /// from it, **preserving the orientation estimate and the gyro-bias value**.
+    ///
+    /// VQF bakes the timestep into every gain/coefficient at construction, so a
+    /// fixed `gyr_ts` that does not match the real delivered sample cadence
+    /// skews the gyro integration (over-/under-rotation = drift). The true
+    /// cadence of a Bluetooth HID device is not knowable at connect — it depends
+    /// on the negotiated link interval — so the pipeline measures it live and
+    /// calls this once the estimate settles. `setup()` recomputes the
+    /// coefficients and resets only the bias covariance (`bias_p`) to its
+    /// initial value; the orientation quaternion and the bias estimate itself
+    /// are left untouched, so there is no visible re-settle.
+    pub fn set_timestep(&mut self, gyr_ts: f64) {
+        self.coeffs.gyr_ts = gyr_ts;
+        self.coeffs.acc_ts = gyr_ts;
+        self.coeffs.mag_ts = gyr_ts;
+        self.setup();
+    }
+
     pub(crate) fn setup(&mut self) {
         let p = &self.params;
 

@@ -35,4 +35,10 @@ impl BasicVqf {
     pub fn reset_state(&mut self) {
         self.inner.reset_state();
     }
+
+    /// Update the sample timestep live, preserving the orientation estimate.
+    /// See [`Vqf::set_timestep`].
+    pub fn set_timestep(&mut self, gyr_ts: f64) {
+        self.inner.set_timestep(gyr_ts);
+    }
 }

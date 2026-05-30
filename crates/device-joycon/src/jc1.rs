@@ -102,6 +102,21 @@ impl Device for JoyCon1Device {
         }
 
         self.run_connect_sequence().await?;
+
+        // No connect-time rate probe here. Report 0x30 packs 3 IMU samples and
+        // the firmware spaces them at report_period/3 — but the report period is
+        // set by the negotiated Bluetooth link interval (≈15 ms textbook → 5 ms
+        // samples, but ≈11 ms on stacks that shorten the SSR → ≈3.7 ms samples /
+        // ~270 Hz delivery), NOT by the sensor ODR, and it is not knowable at
+        // connect: the connect backlog plus contention across several paired
+        // controllers make an arrival-cadence probe read anywhere from ~170 to
+        // ~280 Hz. So `native_imu_rate_hz` stays at its nominal seed (200) and
+        // the pipeline refines the real fusion timestep from steady-state
+        // delivery instead (`Pipeline::calibrate_rate`), which is robust to the
+        // burst/gap noise a connect-time measurement cannot escape. The Linux
+        // hid-nintendo driver derives per-sample dt the same way (report
+        // delta ÷ 3), not from a fixed rate.
+
         self.request_calibration_reads().await?;
 
         let kind = self.kind;

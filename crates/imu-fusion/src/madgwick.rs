@@ -27,6 +27,14 @@ impl Madgwick {
         self.quat = [1.0, 0.0, 0.0, 0.0];
     }
 
+    /// Update the integration timestep live, preserving the orientation
+    /// estimate. Madgwick multiplies the quaternion derivative by
+    /// `sample_period` each step, so this must match the real delivered sample
+    /// cadence or the integrated rotation skews.
+    pub fn set_sample_period(&mut self, sample_period: f32) {
+        self.sample_period = sample_period;
+    }
+
     /// 6D update — gyroscope + accelerometer only.
     /// `MadgwickAHRSupdateIMU(g_x, g_y, g_z, a_x, a_y, a_z)`.
     /// Gyro in rad/s, accel in any consistent units (normalized internally).
