@@ -83,6 +83,19 @@ struct Cli {
     /// axis order, and sample rate. Redirect to a file and send the output.
     #[arg(long)]
     hopx_raw: bool,
+
+    /// Reverse-engineering aid: connect to a "Triki" HOPX tracker and write each
+    /// command byte to its NUS RX characteristic, logging what it sends back.
+    /// Optional value is a command spec (default "0x00-0x1f"): a comma list of
+    /// single bytes and inclusive `lo-hi` ranges, hex (`0x..`) or decimal —
+    /// e.g. `--hopx-probe 0x09,0x0a` or `--hopx-probe 0-255`.
+    #[arg(long, value_name = "SPEC", num_args = 0..=1, default_missing_value = "0x00-0x1f")]
+    hopx_probe: Option<String>,
+
+    /// How many times to send each probed command (--hopx-probe). Repeats reveal
+    /// whether a reply is stable config or live-changing data.
+    #[arg(long, default_value_t = 3)]
+    hopx_probe_repeats: u8,
 }
 
 async fn run_hopx_raw() -> anyhow::Result<()> {
@@ -115,6 +128,72 @@ async fn run_hopx_raw() -> anyhow::Result<()> {
     };
     if let Err(e) = res {
         eprintln!("[hopx-raw] error: {e}");
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+async fn run_hopx_probe(spec: &str, repeats: u8) -> anyhow::Result<()> {
+    let cmds = match device_hopx::diagnostics::parse_probe_spec(spec) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[hopx-probe] bad command spec: {e}");
+            std::process::exit(2);
+        }
+    };
+
+    eprintln!("everything-imu hopx-probe — NUS command sweep");
+    eprintln!("Steps:");
+    eprintln!("  1. Power on the Triki tracker, then keep this running.");
+    eprintln!("  2. Each command is written {repeats}x; replies are logged below.");
+    eprintln!("  3. Known: 0x09 returns ~3 varying messages, 0x0a disconnects.");
+    eprintln!("  4. Let it finish and send the whole output back.");
+    eprintln!(
+        "Probing {} command(s): {}",
+        cmds.len(),
+        cmds.iter()
+            .map(|c| format!("0x{c:02x}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    eprintln!();
+
+    // Per ~200 ms dwell, long enough to catch a few-message reply without
+    // dragging a 256-command sweep out forever.
+    let dwell = std::time::Duration::from_millis(250);
+    let res = tokio::select! {
+        r = device_hopx::diagnostics::probe_commands(&cmds, repeats, dwell, |p| {
+            if p.responses.is_empty() {
+                println!(
+                    "cmd=0x{:02x} #{}  {}",
+                    p.cmd,
+                    p.attempt,
+                    if p.disconnected { "DISCONNECTED (no reply)" } else { "no reply" }
+                );
+            } else {
+                let msgs = p
+                    .responses
+                    .iter()
+                    .map(|r| r.iter().map(|b| format!("{b:02x}")).collect::<String>())
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                println!(
+                    "cmd=0x{:02x} #{}  {} msg: {}{}",
+                    p.cmd,
+                    p.attempt,
+                    p.responses.len(),
+                    msgs,
+                    if p.disconnected { "  [then DISCONNECTED]" } else { "" }
+                );
+            }
+        }) => r,
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[hopx-probe] stopped.");
+            Ok(())
+        }
+    };
+    if let Err(e) = res {
+        eprintln!("[hopx-probe] error: {e}");
         std::process::exit(1);
     }
     Ok(())
@@ -255,6 +334,10 @@ async fn main() -> anyhow::Result<()> {
 
     if args.hopx_raw {
         return run_hopx_raw().await;
+    }
+
+    if let Some(spec) = args.hopx_probe.as_deref() {
+        return run_hopx_probe(spec, args.hopx_probe_repeats).await;
     }
 
     if args.list_devices {
