@@ -412,8 +412,7 @@ impl Pipeline {
         config: PipelineConfig,
     ) -> (Self, PipelineHandles) {
         let gyr_ts = 1.0 / meta.capabilities.native_imu_rate_hz as f64;
-        let mut fusion =
-            FilterImpl::new(config.fusion, gyr_ts, meta.capabilities.has_magnetometer);
+        let mut fusion = FilterImpl::new(config.fusion, gyr_ts, meta.capabilities.has_magnetometer);
         if let Some(bias) = bias_store.load_bias(&meta.id) {
             // VQF's default biasClip is 2 deg/s. A stored bias whose magnitude
             // is at (or extremely near) that cap on any axis is almost
@@ -894,7 +893,8 @@ impl Pipeline {
         self.rate_cal_ema_hz = Some(ema_hz);
 
         let measured_ts = (1.0 / ema_hz).clamp(MIN_TS, MAX_TS);
-        if let Some(new_ts) = corrected_timestep(measured_ts, self.gyr_ts_current, APPLY_THRESHOLD) {
+        if let Some(new_ts) = corrected_timestep(measured_ts, self.gyr_ts_current, APPLY_THRESHOLD)
+        {
             self.fusion.set_timestep(new_ts);
             tracing::info!(
                 id = %self.meta.id,

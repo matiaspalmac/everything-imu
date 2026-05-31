@@ -98,7 +98,9 @@ pub fn haptic_test() -> Result<(), String> {
         kind,
         ControllerKind::DualSense | ControllerKind::DualSenseEdge
     ) {
-        return Err(format!("haptic test only wired for DualSense, got {kind:?}"));
+        return Err(format!(
+            "haptic test only wired for DualSense, got {kind:?}"
+        ));
     }
 
     // (label, r, g, b, motor, hold_ms)
@@ -239,7 +241,8 @@ fn read_i16(buf: &[u8], off: usize) -> i16 {
 }
 
 fn read_u16(buf: &[u8], off: usize) -> Option<u16> {
-    buf.get(off..off + 2).map(|b| u16::from_le_bytes([b[0], b[1]]))
+    buf.get(off..off + 2)
+        .map(|b| u16::from_le_bytes([b[0], b[1]]))
 }
 
 fn read_u32(buf: &[u8], off: usize) -> Option<u32> {

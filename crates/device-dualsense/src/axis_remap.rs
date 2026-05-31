@@ -58,7 +58,10 @@ mod tests {
 
     #[test]
     fn identity_preserves_all_components_ds5() {
-        assert_eq!(apply(ControllerKind::DualSense, [1.0, 2.0, 3.0]), [1.0, 2.0, 3.0]);
+        assert_eq!(
+            apply(ControllerKind::DualSense, [1.0, 2.0, 3.0]),
+            [1.0, 2.0, 3.0]
+        );
         assert_eq!(
             apply(ControllerKind::DualSenseEdge, [1.0, 2.0, 3.0]),
             [1.0, 2.0, 3.0]
