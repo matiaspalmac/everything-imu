@@ -42,6 +42,88 @@ pub struct RawSample {
     pub rate_hz: f32,
 }
 
+/// Open the first paired Sony pad (matching pid + interface from the live HID
+/// list) and return the open device plus its kind. Shared by the streaming and
+/// haptic diagnostics.
+fn open_first_pad() -> Result<(hidapi::HidDevice, ControllerKind, usize), String> {
+    let paired = DualSenseFactory::list_paired().map_err(|e| format!("list paired: {e}"))?;
+    let first = paired.first().ok_or("no paired Sony pad found")?;
+    let kind = first.kind;
+    eprintln!(
+        "[ds] found {:?} pid=0x{:04X} iface={}, opening...",
+        kind, first.pid, first.interface
+    );
+    let api = hid_api_singleton().map_err(|e| format!("hidapi init: {e}"))?;
+    let guard = api.lock().map_err(|_| "hidapi poisoned")?;
+    let info = guard
+        .device_list()
+        .find(|i| {
+            i.vendor_id() == crate::ids::SONY_VID
+                && i.product_id() == first.pid
+                && i.interface_number() == first.interface
+        })
+        .ok_or("paired pad vanished before open")?;
+    let interface = info.interface_number().max(0) as usize;
+    let device = guard
+        .open_path(info.path())
+        .map_err(|e| format!("open: {e}"))?;
+    Ok((device, kind, interface))
+}
+
+/// Build a DualSense USB output report (0x02, 48 bytes) setting the RGB lightbar
+/// and both rumble motors. Mirrors `device::fill_ds5_payload`; kept local so the
+/// diagnostic stays self-contained.
+fn ds5_usb_output(r: u8, g: u8, b: u8, motor: u8) -> [u8; 48] {
+    let mut rep = [0u8; 48];
+    rep[0] = 0x02;
+    rep[1] = 0xFF; // valid_flag0: rumble enable
+    rep[2] = 0xF7; // valid_flag1: lightbar + LED enable
+    rep[3] = motor; // weak / high-frequency motor
+    rep[4] = motor; // strong / low-frequency motor
+    rep[45] = r;
+    rep[46] = g;
+    rep[47] = b;
+    rep
+}
+
+/// Drive the first paired DualSense through a short, visible/tactile output
+/// sequence — RGB lightbar colours and rumble pulses — so the output-report path
+/// can be confirmed on real hardware. Returns after restoring the pad to idle.
+pub fn haptic_test() -> Result<(), String> {
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    let (device, kind, _iface) = open_first_pad()?;
+    if !matches!(
+        kind,
+        ControllerKind::DualSense | ControllerKind::DualSenseEdge
+    ) {
+        return Err(format!("haptic test only wired for DualSense, got {kind:?}"));
+    }
+
+    // (label, r, g, b, motor, hold_ms)
+    let steps: &[(&str, u8, u8, u8, u8, u64)] = &[
+        ("RED  + strong rumble", 255, 0, 0, 220, 1200),
+        ("GREEN (no rumble)", 0, 255, 0, 0, 1000),
+        ("BLUE + light rumble", 0, 0, 255, 110, 1200),
+        ("WHITE + full rumble", 255, 255, 255, 255, 1200),
+        ("OFF", 0, 0, 0, 0, 400),
+    ];
+    for (label, r, g, b, motor, ms) in steps {
+        eprintln!("[ds-haptic] {label}");
+        let rep = ds5_usb_output(*r, *g, *b, *motor);
+        device
+            .write(&rep)
+            .map_err(|e| format!("write output: {e}"))?;
+        sleep(Duration::from_millis(*ms));
+    }
+    // Belt-and-braces final off so the pad never latches a colour/motor.
+    let off = ds5_usb_output(0, 0, 0, 0);
+    let _ = device.write(&off);
+    eprintln!("[ds-haptic] done, pad restored to idle.");
+    Ok(())
+}
+
 /// Open the first paired Sony pad and stream [`RawSample`]s to `sink` until the
 /// read fails (e.g. unplug) or the caller is interrupted.
 pub fn stream_raw<F>(mut sink: F) -> Result<(), String>
@@ -114,11 +196,11 @@ where
 /// raw report using the same offsets the real parser uses. The timestamp sits
 /// immediately after the accel block: a u32 LE for DualSense, and (a separate
 /// layout) a u16 before the gyro for DualShock 4 — handled below.
-fn decode_layout(
-    kind: ControllerKind,
-    buf: &[u8],
-    prev_ts: &mut Option<u32>,
-) -> ([i16; 3], [i16; 3], Option<u32>, Option<u32>, Option<usize>) {
+/// `(gyro, accel, sensor_timestamp, ts_delta, ts_offset)` as decoded from one
+/// raw report.
+type DecodedLayout = ([i16; 3], [i16; 3], Option<u32>, Option<u32>, Option<usize>);
+
+fn decode_layout(kind: ControllerKind, buf: &[u8], prev_ts: &mut Option<u32>) -> DecodedLayout {
     let Some(offsets) = ImuOffsets::for_report(kind, buf.len()) else {
         return ([0; 3], [0; 3], None, None, None);
     };
