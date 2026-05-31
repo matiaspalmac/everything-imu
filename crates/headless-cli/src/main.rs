@@ -96,6 +96,72 @@ struct Cli {
     /// whether a reply is stable config or live-changing data.
     #[arg(long, default_value_t = 3)]
     hopx_probe_repeats: u8,
+
+    /// Hardware-characterisation: open the first paired Sony pad (DualSense /
+    /// DualShock 4) and dump its undecoded input report — raw gyro/accel int16,
+    /// report id/length, and the firmware sensor-timestamp field with its
+    /// per-report delta. Use to confirm the timestamp tick scale, axis order,
+    /// and report rate. Redirect to a file and send the output.
+    #[arg(long)]
+    ds_raw: bool,
+}
+
+async fn run_ds_raw() -> anyhow::Result<()> {
+    eprintln!("everything-imu ds-raw — Sony pad raw report + sensor-timestamp dump");
+    eprintln!("Steps:");
+    eprintln!("  1. Keep the DualSense connected (USB cable or BT), then keep this running.");
+    eprintln!("  2. HOLD STILL on a flat surface for ~5 s (watch ts_delta settle).");
+    eprintln!("  3. Rotate exactly 90 deg about ONE axis, slowly, then back.");
+    eprintln!("  4. Tilt nose-down ~45 deg, then roll left ~45 deg.");
+    eprintln!("  5. Press Ctrl-C and send the whole output back.");
+    eprintln!("Cols: id len  gyro[x y z] | accel[x y z]  ts=<u32>  dts=<delta/report>  ~rate");
+    eprintln!();
+
+    // The DualSense read loop is blocking; run it on a dedicated thread and
+    // print every 25th report (~10 rows/s at 250 Hz) so the stream stays
+    // readable while the per-report ts_delta is still shown verbatim.
+    let handle = tokio::task::spawn_blocking(|| {
+        let mut seen: u64 = 0;
+        device_dualsense::diagnostics::stream_raw(|s| {
+            seen += 1;
+            if seen % 25 != 0 {
+                return;
+            }
+            let ts = s
+                .sensor_timestamp
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "----".into());
+            let dts = s
+                .ts_delta
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "----".into());
+            let off = s
+                .ts_offset
+                .map(|o| o.to_string())
+                .unwrap_or_else(|| "?".into());
+            println!(
+                "id=0x{:02x} len={:3}  g[{:6} {:6} {:6}] | a[{:6} {:6} {:6}]  ts={:>10}@{} dts={:>6}  ~{:.1}Hz",
+                s.report_id, s.len,
+                s.gyro[0], s.gyro[1], s.gyro[2],
+                s.accel[0], s.accel[1], s.accel[2],
+                ts, off, dts, s.rate_hz,
+            );
+        })
+    });
+
+    tokio::select! {
+        r = handle => {
+            match r {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => eprintln!("[ds-raw] error: {e}"),
+                Err(e) => eprintln!("[ds-raw] task join error: {e}"),
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[ds-raw] stopped.");
+        }
+    }
+    Ok(())
 }
 
 async fn run_hopx_raw() -> anyhow::Result<()> {
@@ -330,6 +396,10 @@ async fn main() -> anyhow::Result<()> {
 
     if args.doctor {
         std::process::exit(run_doctor(args.server).await);
+    }
+
+    if args.ds_raw {
+        return run_ds_raw().await;
     }
 
     if args.hopx_raw {
