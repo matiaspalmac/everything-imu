@@ -1,8 +1,9 @@
 //! `PsMoveDevice` — implements the device-traits `Device` trait.
 
+use crate::calibration::ImuCalibration;
 use crate::hid::{spawn_reader, HidReaderHandle};
 use crate::ids::ControllerKind;
-use crate::report::parse_report;
+use crate::report::{parse_report, ReportClock};
 use device_traits::{
     ChannelInfo, Device, DeviceCapabilities, DeviceError, DeviceId, DeviceMetadata,
 };
@@ -16,6 +17,7 @@ use tokio::sync::mpsc;
 pub struct PsMoveDevice {
     metadata: DeviceMetadata,
     kind: ControllerKind,
+    calibration: ImuCalibration,
     device: Option<HidDevice>,
     io: Option<Arc<Mutex<HidDevice>>>,
     output_state: Arc<Mutex<OutputState>>,
@@ -46,6 +48,7 @@ impl PsMoveDevice {
         Self {
             metadata,
             kind,
+            calibration: ImuCalibration::identity(),
             device: Some(device),
             io: None,
             output_state: Arc::new(Mutex::new(OutputState {
@@ -56,6 +59,13 @@ impl PsMoveDevice {
             output_join: None,
             reader: None,
         }
+    }
+
+    /// Install a factory calibration (read over USB via
+    /// [`crate::pairing::read_factory_calibration`]) before `start`. Applied to
+    /// every IMU sub-frame in the reader.
+    pub fn set_calibration(&mut self, cal: ImuCalibration) {
+        self.calibration = cal;
     }
 
     fn write_output_now(&self) -> Result<(), DeviceError> {
@@ -87,11 +97,18 @@ impl Device for PsMoveDevice {
         let kind = self.kind;
         let device_id = self.metadata.id.clone();
         let connected_flag = Arc::new(AtomicBool::new(false));
+        // Per-device sample clock: drives fusion dt from measured inter-report
+        // timing (JC1 ratefix lesson), not the wrapping 16-bit hw counter.
+        let mut clock = ReportClock::new();
+        // Factory calibration (feature 0x10) is read over USB at pairing time and
+        // persisted per-MAC; the BT IMU session starts from identity and VQF
+        // warm-up covers residual bias until a stored blob is loaded here.
+        let cal = self.calibration;
         let mut reader = spawn_reader(dev, move |buf, tx| {
             if !connected_flag.swap(true, Ordering::Relaxed) {
                 let _ = tx.try_send(ChannelInfo::Connected(device_id.clone()));
             }
-            if !parse_report(kind, buf, tx) {
+            if !parse_report(kind, buf, &mut clock, &cal, tx) {
                 tracing::trace!(len = buf.len(), "psmove unknown report");
             }
         });
