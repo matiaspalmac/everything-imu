@@ -83,6 +83,9 @@ struct Cli {
     /// axis order, and sample rate. Redirect to a file and send the output.
     #[arg(long)]
     hopx_raw: bool,
+    /// Live PS Move (ZCM1/ZCM2) raw input-report dump for IMU bring-up.
+    #[arg(long)]
+    psmove_raw: bool,
 
     /// Reverse-engineering aid: connect to a "Triki" HOPX tracker and write each
     /// command byte to its NUS RX characteristic, logging what it sends back.
@@ -104,6 +107,21 @@ struct Cli {
     /// and report rate. Redirect to a file and send the output.
     #[arg(long)]
     ds_raw: bool,
+
+    /// Bring-up: bind the Wii forwarder TCP listener and dump decoded packets
+    /// from the homebrew companion (raw + scaled accel/gyro, extension flags).
+    /// Does not stream to SlimeVR. Defaults to 127.0.0.1:9909.
+    #[arg(long)]
+    wii_raw: bool,
+
+    /// Address the Wii forwarder listens on for `--wii-raw` and live tracking.
+    #[arg(long, default_value = "127.0.0.1:9909")]
+    wii_bind: String,
+
+    /// Pair the first USB-connected PS Move to a host Bluetooth MAC
+    /// (AA:BB:CC:DD:EE:FF) via feature report 0x05, then exit.
+    #[arg(long, value_name = "MAC")]
+    ps_pair: Option<String>,
 }
 
 async fn run_ds_raw() -> anyhow::Result<()> {
@@ -159,6 +177,64 @@ async fn run_ds_raw() -> anyhow::Result<()> {
         }
         _ = tokio::signal::ctrl_c() => {
             println!("\n[ds-raw] stopped.");
+        }
+    }
+    Ok(())
+}
+
+async fn run_psmove_raw() -> anyhow::Result<()> {
+    eprintln!("everything-imu psmove-raw — PS Move (ZCM1/ZCM2) raw report dump");
+    eprintln!("Steps:");
+    eprintln!("  1. Pair the PS Move over Bluetooth (IMU only streams over BT).");
+    eprintln!("  2. HOLD STILL on a flat surface for ~5 s.");
+    eprintln!("  3. Then rotate around each axis; watch which component spikes.");
+    eprintln!();
+
+    let handle = tokio::task::spawn_blocking(|| device_psmove::diagnostics::run(None));
+
+    tokio::select! {
+        r = handle => {
+            match r {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => eprintln!("[psmove-raw] error: {e}"),
+                Err(e) => eprintln!("[psmove-raw] task join error: {e}"),
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[psmove-raw] stopped.");
+        }
+    }
+    Ok(())
+}
+
+/// Pair the first USB-tethered PS Move to `mac` and report the device id.
+fn run_ps_pair(mac: &str) -> anyhow::Result<()> {
+    let host_mac = device_psmove::pairing::parse_mac_str(mac).map_err(|e| anyhow::anyhow!(e))?;
+    let id = device_psmove::PsMoveFactory::new()
+        .pair(host_mac)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    println!("paired {id} to host {mac}");
+    Ok(())
+}
+
+async fn run_wii_raw(bind: &str) -> anyhow::Result<()> {
+    eprintln!("everything-imu wii-raw — Wii forwarder packet dump");
+    eprintln!("Steps:");
+    eprintln!("  1. Launch the eimu-wii homebrew on the Wii (companions/wii).");
+    eprintln!("  2. Point it at this PC's IP:{bind} (config.txt server_ip/port).");
+    eprintln!("  3. Hold the remote still ~5 s, then rotate about each axis.");
+    eprintln!("  4. Press Ctrl-C and send the output back.");
+    eprintln!();
+
+    tokio::select! {
+        r = device_wii::diagnostics::run(bind, None) => {
+            if let Err(e) = r {
+                eprintln!("[wii-raw] error: {e}");
+                std::process::exit(1);
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[wii-raw] stopped.");
         }
     }
     Ok(())
@@ -406,6 +482,18 @@ async fn main() -> anyhow::Result<()> {
         return run_hopx_raw().await;
     }
 
+    if args.psmove_raw {
+        return run_psmove_raw().await;
+    }
+
+    if args.wii_raw {
+        return run_wii_raw(&args.wii_bind).await;
+    }
+
+    if let Some(mac) = args.ps_pair.as_deref() {
+        return run_ps_pair(mac);
+    }
+
     if let Some(spec) = args.hopx_probe.as_deref() {
         return run_hopx_probe(spec, args.hopx_probe_repeats).await;
     }
@@ -542,7 +630,7 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(JoyconFactory::real()),
             Arc::new(DualSenseFactory::new()),
             Arc::new(PsMoveFactory::new()),
-            Arc::new(WiiFactory::new()),
+            Arc::new(WiiFactory::with_bind_addr(args.wii_bind.clone())),
             Arc::new(SteamDeckFactory::new()),
             Arc::new(SteamControllerFactory::new()),
             Arc::new(HopxFactory::new()),
