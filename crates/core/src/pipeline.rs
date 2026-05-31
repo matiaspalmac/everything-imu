@@ -372,6 +372,12 @@ pub struct Pipeline {
     /// jitter a contended link produces so the timestep tracks the sustained
     /// rate instead of chasing noise.
     rate_cal_ema_hz: Option<f64>,
+    /// Hardware-timestamp dt path (DualSense): previous firmware sensor
+    /// timestamp (µs, truncated to u32) and the EMA-smoothed inter-sample dt
+    /// derived from it. When `hw_dt_ema > 0` the chip clock drives the fusion
+    /// timestep directly and the delivery-rate estimator is bypassed.
+    last_hw_ts_us: Option<u32>,
+    hw_dt_ema: f64,
 }
 
 pub struct PipelineHandles {
@@ -496,6 +502,8 @@ impl Pipeline {
             rate_cal_window_start: None,
             rate_cal_window_samples: 0,
             rate_cal_ema_hz: None,
+            last_hw_ts_us: None,
+            hw_dt_ema: 0.0,
         };
         let handles = PipelineHandles {
             quat_rx,
@@ -592,7 +600,36 @@ impl Pipeline {
                 }
                 let arrival = Instant::now();
                 self.latency.record_arrival(arrival);
-                self.calibrate_rate(samples.len(), arrival);
+                // Drive the fusion timestep from the device's hardware sensor
+                // timestamp when present (DualSense carries a jitter-free 1/3 µs
+                // chip clock); otherwise estimate it from the delivery rate.
+                for s in &samples {
+                    if s.timestamp_us != 0 {
+                        let cur = s.timestamp_us as u32;
+                        if let Some(prev) = self.last_hw_ts_us.replace(cur) {
+                            // Wrapping subtraction tolerates the counter rolling
+                            // over (~every 24 min); the large dt is then rejected.
+                            let dt = cur.wrapping_sub(prev) as f64 / 1_000_000.0;
+                            if dt > 0.0 && dt < 0.1 {
+                                self.hw_dt_ema = if self.hw_dt_ema <= 0.0 {
+                                    dt
+                                } else {
+                                    0.1 * dt + 0.9 * self.hw_dt_ema
+                                };
+                            }
+                        }
+                    }
+                }
+                if self.hw_dt_ema > 0.0 {
+                    if let Some(new_ts) =
+                        corrected_timestep(self.hw_dt_ema, self.gyr_ts_current, 0.05)
+                    {
+                        self.fusion.set_timestep(new_ts);
+                        self.gyr_ts_current = new_ts;
+                    }
+                } else {
+                    self.calibrate_rate(samples.len(), arrival);
+                }
                 let cfg = *self.config_rx.borrow();
                 for s in &samples {
                     // Collect raw magnetometer samples for an in-progress
