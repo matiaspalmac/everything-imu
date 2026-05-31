@@ -39,7 +39,7 @@ anyhow = "1.0"
 tokio = { version = "1", default-features = false }
 btleplug = "0.12"
 futures-util = "0.3"
-uuid = "1.11"
+uuid = "1.23"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 nalgebra = "0.34"
