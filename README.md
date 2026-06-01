@@ -16,6 +16,8 @@ into full-body trackers for **SlimeVR-Server**. Plug a controller into your PC,
 strap it on, and it shows up in SlimeVR as a regular tracker — no extra hardware,
 no firmware flashing.
 
+It also incorporates **Haptics** via the device's rumble, for information on how to set this up on your Avatar, go [HERE](#Haptics)
+
 The bridge reads the controller's built-in IMU at its native sample rate, runs a
 sensor fusion filter (VQF or Madgwick) in Rust, and forwards the resulting
 quaternion to SlimeVR-Server over UDP using the official protocol.
@@ -24,7 +26,6 @@ quaternion to SlimeVR-Server over UDP using the official protocol.
 > hardware-validated across the supported controllers. If you hit a snag,
 > please file an issue with reproduction steps and the logs from the **Logs**
 > tab.
-
 ## Features
 
 - **9 controller families** supported across USB · BT Classic · BLE · TCP.
@@ -115,6 +116,91 @@ page:
 - **Linux (any)**: `everything-imu_<version>_amd64.AppImage`
 
 Or build from source — see [Building from source](#building-from-source) below.
+
+## HAPTICS
+### VRChat Avatar Setup
+You **MUST** have [VRCFury](https://vrcfury.com/download) on your Unity Project.
+
+You **MUST NOT** Upload the avatar as a *test*, as it prevents the inicialization of OSC protocols, please create a duplicate avatar and test it from there. 
+
+1. Import the [IMUHaptics.unitypackage](https://github.com/matiaspalmac/everything-imu/releases/download/latest/IMUHaptics.unitypackage) into your Unity Project
+
+2. Drag and drop the prefab found under `Assets/MooshPaw/IMU Haptics` into your Avatar
+<img width="489" height="698" alt="image" src="https://github.com/user-attachments/assets/183da3cd-8745-402b-9380-9466f5a2eca8" />
+
+3. Move the GameObjects to match your avatar proportions
+
+<img width="442" height="547" alt="image" src="https://github.com/user-attachments/assets/d4ea4d7e-2630-4f16-8a72-b6b62f8f9d6f" />
+
+<img width="1373" height="598" alt="image" src="https://github.com/user-attachments/assets/d693fbad-2e9c-49ea-8437-b1f3b97303f4" />
+
+4. (Optional) Disable Haptic points you won't use, this frees your PC from loading unnecesary parameters, even though the performance impact is minimal
+
+<img width="187" height="100" alt="image" src="https://github.com/user-attachments/assets/38c9e30c-a7ca-47e6-b8e1-ff0edef4686c" />
+
+5. Upload avatar and test
+
+### How to create more points of tracking?
+Duplicate any of the existing tracking points and position it where you want them. Then, change the Avatar Parameter to `Haptics/{YourDesiredName}` and ***REPLACE*** the parent bone under **Armature Link** 
+
+* You may also move the GameObject to the bone you want it parented to in the *Hierarchy*
+* You should **avoid** putting the bone on the **Contact Receiver** Component as the [*Gizmo*](#guizmo) won't Sync
+
+***To create one from scratch***, take in mind the following:
+You **MUST** Change the Parameter address. It's recommended to leave the `Haptic/` nomenclature for organization
+You **Should** leave *Local Only* enabled, as there's no need to Sync this parameter since your Haptics run locally. This allows the avatar to get a better rating and avoid's VRChat's maximum contacts
+
+<img width="479" height="201" alt="image" src="https://github.com/user-attachments/assets/2f3a90b9-fbbd-4e48-afca-1d292cfaeb06" />
+
+**Armature Link** automatically parents your haptic point to a Humanoid bone. You must change this bone to the one you want parented to, or move the GameObject within a bone from the *Hierarchy*.
+
+**Avoid** putting the bone on the **Contact Receiver** Component as the [*Gizmo*](#guizmo) won't Sync
+
+<img width="488" height="220" alt="image" src="https://github.com/user-attachments/assets/05287ac1-386a-4967-a584-c04c73c4231a" />
+
+<img width="401" height="76" alt="image" src="https://github.com/user-attachments/assets/f76339b2-6270-4cf4-82eb-0b6a20bbc0bb" />
+
+### GUIZMO
+
+<img width="493" height="183" alt="image" src="https://github.com/user-attachments/assets/bea44209-1f01-4038-868e-cec65a3e669e" />
+
+The guizmo represents the center of the Contact Receiver, as well as where your IRL Tracker should be.
+If your tracker is going to be at your stomach, your Haptic point should also be there
+
+<img width="251" height="316" alt="image" src="https://github.com/user-attachments/assets/08be4641-7d34-4db0-8b53-263c8df9e061" />
+
+<img width="791" height="364" alt="image" src="https://github.com/user-attachments/assets/4e6eedc2-b76b-4713-abf2-93b342356bf0" />
+
+### In-App setup
+
+<img width="1096" height="577" alt="image" src="https://github.com/user-attachments/assets/fbdce4e9-9f52-40b8-a21a-3a638982b672" />
+
+1. Go to the Haptics section
+2. Enable the *Bridge*
+3. Ensure the OSC Port is `9001` (VRChat's default output)
+4. Test your devices
+5. Add the mappings you need
+6. Change the Parameter Name to `/avatar/parameters/Haptics/{YourHapticPoint}. It **MUST BE THE SAME NAME** as the one from the VRChat contact receiver component. If you misspell it, you won't get any haptic
+7. Select the device that will rumble when your haptic point is triggered
+8. Adjust settings accordingly
+
+***Proximity (variable)*** 
+
+<img width="159" height="64" alt="image" src="https://github.com/user-attachments/assets/de9188e0-7890-4939-babc-a47ad0704e82" />
+
+Variable float strength from 0 to 1, will rumble more when the VRC contact receiver is touched at the center, and less when is touched at the edges. 
+
+***Pulse (fixed)*** 
+
+<img width="157" height="61" alt="image" src="https://github.com/user-attachments/assets/58e3e542-311d-473a-bd86-0360c71df2a5" />
+
+Activates the Rumble **Once** for a certain amount of time (*Pulse (ms)*) before turning it off. Useful to pair with a VRC contact receiver set to **On Enter**
+
+***Select available OSC addresses***
+
+<img width="1023" height="150" alt="image" src="https://github.com/user-attachments/assets/9393ee7b-a520-47e7-979f-9526d949248c" />
+
+To avoid typing the address manually, you may add them via the **Discovered OSC Addresses** section.
 
 ## Quickstart
 
