@@ -21,6 +21,7 @@ convention, on-device reset gestures, and known quirks.
 | PS Move ZCM1 | `054C:03D5` | MPU-6050 + AK8975 | USB · BT | 175 Hz | ✓ | ✓ | ✓ |
 | PS Move ZCM2 | `054C:0C5E` | MPU-6500 | USB · BT | 175 Hz | ✗ | ✓ | ✓ |
 | Wii Remote | TCP forwarder | ADXL345 + IDG-600 / ADXL330² | TCP `127.0.0.1:9909` | 100 Hz | ✗ | ✓ | ✓ |
+| HOPX / Triki | BLE (name `Triki`) | LSM6DS (nRF52810) | BLE | 52 Hz | ✗ | ✗ | ✗ |
 
 ¹ Genuine Nintendo. Clones ship with ICM-20600 — auto-detected via SPI ID, fall
 back to longer VQF warm-up.
@@ -367,6 +368,42 @@ No HID / BLE code path; this crate is a passive packet receiver + back-channel.
   (already exposed in the 17-byte packet's extension bytes).
 
 ---
+
+## HOPX / Triki
+
+**Status**: hardware-validated (live tester).
+
+The HOPX controller (shipped as "Triki") streams its IMU only over Bluetooth LE
+through the Nordic UART Service - the host never talks to the sensor directly.
+
+### Hardware
+
+| Component | Part | Notes |
+|-----------|------|-------|
+| BLE SoC | Nordic nRF52810 | packs IMU samples into UART notifications |
+| IMU 6-axis | STMicroelectronics LSM6DS family | 2000 dps, 16 g |
+
+### Transport
+
+- BLE only. Nordic UART Service (`6e400001-...`).
+- TX notify `6e400003`, RX write `6e400002`.
+- Vendor START command begins the stream; STOP ends it.
+- Discovery by advertised **name prefix** `Triki`. The MAC OUI varies per unit, so it is not a usable filter.
+
+### Sample format
+
+- 14-byte record `[0x22][seq][6 x i16 LE]`.
+- Gyro X/Y/Z first (offsets 2/4/6), accel X/Y/Z second (8/10/12), little-endian.
+
+### Scale
+
+- Gyro: 70 mdps/LSB (2000 dps).
+- Accel: 1/2048 g (~0.488 mg/LSB).
+- Native rate: 52 Hz.
+
+### Notes
+
+- 6-axis only - no magnetometer, battery, or rumble exposed in the stream.
 
 ## Adding a new device
 

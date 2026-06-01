@@ -11,7 +11,7 @@
   </p>
 </div>
 
-`everything-imu` is a native bridge that turns Nintendo and Sony game controllers
+`everything-imu` is a native bridge that turns Nintendo, Sony, and other game controllers
 into full-body trackers for **SlimeVR-Server**. Plug a controller into your PC,
 strap it on, and it shows up in SlimeVR as a regular tracker — no extra hardware,
 no firmware flashing.
@@ -22,13 +22,13 @@ The bridge reads the controller's built-in IMU at its native sample rate, runs a
 sensor fusion filter (VQF or Madgwick) in Rust, and forwards the resulting
 quaternion to SlimeVR-Server over UDP using the official protocol.
 
-> **Status:** 1.0.2. The core fusion + protocol pipeline is stable and
+> **Status:** 1.0.4. The core fusion + protocol pipeline is stable and
 > hardware-validated across the supported controllers. If you hit a snag,
 > please file an issue with reproduction steps and the logs from the **Logs**
 > tab.
 ## Features
 
-- **9 controller families** supported across USB · BT Classic · BLE · TCP.
+- **10 controller families** supported across USB · BT Classic · BLE · TCP.
 - **VQF / Madgwick / BasicVQF** fusion, switchable per-device.
 - **Magnetometer calibration wizard** for Joy-Con 2 and PS Move ZCM1 (sphere
   fit + coverage meter).
@@ -70,6 +70,7 @@ only.
 | PS Move ZCM1 | USB · BT | 175 Hz | ✓ | hardware-validated |
 | PS Move ZCM2 | USB · BT | 175 Hz | ✗ | hardware-validated |
 | Wii Remote | TCP forwarder (`127.0.0.1:9909`) | 100 Hz | ✗ | hardware-validated |
+| HOPX / Triki | BLE | 52 Hz | ✗ | hardware-validated |
 
 Deep-dive on each: [DEVICES.md](DEVICES.md).
 
@@ -123,7 +124,7 @@ You **MUST** have [VRCFury](https://vrcfury.com/download) on your Unity Project.
 
 You **MUST NOT** Upload the avatar as a *test*, as it prevents the initialization of OSC protocols, please create a duplicate avatar and test it from there. 
 
-1. Import the [IMUHaptics.unitypackage](https://github.com/matiaspalmac/everything-imu/releases/download/latest/IMUHaptics.unitypackage) into your Unity Project
+1. Import the [IMUHaptics.unitypackage](https://github.com/matiaspalmac/everything-imu/releases/latest/download/IMUHaptics.unitypackage) into your Unity Project
 
 2. Drag and drop the prefab found under `Assets/MooshPaw/IMU Haptics` into your Avatar
 <img width="489" height="698" alt="image" src="https://github.com/user-attachments/assets/183da3cd-8745-402b-9380-9466f5a2eca8" />

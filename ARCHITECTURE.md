@@ -21,7 +21,8 @@ everything-imu/
 │   ├── device-joycon/                   # JC1, JC2, Pro Controller
 │   ├── device-dualsense/                # DS5, DS4
 │   ├── device-psmove/                   # ZCM1, ZCM2
-│   ├── device-wii/                      # UDP bridge from Dolphin
+│   ├── device-wii/                      # Wii Remote via homebrew Wi-Fi forwarder
+device-hopx/                     # HOPX / Triki BLE IMU (Nordic UART)
 │   ├── persistence/                     # rusqlite settings store
 │   ├── core/                            # AppState, orchestrator
 │   ├── everything-imu-app/              # Tauri 2 binary (custom title bar)
@@ -125,9 +126,9 @@ Implementations in `device-*` crates.
 ### `device-dualsense`
 
 - DS5: BT via `btleplug` + USB via `hidapi`
-- DS4: USB only (BT deferred)
+- DS4: USB + Bluetooth input
 - Factory calibration read
-- Touchpad / gyro / accel / battery
+- Touchpad / gyro / accel / battery, RGB lightbar, hardware sensor timestamp
 
 ### `device-psmove`
 
@@ -138,8 +139,15 @@ Implementations in `device-*` crates.
 
 ### `device-wii`
 
-- UDP listener for Dolphin Wiimote bridge
+- TCP listener for the homebrew Wi-Fi forwarder (Wii Remote + MotionPlus)
 - No HID/BLE — passive packet receiver
+
+### `device-hopx`
+
+- HOPX / Triki BLE IMU via `btleplug`
+- Nordic UART Service: notifications carry packed gyro + accel
+- Discovery by advertised name prefix (`Triki`)
+- 6-axis only (no magnetometer, battery, or rumble in the stream)
 
 ### `persistence`
 

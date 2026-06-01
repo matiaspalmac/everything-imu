@@ -7,6 +7,28 @@ project follows [SemVer](https://semver.org/).
 Unreleased changes are tracked on `main`. Tagged releases are listed in
 reverse-chronological order below.
 
+## [1.0.4] - 2026-06-01
+
+### Added
+- HOPX / Triki BLE IMU support (Nordic UART Service driver, name-based discovery).
+- DualShock 4 Bluetooth input and DualSense RGB lightbar control.
+- Wii Remote MotionPlus gyro via a homebrew Wi-Fi forwarder companion.
+- PS Move factory and magnetometer calibration, plus USB pairing.
+- Diagnostics CLI flags: `--hopx-raw`, `--ds-raw`, `--wii-raw` / `--wii-bind`, `--ps-pair`.
+- In-app and VRChat avatar haptics setup guide.
+
+### Changed
+- DualSense fusion timestep now driven by the controller hardware sensor clock.
+- Phone and Wear OS apps: single connect button, launch auto-connect, adaptive
+  gyro-rate fusion, OS rotation source, and steadier networking.
+- Dependency updates (uuid, winreg, vitest, zustand, @vitejs/plugin-react,
+  @tanstack/react-virtual).
+
+### Fixed
+- Joy-Con gyro drift on high-rate Bluetooth links (live-adaptive fusion timestep).
+- Corrected Wii Remote accelerometer scale.
+- PS Move HID input-report parser and axis frame.
+
 ## [1.0.2] - 2026-05-28
 
 ### Changed
