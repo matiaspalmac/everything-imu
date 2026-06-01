@@ -1087,7 +1087,7 @@ dependencies = [
 
 [[package]]
 name = "device-dualsense"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -1099,7 +1099,7 @@ dependencies = [
 
 [[package]]
 name = "device-hopx"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "approx",
  "async-trait",
@@ -1114,7 +1114,7 @@ dependencies = [
 
 [[package]]
 name = "device-joycon"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -1133,7 +1133,7 @@ dependencies = [
 
 [[package]]
 name = "device-psmove"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -1145,7 +1145,7 @@ dependencies = [
 
 [[package]]
 name = "device-steam-controller"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "approx",
  "async-trait",
@@ -1158,7 +1158,7 @@ dependencies = [
 
 [[package]]
 name = "device-steam-deck"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "approx",
  "async-trait",
@@ -1171,7 +1171,7 @@ dependencies = [
 
 [[package]]
 name = "device-tesla"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "approx",
  "async-trait",
@@ -1189,7 +1189,7 @@ dependencies = [
 
 [[package]]
 name = "device-traits"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "async-trait",
  "thiserror 2.0.18",
@@ -1198,7 +1198,7 @@ dependencies = [
 
 [[package]]
 name = "device-wii"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -1472,7 +1472,7 @@ dependencies = [
 
 [[package]]
 name = "everything-imu-app"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "anyhow",
  "device-dualsense",
@@ -1510,12 +1510,12 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "winreg 0.55.0",
+ "winreg 0.56.0",
 ]
 
 [[package]]
 name = "everything-imu-core"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "async-trait",
  "device-dualsense",
@@ -2232,7 +2232,7 @@ dependencies = [
 
 [[package]]
 name = "headless-cli"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2566,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "imu-fusion"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "approx",
  "imu-math",
@@ -2578,7 +2578,7 @@ dependencies = [
 
 [[package]]
 name = "imu-math"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "approx",
  "nalgebra",
@@ -2718,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "jni-android"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "imu-fusion",
  "jni 0.21.1",
@@ -3561,7 +3561,7 @@ dependencies = [
 
 [[package]]
 name = "osc-haptics"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "async-trait",
  "rosc",
@@ -3638,7 +3638,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "persistence"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "device-traits",
  "rusqlite",
@@ -4943,7 +4943,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slime-tracker"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "deku",
  "nalgebra",
@@ -6270,9 +6270,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.23.1"
+version = "1.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd74a9687298c6858e9b88ec8935ec45d22e8fd5e6394fa1bd4e99a87789c76"
+checksum = "d258b83ceec21034727ecee8c382cfa6c3e133699b0742c64571814fb420c9f7"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
@@ -7153,6 +7153,16 @@ checksum = "cb5a765337c50e9ec252c2069be9bf91c7df47afb103b642ba3a53bf8101be97"
 dependencies = [
  "cfg-if",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "winreg"
+version = "0.56.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d6f32a0ff4a9f6f01231eb2059cc85479330739333e0e58cadf03b6af2cca10"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

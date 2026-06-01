@@ -63,3 +63,7 @@ image*.png
 # Android release signing (local only — keystore + creds live in GH secrets)
 release.keystore
 keystore.properties
+
+# release asset, uploaded to GitHub release not committed
+IMUHaptics.unitypackage
+*.unitypackage
