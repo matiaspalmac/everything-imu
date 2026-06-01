@@ -35,7 +35,6 @@ class AppPrefs(context: Context) {
         store.data.map { it[KEY_SENSOR_WARNING_DISMISSED] ?: false }
     val language: Flow<String> = store.data.map { it[KEY_LANGUAGE] ?: "en" }
     val themeMode: Flow<String> = store.data.map { it[KEY_THEME] ?: "dark" }
-    val trackerName: Flow<String> = store.data.map { it[KEY_TRACKER_NAME] ?: "" }
     val sendRateHz: Flow<Int> = store.data.map { it[KEY_SEND_RATE] ?: 100 }
     // Default OFF: a raw, uncalibrated magnetometer near a PC/monitor (the
     // typical VR setup) drags VQF's heading and causes yaw drift at rest.
@@ -56,10 +55,6 @@ class AppPrefs(context: Context) {
 
     suspend fun setThemeMode(code: String) {
         store.edit { it[KEY_THEME] = code }
-    }
-
-    suspend fun setTrackerName(name: String) {
-        store.edit { it[KEY_TRACKER_NAME] = name }
     }
 
     suspend fun setSendRateHz(hz: Int) {
@@ -175,7 +170,6 @@ class AppPrefs(context: Context) {
         private val KEY_SENSOR_WARNING_DISMISSED = booleanPreferencesKey("sensor_warning_dismissed")
         private val KEY_LANGUAGE = stringPreferencesKey("language")
         private val KEY_THEME = stringPreferencesKey("theme_mode")
-        private val KEY_TRACKER_NAME = stringPreferencesKey("tracker_name")
         private val KEY_SEND_RATE = intPreferencesKey("send_rate_hz")
         private val KEY_MAG_ENABLED = booleanPreferencesKey("mag_enabled")
         private val KEY_SHAKE_RECENTER = booleanPreferencesKey("shake_recenter")

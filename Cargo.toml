@@ -13,6 +13,7 @@ members = [
     "crates/device-steam-controller",
     "crates/osc-haptics",
     "crates/device-tesla",
+    "crates/device-hopx",
     "crates/persistence",
     "crates/core",
     "crates/everything-imu-app",
@@ -21,7 +22,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 rust-version = "1.88"
 authors = ["Matias Palma <matiaspalma2594@gmail.com>"]

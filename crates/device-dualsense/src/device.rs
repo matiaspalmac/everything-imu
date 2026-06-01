@@ -263,14 +263,25 @@ fn build_ds5_bt_report(state: OutputState) -> Vec<u8> {
 }
 
 fn fill_ds5_payload(payload: &mut [u8], state: OutputState) {
+    // valid_flag0: enable rumble (bit0) + haptics select.
     payload[0] = 0xFF;
+    // valid_flag1: enable mic LED / player LED / lightbar colour. Bit 0x04 gates
+    // the RGB lightbar; it is set here so the colour bytes below take effect.
     payload[1] = 0xF7;
     let motor = state.rumble;
-    payload[2] = motor; // weak
-    payload[3] = motor; // strong
+    payload[2] = motor; // weak / high-frequency motor
+    payload[3] = motor; // strong / low-frequency motor
     payload[38] = 0;
     payload[39] = 1;
+    // Player-indicator LEDs (the five under the touchpad).
     payload[40] = state.led_mask_5bit & 0x1F;
+    // RGB lightbar (DS5 output report bytes 45..47 = payload 44..46). Drive it
+    // from the same mask the player LEDs use so the colour and the count agree,
+    // matching the DualShock 4 lightbar behaviour.
+    let [r, g, b] = ds4_led_rgb_from_mask(state.led_mask_4bit);
+    payload[44] = r;
+    payload[45] = g;
+    payload[46] = b;
 }
 
 fn build_ds4_usb_report(state: OutputState) -> Vec<u8> {

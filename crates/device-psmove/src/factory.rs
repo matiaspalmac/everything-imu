@@ -123,8 +123,14 @@ impl PsMoveFactory {
                     }
                 };
 
+                // Factory IMU calibration (feature 0x10) is USB-only; over BT it
+                // fails fast and we fall back to identity (VQF warm-up covers the
+                // residual bias). See `crate::pairing::read_factory_calibration`.
+                let cal = crate::pairing::read_factory_calibration(&device, kind)
+                    .unwrap_or_else(|_| crate::calibration::ImuCalibration::identity());
                 let mac = mac_from_serial(&serial);
-                let dev = PsMoveDevice::new(device, kind, serial, mac);
+                let mut dev = PsMoveDevice::new(device, kind, serial, mac);
+                dev.set_calibration(cal);
                 let meta = dev.metadata().clone();
                 if out
                     .send((meta, Box::new(dev) as Box<dyn Device>))
@@ -171,6 +177,34 @@ pub struct PairedPsMove {
 }
 
 impl PsMoveFactory {
+    /// Pair the first USB-tethered PS Move to `host_mac` (feature report 0x05),
+    /// returning its device id. The controller must be connected by cable —
+    /// feature reports are not reachable over Bluetooth.
+    pub fn pair(&self, host_mac: [u8; 6]) -> Result<String, DeviceError> {
+        let api = hid_api_singleton().map_err(|e| DeviceError::Hid(e.to_string()))?;
+        let mut guard = api.lock().unwrap();
+        guard
+            .refresh_devices()
+            .map_err(|e| DeviceError::Hid(e.to_string()))?;
+        for i in guard.device_list() {
+            if i.vendor_id() != SONY_VID {
+                continue;
+            }
+            if ControllerKind::from_pid(i.product_id()).is_none() {
+                continue;
+            }
+            let serial = i.serial_number().unwrap_or("").to_string();
+            let dev = guard
+                .open_path(i.path())
+                .map_err(|e| DeviceError::Hid(e.to_string()))?;
+            crate::pairing::pair_to_host(&dev, host_mac).map_err(DeviceError::Hid)?;
+            return Ok(format!("psmove:{serial}"));
+        }
+        Err(DeviceError::Hid(
+            "no wired PS Move found (connect it by USB to pair)".into(),
+        ))
+    }
+
     pub fn list_paired() -> Result<Vec<PairedPsMove>, DeviceError> {
         let api = hid_api_singleton().map_err(|e| DeviceError::Hid(e.to_string()))?;
         let mut guard = api.lock().unwrap();

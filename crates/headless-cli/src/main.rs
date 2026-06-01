@@ -1,5 +1,6 @@
 use clap::Parser;
 use device_dualsense::DualSenseFactory;
+use device_hopx::HopxFactory;
 use device_joycon::JoyconFactory;
 use device_psmove::PsMoveFactory;
 use device_steam_controller::SteamControllerFactory;
@@ -76,6 +77,268 @@ struct Cli {
     /// check failed.
     #[arg(long)]
     doctor: bool,
+
+    /// Hardware characterisation: connect to a "Triki" HOPX tracker and stream
+    /// its raw int16 IMU channels (no scaling, no SlimeVR). Use to measure scale,
+    /// axis order, and sample rate. Redirect to a file and send the output.
+    #[arg(long)]
+    hopx_raw: bool,
+    /// Live PS Move (ZCM1/ZCM2) raw input-report dump for IMU bring-up.
+    #[arg(long)]
+    psmove_raw: bool,
+
+    /// Reverse-engineering aid: connect to a "Triki" HOPX tracker and write each
+    /// command byte to its NUS RX characteristic, logging what it sends back.
+    /// Optional value is a command spec (default "0x00-0x1f"): a comma list of
+    /// single bytes and inclusive `lo-hi` ranges, hex (`0x..`) or decimal —
+    /// e.g. `--hopx-probe 0x09,0x0a` or `--hopx-probe 0-255`.
+    #[arg(long, value_name = "SPEC", num_args = 0..=1, default_missing_value = "0x00-0x1f")]
+    hopx_probe: Option<String>,
+
+    /// How many times to send each probed command (--hopx-probe). Repeats reveal
+    /// whether a reply is stable config or live-changing data.
+    #[arg(long, default_value_t = 3)]
+    hopx_probe_repeats: u8,
+
+    /// Hardware-characterisation: open the first paired Sony pad (DualSense /
+    /// DualShock 4) and dump its undecoded input report — raw gyro/accel int16,
+    /// report id/length, and the firmware sensor-timestamp field with its
+    /// per-report delta. Use to confirm the timestamp tick scale, axis order,
+    /// and report rate. Redirect to a file and send the output.
+    #[arg(long)]
+    ds_raw: bool,
+
+    /// Bring-up: bind the Wii forwarder TCP listener and dump decoded packets
+    /// from the homebrew companion (raw + scaled accel/gyro, extension flags).
+    /// Does not stream to SlimeVR. Defaults to 127.0.0.1:9909.
+    #[arg(long)]
+    wii_raw: bool,
+
+    /// Address the Wii forwarder listens on for `--wii-raw` and live tracking.
+    #[arg(long, default_value = "127.0.0.1:9909")]
+    wii_bind: String,
+
+    /// Pair the first USB-connected PS Move to a host Bluetooth MAC
+    /// (AA:BB:CC:DD:EE:FF) via feature report 0x05, then exit.
+    #[arg(long, value_name = "MAC")]
+    ps_pair: Option<String>,
+}
+
+async fn run_ds_raw() -> anyhow::Result<()> {
+    eprintln!("everything-imu ds-raw — Sony pad raw report + sensor-timestamp dump");
+    eprintln!("Steps:");
+    eprintln!("  1. Keep the DualSense connected (USB cable or BT), then keep this running.");
+    eprintln!("  2. HOLD STILL on a flat surface for ~5 s (watch ts_delta settle).");
+    eprintln!("  3. Rotate exactly 90 deg about ONE axis, slowly, then back.");
+    eprintln!("  4. Tilt nose-down ~45 deg, then roll left ~45 deg.");
+    eprintln!("  5. Press Ctrl-C and send the whole output back.");
+    eprintln!("Cols: id len  gyro[x y z] | accel[x y z]  ts=<u32>  dts=<delta/report>  ~rate");
+    eprintln!();
+
+    // The DualSense read loop is blocking; run it on a dedicated thread and
+    // print every 25th report (~10 rows/s at 250 Hz) so the stream stays
+    // readable while the per-report ts_delta is still shown verbatim.
+    let handle = tokio::task::spawn_blocking(|| {
+        let mut seen: u64 = 0;
+        device_dualsense::diagnostics::stream_raw(|s| {
+            seen += 1;
+            if seen % 25 != 0 {
+                return;
+            }
+            let ts = s
+                .sensor_timestamp
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "----".into());
+            let dts = s
+                .ts_delta
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "----".into());
+            let off = s
+                .ts_offset
+                .map(|o| o.to_string())
+                .unwrap_or_else(|| "?".into());
+            println!(
+                "id=0x{:02x} len={:3}  g[{:6} {:6} {:6}] | a[{:6} {:6} {:6}]  ts={:>10}@{} dts={:>6}  ~{:.1}Hz",
+                s.report_id, s.len,
+                s.gyro[0], s.gyro[1], s.gyro[2],
+                s.accel[0], s.accel[1], s.accel[2],
+                ts, off, dts, s.rate_hz,
+            );
+        })
+    });
+
+    tokio::select! {
+        r = handle => {
+            match r {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => eprintln!("[ds-raw] error: {e}"),
+                Err(e) => eprintln!("[ds-raw] task join error: {e}"),
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[ds-raw] stopped.");
+        }
+    }
+    Ok(())
+}
+
+async fn run_psmove_raw() -> anyhow::Result<()> {
+    eprintln!("everything-imu psmove-raw — PS Move (ZCM1/ZCM2) raw report dump");
+    eprintln!("Steps:");
+    eprintln!("  1. Pair the PS Move over Bluetooth (IMU only streams over BT).");
+    eprintln!("  2. HOLD STILL on a flat surface for ~5 s.");
+    eprintln!("  3. Then rotate around each axis; watch which component spikes.");
+    eprintln!();
+
+    let handle = tokio::task::spawn_blocking(|| device_psmove::diagnostics::run(None));
+
+    tokio::select! {
+        r = handle => {
+            match r {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => eprintln!("[psmove-raw] error: {e}"),
+                Err(e) => eprintln!("[psmove-raw] task join error: {e}"),
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[psmove-raw] stopped.");
+        }
+    }
+    Ok(())
+}
+
+/// Pair the first USB-tethered PS Move to `mac` and report the device id.
+fn run_ps_pair(mac: &str) -> anyhow::Result<()> {
+    let host_mac = device_psmove::pairing::parse_mac_str(mac).map_err(|e| anyhow::anyhow!(e))?;
+    let id = device_psmove::PsMoveFactory::new()
+        .pair(host_mac)
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    println!("paired {id} to host {mac}");
+    Ok(())
+}
+
+async fn run_wii_raw(bind: &str) -> anyhow::Result<()> {
+    eprintln!("everything-imu wii-raw — Wii forwarder packet dump");
+    eprintln!("Steps:");
+    eprintln!("  1. Launch the eimu-wii homebrew on the Wii (companions/wii).");
+    eprintln!("  2. Point it at this PC's IP:{bind} (config.txt server_ip/port).");
+    eprintln!("  3. Hold the remote still ~5 s, then rotate about each axis.");
+    eprintln!("  4. Press Ctrl-C and send the output back.");
+    eprintln!();
+
+    tokio::select! {
+        r = device_wii::diagnostics::run(bind, None) => {
+            if let Err(e) = r {
+                eprintln!("[wii-raw] error: {e}");
+                std::process::exit(1);
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[wii-raw] stopped.");
+        }
+    }
+    Ok(())
+}
+
+async fn run_hopx_raw() -> anyhow::Result<()> {
+    // Guidance on stderr so it stays visible when stdout is redirected to a
+    // file; the data rows below go to stdout (capture those).
+    eprintln!("everything-imu hopx-raw — raw IMU channel dump");
+    eprintln!("Steps:");
+    eprintln!("  1. Power on the Triki tracker, then keep this running.");
+    eprintln!("  2. HOLD STILL on a flat surface for ~5 s.");
+    eprintln!("  3. Rotate exactly 90 deg about ONE axis, slowly, then back.");
+    eprintln!("  4. Tilt nose-down ~45 deg, then roll left ~45 deg.");
+    eprintln!("  5. Press Ctrl-C and send the whole output back.");
+    eprintln!("Columns: seq  ch0 ch1 ch2 | ch3 ch4 ch5  (raw int16, wire order)  rate");
+    eprintln!();
+
+    let res = tokio::select! {
+        r = device_hopx::diagnostics::stream_raw(|s| {
+            println!(
+                "seq={:3}  {:7} {:7} {:7} | {:7} {:7} {:7}  ~{:.1}Hz",
+                s.seq,
+                s.channels[0], s.channels[1], s.channels[2],
+                s.channels[3], s.channels[4], s.channels[5],
+                s.rate_hz,
+            );
+        }) => r,
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[hopx-raw] stopped.");
+            Ok(())
+        }
+    };
+    if let Err(e) = res {
+        eprintln!("[hopx-raw] error: {e}");
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+async fn run_hopx_probe(spec: &str, repeats: u8) -> anyhow::Result<()> {
+    let cmds = match device_hopx::diagnostics::parse_probe_spec(spec) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[hopx-probe] bad command spec: {e}");
+            std::process::exit(2);
+        }
+    };
+
+    eprintln!("everything-imu hopx-probe — NUS command sweep");
+    eprintln!("Steps:");
+    eprintln!("  1. Power on the Triki tracker, then keep this running.");
+    eprintln!("  2. Each command is written {repeats}x; replies are logged below.");
+    eprintln!("  3. Known: 0x09 returns ~3 varying messages, 0x0a disconnects.");
+    eprintln!("  4. Let it finish and send the whole output back.");
+    eprintln!(
+        "Probing {} command(s): {}",
+        cmds.len(),
+        cmds.iter()
+            .map(|c| format!("0x{c:02x}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    eprintln!();
+
+    // Per ~200 ms dwell, long enough to catch a few-message reply without
+    // dragging a 256-command sweep out forever.
+    let dwell = std::time::Duration::from_millis(250);
+    let res = tokio::select! {
+        r = device_hopx::diagnostics::probe_commands(&cmds, repeats, dwell, |p| {
+            if p.responses.is_empty() {
+                println!(
+                    "cmd=0x{:02x} #{}  {}",
+                    p.cmd,
+                    p.attempt,
+                    if p.disconnected { "DISCONNECTED (no reply)" } else { "no reply" }
+                );
+            } else {
+                let msgs = p
+                    .responses
+                    .iter()
+                    .map(|r| r.iter().map(|b| format!("{b:02x}")).collect::<String>())
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                println!(
+                    "cmd=0x{:02x} #{}  {} msg: {}{}",
+                    p.cmd,
+                    p.attempt,
+                    p.responses.len(),
+                    msgs,
+                    if p.disconnected { "  [then DISCONNECTED]" } else { "" }
+                );
+            }
+        }) => r,
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n[hopx-probe] stopped.");
+            Ok(())
+        }
+    };
+    if let Err(e) = res {
+        eprintln!("[hopx-probe] error: {e}");
+        std::process::exit(1);
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -211,6 +474,30 @@ async fn main() -> anyhow::Result<()> {
         std::process::exit(run_doctor(args.server).await);
     }
 
+    if args.ds_raw {
+        return run_ds_raw().await;
+    }
+
+    if args.hopx_raw {
+        return run_hopx_raw().await;
+    }
+
+    if args.psmove_raw {
+        return run_psmove_raw().await;
+    }
+
+    if args.wii_raw {
+        return run_wii_raw(&args.wii_bind).await;
+    }
+
+    if let Some(mac) = args.ps_pair.as_deref() {
+        return run_ps_pair(mac);
+    }
+
+    if let Some(spec) = args.hopx_probe.as_deref() {
+        return run_hopx_probe(spec, args.hopx_probe_repeats).await;
+    }
+
     if args.list_devices {
         let nintendo = JoyconFactory::list_paired()?;
         let jc2_nearby = JoyconFactory::list_nearby_jc2(1200).await?;
@@ -343,9 +630,10 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(JoyconFactory::real()),
             Arc::new(DualSenseFactory::new()),
             Arc::new(PsMoveFactory::new()),
-            Arc::new(WiiFactory::new()),
+            Arc::new(WiiFactory::with_bind_addr(args.wii_bind.clone())),
             Arc::new(SteamDeckFactory::new()),
             Arc::new(SteamControllerFactory::new()),
+            Arc::new(HopxFactory::new()),
         ]
     };
     if args.tesla {

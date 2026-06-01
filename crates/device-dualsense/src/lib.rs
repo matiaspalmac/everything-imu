@@ -23,6 +23,7 @@ pub(crate) mod hid;
 pub(crate) mod report;
 
 pub mod device;
+pub mod diagnostics;
 pub mod factory;
 
 #[cfg(feature = "synthetic-source")]

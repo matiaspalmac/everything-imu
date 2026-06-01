@@ -81,8 +81,8 @@ protocol the desktop bridge speaks — no PC controller required.
 
 - 4-tab UI (Home · Calibrate · Haptics · Settings) sharing the desktop
   sumi-ink theme, with a washi light palette and a follow-system mode.
-- Configurable send rate, magnetometer toggle, tracker name, and shake-to-
-  recenter — all live-applied without restart.
+- Configurable send rate, magnetometer toggle, and shake-to-recenter — all
+  live-applied without restart.
 - Notification quick actions: **Recenter** and **Stop**.
 - Battery level reported to SlimeVR-Server (packet 12) every 30 s.
 - Auto-reconnect on Wi-Fi changes via `ConnectivityManager.NetworkCallback`.

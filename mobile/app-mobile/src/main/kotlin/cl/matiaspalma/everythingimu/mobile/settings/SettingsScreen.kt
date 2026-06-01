@@ -93,7 +93,6 @@ fun SettingsScreen() {
     val lastError by TrackingController.lastError.collectAsStateWithLifecycle()
     val tps by TrackingController.tps.collectAsStateWithLifecycle()
     val battery by TrackingController.batteryLevel.collectAsStateWithLifecycle()
-    val persistedTrackerName by prefs.trackerName.collectAsStateWithLifecycle(initialValue = "")
     val sendRateHz by prefs.sendRateHz.collectAsStateWithLifecycle(initialValue = 100)
     val magOn by prefs.magEnabled.collectAsStateWithLifecycle(initialValue = true)
     val shakeOn by prefs.shakeRecenter.collectAsStateWithLifecycle(initialValue = true)
@@ -103,16 +102,10 @@ fun SettingsScreen() {
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("6969") }
     var uuid by remember { mutableStateOf("") }
-    var trackerName by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         host = TrackingController.savedHost()
         port = TrackingController.savedPort().toString()
         uuid = TrackingController.deviceUuid()
-    }
-    // Seed the editable field from the persisted value once it first arrives,
-    // then let local state drive it so typing isn't gated on a DataStore round-trip.
-    LaunchedEffect(persistedTrackerName) {
-        if (trackerName == null) trackerName = persistedTrackerName
     }
     val portValid by remember(port) { derivedStateOf { port.toIntOrNull() != null } }
     var diagnostics by remember { mutableStateOf<DiagnosticsReport?>(null) }
@@ -163,23 +156,6 @@ fun SettingsScreen() {
                 )
             }
             Text(t.settings_server_hint, style = MaterialTheme.typography.bodySmall, color = EimuPalette.FgMuted)
-        }
-
-        SectionHeader(t.settings_tracker)
-        EimuCard {
-            CardTitle(t.settings_tracker_name)
-            OutlinedTextField(
-                value = trackerName ?: persistedTrackerName,
-                onValueChange = {
-                    val v = it.take(40)
-                    trackerName = v
-                    scope.launch { prefs.setTrackerName(v) }
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = fieldColors(),
-            )
-            Text(t.settings_tracker_name_hint, style = MaterialTheme.typography.bodySmall, color = EimuPalette.FgMuted)
         }
 
         SectionHeader(t.settings_sensors)

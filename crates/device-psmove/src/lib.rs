@@ -15,8 +15,12 @@ pub mod ids;
 pub(crate) mod hid;
 pub(crate) mod report;
 
+pub mod axis_remap;
+pub mod calibration;
 pub mod device;
+pub mod diagnostics;
 pub mod factory;
+pub mod pairing;
 
 #[cfg(feature = "synthetic-source")]
 pub mod synthetic;

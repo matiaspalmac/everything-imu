@@ -20,6 +20,7 @@ device-wii = { path = "../device-wii" }
 device-steam-deck = { path = "../device-steam-deck", features = ["synthetic-source"] }
 device-steam-controller = { path = "../device-steam-controller", features = ["synthetic-source"] }
 device-tesla = { path = "../device-tesla", features = ["synthetic-source"] }
+device-hopx = { path = "../device-hopx" }
 device-traits = { path = "../device-traits" }
 persistence = { path = "../persistence" }
 clap = { workspace = true }

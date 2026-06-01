@@ -1087,7 +1087,7 @@ dependencies = [
 
 [[package]]
 name = "device-dualsense"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -1098,8 +1098,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "device-hopx"
+version = "1.0.3"
+dependencies = [
+ "approx",
+ "async-trait",
+ "btleplug",
+ "device-traits",
+ "futures-util",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "device-joycon"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -1118,7 +1133,7 @@ dependencies = [
 
 [[package]]
 name = "device-psmove"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -1130,7 +1145,7 @@ dependencies = [
 
 [[package]]
 name = "device-steam-controller"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "approx",
  "async-trait",
@@ -1143,7 +1158,7 @@ dependencies = [
 
 [[package]]
 name = "device-steam-deck"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "approx",
  "async-trait",
@@ -1156,7 +1171,7 @@ dependencies = [
 
 [[package]]
 name = "device-tesla"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "approx",
  "async-trait",
@@ -1174,7 +1189,7 @@ dependencies = [
 
 [[package]]
 name = "device-traits"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "async-trait",
  "thiserror 2.0.18",
@@ -1183,7 +1198,7 @@ dependencies = [
 
 [[package]]
 name = "device-wii"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "async-trait",
  "device-traits",
@@ -1457,10 +1472,11 @@ dependencies = [
 
 [[package]]
 name = "everything-imu-app"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "device-dualsense",
+ "device-hopx",
  "device-joycon",
  "device-psmove",
  "device-steam-controller",
@@ -1499,7 +1515,7 @@ dependencies = [
 
 [[package]]
 name = "everything-imu-core"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "async-trait",
  "device-dualsense",
@@ -2216,11 +2232,12 @@ dependencies = [
 
 [[package]]
 name = "headless-cli"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "anyhow",
  "clap",
  "device-dualsense",
+ "device-hopx",
  "device-joycon",
  "device-psmove",
  "device-steam-controller",
@@ -2549,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "imu-fusion"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "approx",
  "imu-math",
@@ -2561,7 +2578,7 @@ dependencies = [
 
 [[package]]
 name = "imu-math"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "approx",
  "nalgebra",
@@ -2701,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "jni-android"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "imu-fusion",
  "jni 0.21.1",
@@ -3544,7 +3561,7 @@ dependencies = [
 
 [[package]]
 name = "osc-haptics"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "async-trait",
  "rosc",
@@ -3621,7 +3638,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "persistence"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "device-traits",
  "rusqlite",
@@ -4926,7 +4943,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slime-tracker"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "deku",
  "nalgebra",

@@ -141,10 +141,16 @@ fn imu_from_raw(
     now: Instant,
 ) -> device_traits::ImuSample {
     const G: f32 = 9.80665;
-    const ACCEL_LSB_PER_G: f32 = 512.0;
+    // Wiimote core accelerometer: ~512 raw at 0 g, ~200 LSB/g (ADXL330-class).
+    // Matches the legacy `(raw-512)/200*g` mapping — zero-offset matters, the
+    // earlier `raw/512` form put rest gravity at the wrong magnitude and never
+    // settled to ‖a‖≈9.81 m/s². See `docs/ref_wii_protocol.md`.
+    const ACCEL_ZERO_G: f32 = 512.0;
+    const ACCEL_LSB_PER_G: f32 = 200.0;
     const GYRO_DPS_PER_LSB: f32 = 0.07;
     const DEG_TO_RAD: f32 = core::f32::consts::PI / 180.0;
 
+    let accel_g = |raw: i16| (raw as f32 - ACCEL_ZERO_G) / ACCEL_LSB_PER_G * G;
     device_traits::ImuSample {
         gyro: [
             gyro_raw[0] as f32 * GYRO_DPS_PER_LSB * DEG_TO_RAD,
@@ -152,9 +158,9 @@ fn imu_from_raw(
             gyro_raw[2] as f32 * GYRO_DPS_PER_LSB * DEG_TO_RAD,
         ],
         accel: [
-            accel_raw[0] as f32 / ACCEL_LSB_PER_G * G,
-            accel_raw[1] as f32 / ACCEL_LSB_PER_G * G,
-            accel_raw[2] as f32 / ACCEL_LSB_PER_G * G,
+            accel_g(accel_raw[0]),
+            accel_g(accel_raw[1]),
+            accel_g(accel_raw[2]),
         ],
         mag: None,
         timestamp_us: now.duration_since(start).as_micros() as u64,
@@ -200,5 +206,35 @@ mod tests {
         let m = stable_mac(b"127.0.0.1:0");
         assert_eq!(m[0] & 0x01, 0);
         assert_eq!(m[0] & 0x02, 0x02);
+    }
+
+    #[test]
+    fn accel_scale_zero_offset_gives_one_g_at_rest() {
+        // At rest, lying flat: X,Y at the 512 zero point, Z one g above it.
+        let start = Instant::now();
+        let s = imu_from_raw([512, 512, 712], [0, 0, 0], start, start);
+        assert!(
+            s.accel[0].abs() < 0.01,
+            "x should be ~0, got {}",
+            s.accel[0]
+        );
+        assert!(
+            s.accel[1].abs() < 0.01,
+            "y should be ~0, got {}",
+            s.accel[1]
+        );
+        assert!(
+            (s.accel[2] - 9.80665).abs() < 0.05,
+            "z should be ~1g, got {}",
+            s.accel[2]
+        );
+    }
+
+    #[test]
+    fn accel_negative_offset_below_zero_point() {
+        let start = Instant::now();
+        let s = imu_from_raw([312, 512, 512], [0, 0, 0], start, start);
+        // (312-512)/200 = -1 g.
+        assert!((s.accel[0] + 9.80665).abs() < 0.05, "got {}", s.accel[0]);
     }
 }

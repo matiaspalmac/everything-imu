@@ -1,6 +1,9 @@
 # Local docs
 docs/
 
+# Local portable build artifacts
+dist-portable/
+
 # Rust
 target/
 **/*.rs.bk

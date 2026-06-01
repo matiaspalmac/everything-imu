@@ -63,6 +63,16 @@ impl ImuOffsets {
                 battery: Some(30),
                 buttons_2: Some(7),
             }),
+            // DualShock 4 Bluetooth report 0x11 (78 bytes): [0]=0x11, [1..3]=BT
+            // header, then the USB 0x01 payload shifted +2. Trailing 4-byte CRC32
+            // is ignored on input. Reference: hid-playstation.c. Validation
+            // pending (no DS4 hardware this session).
+            (ControllerKind::DualShock4, 78) => Some(Self {
+                gyro: 16,
+                accel: 22,
+                battery: Some(32),
+                buttons_2: Some(9),
+            }),
             _ => None,
         }
     }
@@ -71,6 +81,33 @@ impl ImuOffsets {
 fn read_i16_le(buf: &[u8], offset: usize) -> Option<i16> {
     let bytes = buf.get(offset..offset + 2)?;
     Some(i16::from_le_bytes([bytes[0], bytes[1]]))
+}
+
+fn read_u32_le(buf: &[u8], offset: usize) -> Option<u32> {
+    let b = buf.get(offset..offset + 4)?;
+    Some(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+}
+
+/// Pull the firmware sensor timestamp (µs) out of an input report.
+///
+/// DualSense / DualSense Edge carry a free-running u32 LE tick counter directly
+/// after the 6-byte accel block (`accel_offset + 6`). The tick is 1/3 µs, so
+/// µs = ticks/3 rounded to nearest, matching hid-playstation's
+/// `DIV_ROUND_CLOSEST(ts, 3)`. The counter is incremented by the controller
+/// itself, so it is immune to USB / Bluetooth delivery jitter.
+///
+/// DualShock 4 stores a different, accumulating u16 timestamp whose wrap
+/// handling is not yet hardware-validated; it returns 0 so the pipeline falls
+/// back to the delivery-rate estimate.
+fn sensor_timestamp_us(kind: ControllerKind, buf: &[u8], offsets: &ImuOffsets) -> u64 {
+    match kind {
+        ControllerKind::DualSense | ControllerKind::DualSenseEdge => {
+            read_u32_le(buf, offsets.accel + 6)
+                .map(|ticks| (ticks as u64 + 1) / 3)
+                .unwrap_or(0)
+        }
+        ControllerKind::DualShock4 => 0,
+    }
 }
 
 /// Returns `Some(true)` if the PS / system button is pressed in this
@@ -148,7 +185,7 @@ pub fn parse_report(
         gyro: crate::axis_remap::apply(kind, gyro_chip),
         accel: crate::axis_remap::apply(kind, accel_chip),
         mag: None,
-        timestamp_us: 0,
+        timestamp_us: sensor_timestamp_us(kind, buf, &offsets),
     };
     let _ = out.try_send(ChannelInfo::ImuSamples(vec![sample]));
 
@@ -306,6 +343,56 @@ mod tests {
                 // (chip Y up → JSL Y up requires (x, z, -y), so chip ay lands on JSL.z = -ay).
                 assert!((s.accel[1] - 9.806).abs() < 0.05);
             }
+            _ => panic!("expected ImuSamples"),
+        }
+    }
+
+    #[test]
+    fn dualsense_usb_parses_hw_timestamp() {
+        let mut buf = [0u8; 64];
+        // 8192 LSB on accel Y so the sample is plausible.
+        buf[24..26].copy_from_slice(&8192i16.to_le_bytes());
+        // u32 tick counter right after the accel block (accel 22 + 6 = 28).
+        buf[28..32].copy_from_slice(&12000u32.to_le_bytes());
+
+        let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
+        assert!(parse_report(ControllerKind::DualSense, &buf, None, &tx));
+        match rx.try_recv().expect("imu event") {
+            ChannelInfo::ImuSamples(s) => {
+                // 12000 ticks / 3 = 4000 µs (one report period at 250 Hz).
+                assert_eq!(s[0].timestamp_us, 4000);
+            }
+            _ => panic!("expected ImuSamples"),
+        }
+    }
+
+    #[test]
+    fn ds4_bt_report_parses_imu() {
+        // DualShock 4 Bluetooth report 0x11 (78 bytes): IMU shifted +2 vs USB.
+        let mut buf = [0u8; 78];
+        buf[0] = 0x11;
+        buf[16..18].copy_from_slice(&100i16.to_le_bytes()); // gyro x @ 16
+        buf[22..24].copy_from_slice(&8192i16.to_le_bytes()); // accel y @ 22
+        let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
+        assert!(parse_report(ControllerKind::DualShock4, &buf, None, &tx));
+        match rx.try_recv().expect("imu event") {
+            ChannelInfo::ImuSamples(s) => {
+                assert!(s[0].gyro[0] > 0.0, "gyro x should be positive");
+                // DS4 has no usable HW timestamp in this driver → fallback path.
+                assert_eq!(s[0].timestamp_us, 0);
+            }
+            _ => panic!("expected ImuSamples"),
+        }
+    }
+
+    #[test]
+    fn ds4_reports_no_hw_timestamp() {
+        let mut buf = [0u8; 64];
+        buf[14..16].copy_from_slice(&100i16.to_le_bytes());
+        let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
+        assert!(parse_report(ControllerKind::DualShock4, &buf, None, &tx));
+        match rx.try_recv().expect("imu event") {
+            ChannelInfo::ImuSamples(s) => assert_eq!(s[0].timestamp_us, 0),
             _ => panic!("expected ImuSamples"),
         }
     }
