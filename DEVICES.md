@@ -21,11 +21,17 @@ convention, on-device reset gestures, and known quirks.
 | PS Move ZCM1 | `054C:03D5` | MPU-6050 + AK8975 | USB · BT | 175 Hz | ✓ | ✓ | ✓ |
 | PS Move ZCM2 | `054C:0C5E` | MPU-6500 | USB · BT | 175 Hz | ✗ | ✓ | ✓ |
 | Wii Remote | TCP forwarder | ADXL345 + IDG-600 / ADXL330² | TCP `127.0.0.1:9909` | 100 Hz | ✗ | ✓ | ✓ |
+| 3DS / 2DS (XL) | UDP forwarder | ST accel + InvenSense gyro | UDP `:9305` | 100 Hz | ✗ | ✗ | ✗ |
+| PS Vita | UDP forwarder | 3-axis accel + 3-axis gyro (`sceMotion`) | UDP `:9306` | 100 Hz | ✗ | ✗ | ✗ |
+| DualShock 3 | `054C:0268` | Kionix accel + 1-axis gyro³ | USB | ~100 Hz | ✗ | ✗ | ✗ |
 | HOPX / Triki | BLE (name `Triki`) | LSM6DS (nRF52810) | BLE | 52 Hz | ✗ | ✗ | ✗ |
 
 ¹ Genuine Nintendo. Clones ship with ICM-20600 — auto-detected via SPI ID, fall
 back to longer VQF warm-up.
 ² Wii Remote IMUs vary by revision; values forwarded by the companion process.
+³ DualShock 3 has only a **single-axis (yaw) gyroscope** + 3-axis accel, no
+mag — experimental/not-recommended tracker (accel-dominant, unconstrained yaw
+drift). See `docs/ref_dualshock3_protocol.md`.
 
 Charging Grip (`057E:200E`) enumerates as USB but is not directly driven — it
 proxies its docked Joy-Cons. Connect them via Bluetooth instead.
@@ -404,6 +410,112 @@ through the Nordic UART Service - the host never talks to the sensor directly.
 ### Notes
 
 - 6-axis only - no magnetometer, battery, or rumble exposed in the stream.
+
+## Nintendo 3DS / 2DS (XL)
+
+**Crate**: `crates/device-3ds/`
+**Status**: implemented (forwarder + parser + tests); axis remap + accel scale
+pending live-console validation. Protocol recovered from a known-working
+forwarder — see `docs/ref_3ds_protocol.md`.
+
+### Hardware
+
+Full 6-axis: 3-axis ST accelerometer + 3-axis InvenSense gyroscope. No mag, no
+battery/rumble on the wire. Good tracker hardware — quality tier comparable to
+Joy-Con 1.
+
+### Transport
+
+The console is not host-drivable, so a **homebrew app runs on the 3DS** and
+streams raw IMU over **UDP** to the bridge (Wii-style companion model, but UDP).
+
+| Aspect | Value |
+|--------|-------|
+| Protocol | UDP, bridge binds `0.0.0.0:9305` (`--three-ds-bind`) |
+| Packet | 12 bytes, little-endian: `i16 ax ay az gx gy gz` |
+| Rate | ~100 Hz |
+| Identity | sender IP (one console = one tracker) |
+
+### Scale
+
+- Gyro: `rad/s = raw * 0.00125`.
+- Accel: gravity auto-scale — `division = 9.80665 / mean(|ay|)` over the first
+  100 samples, then `m/s² = raw * division`. No magic LSB/g constant.
+
+### Axis convention (provisional)
+
+`accel = (ax, az, ay) * division`, `gyro = (-gx, -gy, -gz) * 0.00125`. Ported
+from the working forwarder; confirm on hardware before treating as canonical.
+
+### Quirks
+
+- No buttons in the packet → no on-device reset gesture (UI/software recenter
+  only) until the homebrew is extended.
+- Old 3DS Wi-Fi is 2.4 GHz b/g — UDP loss tolerated (VQF coasts).
+
+---
+
+## PlayStation Vita
+
+**Crate**: `crates/device-vita/`
+**Status**: implemented (forwarder + parser + tests); axis convention pending
+live-Vita validation. See `docs/ref_vita_protocol.md`.
+
+### Hardware
+
+Full 6-axis via `sceMotion` (3-axis accel + 3-axis gyro), no mag. Good tracker —
+JC1 tier. Not host-drivable, so a VitaSDK homebrew streams over UDP.
+
+### Transport
+
+| Aspect | Value |
+|--------|-------|
+| Protocol | UDP, bridge binds `0.0.0.0:9306` (`--vita-bind`) |
+| Packet | 24 bytes, little-endian: 6 × `f32` (accel g, gyro rad/s) |
+| Rate | ~100 Hz |
+| Identity | sender IP |
+
+The Vita SDK returns calibrated floats, so the wire carries SI `f32` values —
+`accel_m_s2 = accel_g * 9.80665`, gyro passed through. No raw-count scaling.
+
+### Notes
+
+- eimu-defined protocol (no legacy reference); the companion `.vpk` must match.
+- One Vita = one tracker. Distinct port from the 3DS so both can run at once.
+
+---
+
+## DualShock 3 / SIXAXIS (PS3)
+
+**Crate**: `crates/device-dualshock3/`
+**Status**: implemented — **experimental**. USB only. Single-axis gyro means
+this is a tilt-dominant tracker; ship behind a UI warning. Scales + axis
+convention are estimates pending hardware. See `docs/ref_dualshock3_protocol.md`.
+
+### Hardware
+
+3-axis Kionix accelerometer + **single-axis (yaw) gyroscope**, no magnetometer.
+Hardware-limited: with one gyro axis there is no drift-free yaw reference and no
+rate damping for pitch/roll. **Experimental / not recommended** — same fusion
+tier as a bare Wii Remote (accel-gravity orientation, unconstrained yaw drift).
+
+### Transport / enable
+
+USB (HID) or BT. Must be told to start: SET_REPORT feature `0xF4` (`42 0C 00 00`
+USB / `42 03 00 00` BT). Input report `0x01`. Motion words are 10-bit, MSB-first
+(byte-swap): accel X/Y/Z then the single gyro Z, near offsets `0x29/0x2B/0x2D`
+and `0x2F` in the 49-byte report. Treat scales as estimates pending hardware.
+
+### Why it is experimental
+
+The field consensus ("insane drift") and the Linux `hid-sony` driver (accel-only,
+gyro inaccurate + revision-dependent) both confirm the hardware ceiling. The
+driver only populates the yaw gyro axis (X/Y are zero — no sensor there). Ship
+behind a clear UI warning; do not advertise as a serious tracker. Windows often
+needs a filter/libusb driver to expose the raw HID interface — document, don't
+solve here.
+
+---
 
 ## Adding a new device
 
