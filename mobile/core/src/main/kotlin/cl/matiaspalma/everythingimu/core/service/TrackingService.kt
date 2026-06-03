@@ -13,6 +13,7 @@ import android.net.wifi.WifiManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import androidx.lifecycle.LifecycleService
+import cl.matiaspalma.everythingimu.core.R
 import cl.matiaspalma.everythingimu.core.tracking.TrackingController
 
 class TrackingService : LifecycleService() {
@@ -141,13 +142,13 @@ class TrackingService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("everything-imu tracking")
-            .setContentText("IMU streaming · long-press vol or shake to recenter")
+            .setContentTitle(getString(R.string.notif_title))
+            .setContentText(getString(R.string.notif_text))
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(0, "Recenter", recenterPi)
-            .addAction(0, "Stop", stopPi)
+            .addAction(0, getString(R.string.notif_action_recenter), recenterPi)
+            .addAction(0, getString(R.string.notif_action_stop), stopPi)
             .build()
     }
 
@@ -158,9 +159,9 @@ class TrackingService : LifecycleService() {
         mgr.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                "Tracking",
+                getString(R.string.notif_channel_name),
                 NotificationManager.IMPORTANCE_LOW,
-            ).apply { description = "Foreground tracking notification" },
+            ).apply { description = getString(R.string.notif_channel_desc) },
         )
     }
 

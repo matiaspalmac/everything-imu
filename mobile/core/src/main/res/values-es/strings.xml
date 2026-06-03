@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_title">everything-imu rastreando</string>
+    <string name="notif_text">Streaming IMU · mantén volumen o agita para recentrar</string>
+    <string name="notif_action_recenter">Recentrar</string>
+    <string name="notif_action_stop">Detener</string>
+    <string name="notif_channel_name">Rastreo</string>
+    <string name="notif_channel_desc">Notificación de rastreo en primer plano</string>
+</resources>
