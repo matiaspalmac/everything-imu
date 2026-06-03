@@ -63,7 +63,6 @@ import cl.matiaspalma.everythingimu.core.net.SlimeVrClient
 import cl.matiaspalma.everythingimu.core.prefs.AppPrefs
 import cl.matiaspalma.everythingimu.core.sensors.SensorSample
 import cl.matiaspalma.everythingimu.core.tracking.TrackingController
-import cl.matiaspalma.everythingimu.core.tracking.SensorAvailability
 import cl.matiaspalma.everythingimu.mobile.calibration.CalibrationScreen
 import cl.matiaspalma.everythingimu.mobile.haptics.HapticsScreen
 import cl.matiaspalma.everythingimu.mobile.i18n.Language
@@ -120,10 +119,9 @@ class MainActivity : ComponentActivity() {
                 } else {
                     volUpTimeNanos = System.nanoTime()
                 }
-            } else if (event.isLongPress) {
-                TrackingController.sendRecenter()
-                return true
             }
+            // Recenter is fired once from onKeyUp based on the measured hold
+            // duration. Firing here on isLongPress as well double-triggered it.
         }
         return super.onKeyDown(keyCode, event)
     }
@@ -249,7 +247,6 @@ private fun HomeScreen() {
 
         if (missingRequiredSensors && !sensorWarningDismissed) {
             SensorWarningCard(
-                availability = availability,
                 onDismiss = { scope.launch { prefs.setSensorWarningDismissed(true) } },
             )
         }
@@ -485,7 +482,6 @@ private fun SensorCard(
 
 @Composable
 private fun SensorWarningCard(
-    availability: SensorAvailability,
     onDismiss: () -> Unit,
 ) {
     val t = tr
@@ -493,8 +489,6 @@ private fun SensorWarningCard(
         Text(t.sensors_missing_title, style = MaterialTheme.typography.titleMedium, color = EimuPalette.Danger)
         Text(t.sensors_missing_body, style = MaterialTheme.typography.bodySmall, color = EimuPalette.FgSecondary)
         OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(t.action_dismiss) }
-        // suppress unused param warning
-        availability.gyro
     }
 }
 
