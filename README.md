@@ -76,35 +76,11 @@ Deep-dive on each: [DEVICES.md](DEVICES.md).
 
 ## Mobile companion (Android + Wear OS)
 
-`mobile/` ships a native Android phone tracker + Wear OS companion that
-streams the phone IMU straight to SlimeVR-Server using the same UDP
-protocol the desktop bridge speaks — no PC controller required.
-
-- 4-tab UI (Home · Calibrate · Haptics · Settings) sharing the desktop
-  sumi-ink theme, with a washi light palette and a follow-system mode.
-- Configurable send rate, magnetometer toggle, and shake-to-recenter — all
-  live-applied without restart.
-- Notification quick actions: **Recenter** and **Stop**.
-- Battery level reported to SlimeVR-Server (packet 12) every 30 s.
-- Auto-reconnect on Wi-Fi changes via `ConnectivityManager.NetworkCallback`.
-- Figure-8 magnetometer wizard + automatic gyro-bias estimation.
-- VRChat OSC → device vibration bridge on UDP `9001`.
-- Foreground service with wake + Wi-Fi locks; OEM battery-optimization
-  helper (Xiaomi / Huawei / Samsung / dontkillmyapp guides).
-- EN / ES localisation, persisted in DataStore.
-- Native VQF fusion via JNI (`crates/jni-android`), with a pure-Kotlin
-  Madgwick fallback when the `.so` is unavailable.
-- **Wear OS standalone setup** — the watch no longer needs the phone to know
-  the server address. A paired watch auto-syncs `host:port` from the phone over
-  the Wearable Data Layer; any watch (including AOSP / de-Googled builds with no
-  Play Services) can enter the IP directly with an on-watch wheel picker —
-  rotary crown or swipe, no keyboard, no companion app required.
-
-Install: grab `everything-imu-phone-<tag>.apk` (and optionally
-`everything-imu-wear-<tag>.apk`) from the [latest release](https://github.com/matiaspalmac/everything-imu/releases/latest).
-The release APKs are signed; if you are upgrading from an earlier unsigned
-build, uninstall it first — Android blocks an in-place upgrade when the signing
-key changes. Build locally from `mobile/` with `./gradlew :app-mobile:assembleDebug`.
+The native Android phone tracker + Wear OS companion now live in their own
+repository: **[everything-imu-mobile](https://github.com/matiaspalmac/everything-imu-mobile)**.
+They stream the phone IMU straight to SlimeVR-Server over the same UDP protocol
+this desktop bridge speaks — no PC controller required — and receive VRChat OSC
+haptics back. Grab the phone/watch APKs from that repo's releases.
 
 ## Install
 

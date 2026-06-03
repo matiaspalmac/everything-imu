@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="notif_title">everything-imu tracking</string>
-    <string name="notif_text">IMU streaming · long-press vol or shake to recenter</string>
-    <string name="notif_action_recenter">Recenter</string>
-    <string name="notif_action_stop">Stop</string>
-    <string name="notif_channel_name">Tracking</string>
-    <string name="notif_channel_desc">Foreground tracking notification</string>
-</resources>

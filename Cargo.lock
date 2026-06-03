@@ -2755,14 +2755,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jni-android"
-version = "1.0.4"
-dependencies = [
- "imu-fusion",
- "jni 0.21.1",
-]
-
-[[package]]
 name = "jni-macros"
 version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

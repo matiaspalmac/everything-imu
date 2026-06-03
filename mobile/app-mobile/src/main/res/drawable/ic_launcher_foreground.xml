@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Foreground = shared desktop icon (crates/everything-imu-app/icons/icon.png). -->
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/ic_launcher_src"
-    android:gravity="fill" />
