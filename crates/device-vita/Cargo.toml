@@ -1,0 +1,18 @@
+[package]
+name = "device-vita"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PlayStation Vita forwarded-homebrew IMU device driver (UDP)"
+
+[dependencies]
+device-traits = { path = "../device-traits" }
+tokio = { workspace = true, features = ["sync", "rt", "macros", "time", "net"] }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
