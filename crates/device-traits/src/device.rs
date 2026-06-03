@@ -49,6 +49,9 @@ pub enum DeviceKind {
     SteamDeck,
     SteamController,
     Hopx,
+    ThreeDs,
+    Vita,
+    DualShock3,
 }
 
 #[derive(Debug, Clone)]
