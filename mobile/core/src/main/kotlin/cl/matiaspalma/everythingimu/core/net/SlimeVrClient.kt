@@ -7,6 +7,8 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +45,18 @@ class SlimeVrClient(
     private val tag = "SlimeVrClient"
     private val seqCounter = AtomicLong(0)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Single-threaded send pump. Every datagram is stamped with its sequence
+    // number and written to the socket on this one thread, so the number on the
+    // wire always matches the order packets are transmitted. SlimeVR-Server
+    // rejects (throws + drops) any packet whose number is <= the last it saw
+    // for this device ("Out of order packet received"); without serialization,
+    // the rotation pump, heartbeat loop, and ping-echo each run on their own
+    // thread and race the sequence counter against the socket write, which the
+    // server sees as a constant stream of out-of-order packets.
+    private val sendExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "slime-send").apply { isDaemon = true }
+    }
     private var socket: DatagramSocket? = null
     private var endpoint: InetSocketAddress? = null
     private var recvJob: Job? = null
@@ -103,49 +117,36 @@ class SlimeVrClient(
     fun shutdown() {
         disconnect()
         scope.cancel()
+        sendExecutor.shutdownNow()
     }
 
     fun sendRotation(wxyz: FloatArray) {
-        val ep = endpoint ?: return
-        val sock = socket ?: return
-        val bytes = SlimeProtocol.rotation(nextSeq(), sensorId = 0, wxyz = wxyz)
-        sendSilently(sock, ep, bytes)
+        submitSend { seq -> SlimeProtocol.rotation(seq, sensorId = 0, wxyz = wxyz) }
     }
 
     fun sendUserAction(action: Int) {
-        val ep = endpoint ?: return
-        val sock = socket ?: return
-        val bytes = SlimeProtocol.userAction(nextSeq(), action)
-        scope.launch { sendSilently(sock, ep, bytes) }
+        submitSend { seq -> SlimeProtocol.userAction(seq, action) }
     }
 
     /** Legacy owoTrack acceleration packet (4). Linear accel (m/s²), 3 floats. */
     fun sendAccel(xyz: FloatArray) {
-        val ep = endpoint ?: return
-        val sock = socket ?: return
-        sendSilently(sock, ep, SlimeProtocol.accel(nextSeq(), xyz))
+        submitSend { seq -> SlimeProtocol.accel(seq, xyz) }
     }
 
     /** SlimeVR battery packet (12). Level 0..1. */
     fun sendBattery(voltageVolts: Float, level: Float) {
-        val ep = endpoint ?: return
-        val sock = socket ?: return
-        sendSilently(sock, ep, SlimeProtocol.battery(nextSeq(), voltageVolts, level))
+        submitSend { seq -> SlimeProtocol.battery(seq, voltageVolts, level) }
     }
 
     /** Legacy owoTrack recenter button. */
     fun sendButtonPushed() {
-        val ep = endpoint ?: return
-        val sock = socket ?: return
-        val bytes = SlimeProtocol.buttonPushed(nextSeq())
-        scope.launch { sendSilently(sock, ep, bytes) }
+        submitSend { seq -> SlimeProtocol.buttonPushed(seq) }
     }
 
     private suspend fun heartbeatLoop() = withContext(Dispatchers.IO) {
         while (scope.isActive) {
-            val sock = socket ?: return@withContext
-            val ep = endpoint ?: return@withContext
-            sendSilently(sock, ep, SlimeProtocol.heartbeat(nextSeq()))
+            if (socket == null || endpoint == null) return@withContext
+            submitSend { seq -> SlimeProtocol.heartbeat(seq) }
             delay(1000)
         }
     }
@@ -164,8 +165,7 @@ class SlimeVrClient(
                 if (tag == SlimeProtocol.PACKET_PING) {
                     val challenge = SlimeProtocol.extractPingChallenge(pkt.data, pkt.length)
                     if (challenge != null) {
-                        val ep = endpoint ?: continue
-                        sendSilently(sock, ep, SlimeProtocol.pong(nextSeq(), challenge))
+                        submitSend { seq -> SlimeProtocol.pong(seq, challenge) }
                     }
                 }
                 updateStats()
@@ -210,14 +210,32 @@ class SlimeVrClient(
     }
 
     private fun sendHandshake() {
-        val sock = socket ?: return
-        val ep = endpoint ?: return
         // owoTrack-compat handshake auto-registers a single sensor on server-side,
         // so no SensorInfo packet is required (matches moveTrackVR / owoTrackVR).
-        sendSilently(sock, ep, SlimeProtocol.handshake(nextSeq(), mac, firmware))
+        submitSend { seq -> SlimeProtocol.handshake(seq, mac, firmware) }
     }
 
-    private fun sendSilently(sock: DatagramSocket, ep: InetSocketAddress, bytes: ByteArray) {
+    /**
+     * Stamp a datagram with the next sequence number and write it, all on the
+     * single send thread. Assigning the sequence number here (rather than at
+     * the call site) is what guarantees the number on the wire matches the
+     * transmission order — see [sendExecutor]. The socket/endpoint are read
+     * inside the task so a concurrent [disconnect] simply drops the packet.
+     */
+    private fun submitSend(build: (Long) -> ByteArray) {
+        if (sendExecutor.isShutdown) return
+        try {
+            sendExecutor.execute {
+                val sock = socket ?: return@execute
+                val ep = endpoint ?: return@execute
+                rawSend(sock, ep, build(nextSeq()))
+            }
+        } catch (_: RejectedExecutionException) {
+            // Executor shutting down — drop the packet.
+        }
+    }
+
+    private fun rawSend(sock: DatagramSocket, ep: InetSocketAddress, bytes: ByteArray) {
         try {
             sock.send(DatagramPacket(bytes, bytes.size, ep.address, ep.port))
             sentCount++

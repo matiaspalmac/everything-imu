@@ -29,6 +29,12 @@ android {
             isMinifyEnabled = false
         }
     }
+
+    testOptions {
+        // SlimeVrClient logs via android.util.Log, which is a stub in JVM unit
+        // tests. Return defaults instead of throwing "not mocked".
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -39,6 +45,8 @@ dependencies {
     api(libs.play.services.wearable)
     api(libs.kotlinx.coroutines.play.services)
     api(libs.androidx.fragment)
+
+    testImplementation(libs.junit)
 }
 
 // cargo-ndk integration. Cross-compiles `crates/jni-android` to native .so files
