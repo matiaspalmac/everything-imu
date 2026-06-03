@@ -147,7 +147,9 @@ class HapticBridge(context: Context) {
     @SuppressLint("MissingPermission")
     private fun triggerVibration(intensity: Float) {
         val vib = vibrator ?: return
-        val boosted = (intensity * gain).coerceIn(0f, 1f)
+        // `gain` was already applied (and clamped) in handleMessage; do not
+        // multiply it in again here or the motor is driven by gain squared.
+        val boosted = intensity.coerceIn(0f, 1f)
         val amplitude = (boosted * 255f).toInt().coerceIn(1, 255)
         val durationMs = (60L + (boosted * 220f).toLong()).coerceAtLeast(40L)
         try {
