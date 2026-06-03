@@ -17,6 +17,9 @@ device-joycon = { path = "../device-joycon", features = ["synthetic-source"] }
 device-dualsense = { path = "../device-dualsense", features = ["synthetic-source"] }
 device-psmove = { path = "../device-psmove", features = ["synthetic-source"] }
 device-wii = { path = "../device-wii" }
+device-3ds = { path = "../device-3ds" }
+device-vita = { path = "../device-vita" }
+device-dualshock3 = { path = "../device-dualshock3" }
 device-steam-deck = { path = "../device-steam-deck", features = ["synthetic-source"] }
 device-steam-controller = { path = "../device-steam-controller", features = ["synthetic-source"] }
 device-tesla = { path = "../device-tesla", features = ["synthetic-source"] }

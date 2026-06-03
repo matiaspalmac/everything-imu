@@ -1086,7 +1086,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "device-3ds"
+version = "1.0.4"
+dependencies = [
+ "async-trait",
+ "device-traits",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "device-dualsense"
+version = "1.0.4"
+dependencies = [
+ "async-trait",
+ "device-traits",
+ "hidapi",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "device-dualshock3"
 version = "1.0.4"
 dependencies = [
  "async-trait",
@@ -1194,6 +1216,16 @@ dependencies = [
  "async-trait",
  "thiserror 2.0.18",
  "tokio",
+]
+
+[[package]]
+name = "device-vita"
+version = "1.0.4"
+dependencies = [
+ "async-trait",
+ "device-traits",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1475,7 +1507,9 @@ name = "everything-imu-app"
 version = "1.0.4"
 dependencies = [
  "anyhow",
+ "device-3ds",
  "device-dualsense",
+ "device-dualshock3",
  "device-hopx",
  "device-joycon",
  "device-psmove",
@@ -1483,6 +1517,7 @@ dependencies = [
  "device-steam-deck",
  "device-tesla",
  "device-traits",
+ "device-vita",
  "device-wii",
  "everything-imu-core",
  "imu-math",
@@ -2236,7 +2271,9 @@ version = "1.0.4"
 dependencies = [
  "anyhow",
  "clap",
+ "device-3ds",
  "device-dualsense",
+ "device-dualshock3",
  "device-hopx",
  "device-joycon",
  "device-psmove",
@@ -2244,6 +2281,7 @@ dependencies = [
  "device-steam-deck",
  "device-tesla",
  "device-traits",
+ "device-vita",
  "device-wii",
  "everything-imu-core",
  "persistence",

@@ -1,5 +1,7 @@
 use clap::Parser;
+use device_3ds::ThreeDsFactory;
 use device_dualsense::DualSenseFactory;
+use device_dualshock3::DualShock3Factory;
 use device_hopx::HopxFactory;
 use device_joycon::JoyconFactory;
 use device_psmove::PsMoveFactory;
@@ -9,6 +11,7 @@ use device_tesla::{TeslaConfig, TeslaFactory};
 use device_traits::{
     BiasStore, DeviceFactory, InMemoryBiasStore, InMemorySettingsStore, SettingsStore,
 };
+use device_vita::VitaFactory;
 use device_wii::WiiFactory;
 use everything_imu_core::{AppState, Supervisor};
 use persistence::{PersistenceDb, SqliteBiasStore, SqliteSettingsStore};
@@ -117,6 +120,14 @@ struct Cli {
     /// Address the Wii forwarder listens on for `--wii-raw` and live tracking.
     #[arg(long, default_value = "127.0.0.1:9909")]
     wii_bind: String,
+
+    /// UDP address the 3DS homebrew forwarder listens on for live tracking.
+    #[arg(long, default_value = "0.0.0.0:9305")]
+    three_ds_bind: String,
+
+    /// UDP address the PS Vita homebrew forwarder listens on for live tracking.
+    #[arg(long, default_value = "0.0.0.0:9306")]
+    vita_bind: String,
 
     /// Pair the first USB-connected PS Move to a host Bluetooth MAC
     /// (AA:BB:CC:DD:EE:FF) via feature report 0x05, then exit.
@@ -631,6 +642,9 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(DualSenseFactory::new()),
             Arc::new(PsMoveFactory::new()),
             Arc::new(WiiFactory::with_bind_addr(args.wii_bind.clone())),
+            Arc::new(ThreeDsFactory::with_bind_addr(args.three_ds_bind.clone())),
+            Arc::new(VitaFactory::with_bind_addr(args.vita_bind.clone())),
+            Arc::new(DualShock3Factory::new()),
             Arc::new(SteamDeckFactory::new()),
             Arc::new(SteamControllerFactory::new()),
             Arc::new(HopxFactory::new()),
