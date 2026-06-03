@@ -9,11 +9,17 @@ class VqfEngine private constructor(private var handle: Long) : AutoCloseable {
     private val quatBuf = FloatArray(4)
     private var magSeen = false
 
+    // Updates run on the sensor thread; [close] may be called from another
+    // thread (service teardown). Serialize native access so a freed handle is
+    // never dereferenced — nativeDrop followed by a concurrent nativeUpdate*
+    // would be a use-after-free in the Rust side.
+    @Synchronized
     fun updateImu(gx: Float, gy: Float, gz: Float, ax: Float, ay: Float, az: Float) {
         if (handle == 0L) return
         VqfNative.nativeUpdateImu(handle, gx, gy, gz, ax, ay, az)
     }
 
+    @Synchronized
     fun updateMarg(
         gx: Float, gy: Float, gz: Float,
         ax: Float, ay: Float, az: Float,
@@ -25,6 +31,7 @@ class VqfEngine private constructor(private var handle: Long) : AutoCloseable {
     }
 
     /** Latest fused quaternion as (w, x, y, z). */
+    @Synchronized
     fun quaternion(): Quaternion {
         if (handle == 0L) return Quaternion.IDENTITY
         if (magSeen) VqfNative.nativeQuat9d(handle, quatBuf)
@@ -32,6 +39,7 @@ class VqfEngine private constructor(private var handle: Long) : AutoCloseable {
         return Quaternion(quatBuf[0], quatBuf[1], quatBuf[2], quatBuf[3])
     }
 
+    @Synchronized
     override fun close() {
         if (handle == 0L) return
         VqfNative.nativeDrop(handle)
