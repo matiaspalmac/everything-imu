@@ -28,6 +28,7 @@ import cl.matiaspalma.everythingimu.core.sensors.SensorSnapshot
 import cl.matiaspalma.everythingimu.core.sensors.Vec3
 import cl.matiaspalma.everythingimu.core.service.TrackingService
 import cl.matiaspalma.everythingimu.core.wearable.WearableConfigSender
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -48,6 +49,10 @@ object TrackingController {
 
     private var sensors: SensorRepository? = null
     private var client: SlimeVrClient? = null
+    // Completes once the client is constructed (after the async UUID/mac load in
+    // ensureInit). connect() awaits this so a connect issued during cold start —
+    // before the init coroutine finishes — no longer silently no-ops.
+    private val clientReady = CompletableDeferred<SlimeVrClient>()
     private var prefs: AppPrefs? = null
     private var wifiBinder: WifiBinder? = null
     private var pumpJob: Job? = null
@@ -127,7 +132,10 @@ object TrackingController {
         appCtx = app
         val appPrefs = AppPrefs(app)
         prefs = appPrefs
-        wifiBinder = WifiBinder(app).also { it.bindToWifi() }
+        // Bind to Wi-Fi only while a tracking session is live (onServiceStart),
+        // not for the whole app lifetime — binding routes the entire process'
+        // traffic through Wi-Fi, which is needless when idle.
+        wifiBinder = WifiBinder(app)
         hapticBridge = HapticBridge(app)
         val repo = SensorRepository(app)
         sensors = repo
@@ -140,10 +148,12 @@ object TrackingController {
             repo.applyCalibration(calibration.gyroBias, calibration.mag)
             val uuid = appPrefs.deviceUuidOrCreate()
             val mac = SlimeVrClient.macFromUuid(uuid)
-            client = SlimeVrClient(mac)
-            launch { client!!.state.collectStateInto(_connection) }
-            launch { client!!.stats.collectStateInto(_clientStats) }
-            launch { client!!.lastError.collectStateInto(_lastError) }
+            val c = SlimeVrClient(mac)
+            client = c
+            clientReady.complete(c)
+            launch { c.state.collectStateInto(_connection) }
+            launch { c.stats.collectStateInto(_clientStats) }
+            launch { c.lastError.collectStateInto(_lastError) }
         }
         scope.launch { appPrefs.sendRateHz.collect { sendRateHz = it } }
         scope.launch {
@@ -292,7 +302,8 @@ object TrackingController {
     }
 
     suspend fun connect(host: String, port: Int) {
-        val c = client ?: return
+        // Await the client if the init coroutine hasn't constructed it yet.
+        val c = client ?: clientReady.await()
         withContext(Dispatchers.IO) { c.connect(host, port) }
         prefs?.setServer(host, port)
         startQuaternionPump()
@@ -340,6 +351,7 @@ object TrackingController {
     }
 
     internal fun onServiceStart() {
+        wifiBinder?.bindToWifi()
         sensors?.start()
         _running.value = true
         startQuaternionPump()
@@ -347,6 +359,7 @@ object TrackingController {
 
     internal fun onServiceStop() {
         sensors?.stop()
+        wifiBinder?.release()
         _running.value = false
         pumpJob?.cancel()
         pumpJob = null
