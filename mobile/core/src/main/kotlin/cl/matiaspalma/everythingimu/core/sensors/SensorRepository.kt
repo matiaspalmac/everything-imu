@@ -169,10 +169,13 @@ class SensorRepository(context: Context) : SensorEventListener {
         magSensor?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST, handler)
         }
-        // Always register the rotation vector when present: it's cheap (OS
-        // already computes it) and lets the user switch fusion source live.
+        // Always register the rotation vector when present so the user can
+        // switch fusion source live. GAME delay (~50 Hz) is plenty for an
+        // orientation source — it feeds the network send (capped at sendRateHz)
+        // directly — and avoids burning battery on a FASTEST stream that is
+        // unused while VQF (the default) is active.
         rotationVectorSensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST, handler)
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, handler)
         }
     }
 
