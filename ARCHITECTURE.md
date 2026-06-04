@@ -20,9 +20,16 @@ everything-imu/
 │   ├── device-traits/                   # interfaces shared across devices
 │   ├── device-joycon/                   # JC1, JC2, Pro Controller
 │   ├── device-dualsense/                # DS5, DS4
+│   ├── device-dualshock3/               # DS3 / SIXAXIS (experimental)
 │   ├── device-psmove/                   # ZCM1, ZCM2
 │   ├── device-wii/                      # Wii Remote via homebrew Wi-Fi forwarder
-device-hopx/                     # HOPX / Triki BLE IMU (Nordic UART)
+│   ├── device-3ds/                      # 3DS / 2DS via homebrew UDP forwarder
+│   ├── device-vita/                     # PS Vita via homebrew UDP forwarder
+│   ├── device-steam-deck/               # Steam Deck integrated IMU
+│   ├── device-steam-controller/         # Steam Controller (USB / BLE)
+│   ├── device-tesla/                    # Tesla vehicle IMU (Fleet API)
+│   ├── device-hopx/                     # HOPX / Triki BLE IMU (Nordic UART)
+│   ├── osc-haptics/                     # VRChat OSC → rumble bridge
 │   ├── persistence/                     # rusqlite settings store
 │   ├── core/                            # AppState, orchestrator
 │   ├── everything-imu-app/              # Tauri 2 binary (custom title bar)
@@ -30,6 +37,10 @@ device-hopx/                     # HOPX / Triki BLE IMU (Nordic UART)
 │   │   ├── tauri.conf.json
 │   │   └── src/
 │   └── headless-cli/                    # daemon binary (no GUI)
+├── companions/                          # console-side forwarders
+│   ├── wii/                             # Wii Remote (devkitPPC)
+│   ├── 3ds/                             # 3DS / 2DS (devkitARM / libctru)
+│   └── vita/                            # PS Vita (VitaSDK)
 ├── apps/
 │   └── ui/                              # React 19 + Vite 6 + TS
 │       ├── package.json

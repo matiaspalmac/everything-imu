@@ -29,7 +29,7 @@ Conventional commits with scope:
 | `perf` | Performance improvement |
 | `ci` | CI/CD config |
 
-Scopes: `tracker`, `fusion`, `joycon`, `dualsense`, `psmove`, `wii`, `core`, `ui`, `tauri`, `persistence`, `protocol`.
+Scopes: `tracker`, `fusion`, `joycon`, `dualsense`, `dualshock3`, `psmove`, `wii`, `3ds`, `vita`, `steam`, `hopx`, `tesla`, `companions`, `core`, `ui`, `tauri`, `persistence`, `protocol`.
 
 Examples:
 

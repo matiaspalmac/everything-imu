@@ -28,7 +28,8 @@ quaternion to SlimeVR-Server over UDP using the official protocol.
 > tab.
 ## Features
 
-- **10 controller families** supported across USB · BT Classic · BLE · TCP.
+- **13+ controller & device families** supported across USB · BT Classic · BLE ·
+  TCP · UDP forwarders.
 - **VQF / Madgwick / BasicVQF** fusion, switchable per-device.
 - **Magnetometer calibration wizard** for Joy-Con 2 and PS Move ZCM1 (sphere
   fit + coverage meter).
@@ -71,6 +72,20 @@ only.
 | PS Move ZCM2 | USB · BT | 175 Hz | ✗ | hardware-validated |
 | Wii Remote | TCP forwarder (`127.0.0.1:9909`) | 100 Hz | ✗ | hardware-validated |
 | HOPX / Triki | BLE | 52 Hz | ✗ | hardware-validated |
+| 3DS / 2DS (XL) | UDP forwarder (`:9305`) | 100 Hz | ✗ | needs hardware |
+| PS Vita | UDP forwarder (`:9306`) | 100 Hz | ✗ | needs hardware |
+| DualShock 3 (PS3) | USB | ~100 Hz | ✗ | experimental¹ |
+| Steam Deck | USB (integrated) | 250 Hz | ✗ | needs hardware |
+| Steam Controller | USB · BLE | 100 Hz | ✗ | needs hardware |
+| Tesla (vehicle IMU) | Fleet API | — | ✗ | experimental |
+
+¹ DualShock 3 has only a single-axis (yaw) gyroscope and no magnetometer — it is
+a tilt-dominant, drift-prone tracker included for completeness. Not recommended.
+
+The Wii, 3DS, and PS Vita are not host-drivable, so they stream their IMU from a
+small companion app over the network. The Wii forwarder lives in
+[`companions/wii/`](companions/wii); the 3DS and Vita homebrew live in
+[`companions/3ds/`](companions/3ds) and [`companions/vita/`](companions/vita).
 
 Deep-dive on each: [DEVICES.md](DEVICES.md).
 
@@ -191,7 +206,8 @@ To avoid typing the address manually, you may add them via the **Discovered OSC 
 5. **Reset orientation**: `R` (yaw) / `Shift+R` (full) from the global hotkeys,
    or click *Reset Yaw* / *Reset Full* / *Reset Mounting* on the device card.
    On controllers without a magnetometer (Joy-Con 1, DualSense, DualShock 4,
-   Wii Remote) yaw drifts on body rotation — re-yaw facing forward, or use
+   Wii Remote, 3DS, PS Vita, DualShock 3) yaw drifts on body rotation — re-yaw
+   facing forward, or use
    Reset Mounting right after strapping the tracker. Some devices accept
    on-device gestures — see [DEVICES.md](DEVICES.md).
 

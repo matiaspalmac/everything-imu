@@ -7,6 +7,24 @@ project follows [SemVer](https://semver.org/).
 Unreleased changes are tracked on `main`. Tagged releases are listed in
 reverse-chronological order below.
 
+## [Unreleased]
+
+### Added
+- Nintendo 3DS / 2DS support via a libctru homebrew UDP forwarder (`:9305`),
+  with a clean-room companion app in `companions/3ds/`.
+- PlayStation Vita support via a VitaSDK homebrew UDP forwarder (`:9306`), with a
+  companion app in `companions/vita/`.
+- DualShock 3 / SIXAXIS (PS3) USB driver — experimental: single-axis gyro, no
+  magnetometer, drift-prone, not recommended.
+- Headless CLI flags `--three-ds-bind` and `--vita-bind` for the forwarder
+  listen addresses.
+
+### Changed
+- The Android phone and Wear OS apps moved to a dedicated repository,
+  [everything-imu-mobile](https://github.com/matiaspalmac/everything-imu-mobile).
+  The `jni-android` crate and the Android CI jobs moved with them; this repo is
+  now desktop + console forwarders only.
+
 ## [1.0.4] - 2026-06-01
 
 ### Added
