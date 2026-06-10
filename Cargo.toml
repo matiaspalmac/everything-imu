@@ -19,8 +19,8 @@ members = [
     "crates/device-hopx",
     "crates/persistence",
     "crates/core",
-    "crates/everything-imu-app",
-    "crates/headless-cli",
+    "apps/everything-imu-app",
+    "apps/headless-cli",
 ]
 
 [workspace.package]
@@ -30,6 +30,18 @@ rust-version = "1.88"
 authors = ["Matias Palma <matiaspalma2594@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/matiaspalmac/everything-imu"
+
+# Shared lint baseline — crates opt in via `[lints] workspace = true`.
+# Kept deliberately small: every entry here is a thing we never want on
+# main, not a style preference (rustfmt and clippy's defaults own style).
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+mem_forget = "warn"
 
 [workspace.dependencies]
 tauri = { version = "2.1", features = ["tray-icon"] }

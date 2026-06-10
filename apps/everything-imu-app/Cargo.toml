@@ -35,23 +35,23 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
-everything-imu-core = { path = "../core" }
-osc-haptics = { path = "../osc-haptics" }
-device-joycon = { path = "../device-joycon", features = ["synthetic-source"] }
-device-dualsense = { path = "../device-dualsense", features = ["synthetic-source"] }
-device-psmove = { path = "../device-psmove", features = ["synthetic-source"] }
-device-wii = { path = "../device-wii" }
-device-3ds = { path = "../device-3ds" }
-device-vita = { path = "../device-vita" }
-device-dualshock3 = { path = "../device-dualshock3" }
-device-steam-deck = { path = "../device-steam-deck", features = ["synthetic-source"] }
-device-steam-controller = { path = "../device-steam-controller", features = ["synthetic-source"] }
-device-tesla = { path = "../device-tesla", features = ["synthetic-source"] }
-device-hopx = { path = "../device-hopx" }
-device-traits = { path = "../device-traits" }
-persistence = { path = "../persistence" }
-slime-tracker = { path = "../slime-tracker" }
-imu-math = { path = "../imu-math" }
+everything-imu-core = { path = "../../crates/core" }
+osc-haptics = { path = "../../crates/osc-haptics" }
+device-joycon = { path = "../../crates/device-joycon", features = ["synthetic-source"] }
+device-dualsense = { path = "../../crates/device-dualsense", features = ["synthetic-source"] }
+device-psmove = { path = "../../crates/device-psmove", features = ["synthetic-source"] }
+device-wii = { path = "../../crates/device-wii" }
+device-3ds = { path = "../../crates/device-3ds" }
+device-vita = { path = "../../crates/device-vita" }
+device-dualshock3 = { path = "../../crates/device-dualshock3" }
+device-steam-deck = { path = "../../crates/device-steam-deck", features = ["synthetic-source"] }
+device-steam-controller = { path = "../../crates/device-steam-controller", features = ["synthetic-source"] }
+device-tesla = { path = "../../crates/device-tesla", features = ["synthetic-source"] }
+device-hopx = { path = "../../crates/device-hopx" }
+device-traits = { path = "../../crates/device-traits" }
+persistence = { path = "../../crates/persistence" }
+slime-tracker = { path = "../../crates/slime-tracker" }
+imu-math = { path = "../../crates/imu-math" }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -70,3 +70,6 @@ crash-reporting = ["dep:sentry"]
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
+
+[lints]
+workspace = true

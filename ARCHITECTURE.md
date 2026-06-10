@@ -31,27 +31,29 @@ everything-imu/
 │   ├── device-hopx/                     # HOPX / Triki BLE IMU (Nordic UART)
 │   ├── osc-haptics/                     # VRChat OSC → rumble bridge
 │   ├── persistence/                     # rusqlite settings store
-│   ├── core/                            # AppState, orchestrator
-│   ├── everything-imu-app/              # Tauri 2 binary (custom title bar)
-│   │   ├── Cargo.toml
-│   │   ├── tauri.conf.json
-│   │   └── src/
-│   └── headless-cli/                    # daemon binary (no GUI)
+│   └── core/                            # AppState, orchestrator
 ├── companions/                          # console-side forwarders
 │   ├── wii/                             # Wii Remote (devkitPPC)
 │   ├── 3ds/                             # 3DS / 2DS (devkitARM / libctru)
 │   └── vita/                            # PS Vita (VitaSDK)
-├── apps/
+├── apps/                                # executables (binaries + frontend)
+│   ├── everything-imu-app/              # Tauri 2 binary (custom title bar)
+│   │   ├── Cargo.toml
+│   │   ├── tauri.conf.json
+│   │   └── src/
+│   ├── headless-cli/                    # daemon binary (no GUI)
 │   └── ui/                              # React 19 + Vite 6 + TS
 │       ├── package.json
 │       ├── vite.config.ts
 │       └── src/
+│           ├── api/                     # specta-generated bindings + client
 │           ├── components/
-│           │   └── ui/                  # shadcn primitives (Radix wrapped)
+│           │   ├── layout/              # app shell (title bar, status bar, palette)
+│           │   ├── widgets/             # domain widgets (tracker cards, viz, config)
+│           │   └── ui/                  # presentational primitives
 │           ├── pages/
-│           ├── stores/                  # Zustand
-│           └── ipc/                     # specta-generated types
-└── docs/
+│           └── stores/                  # Zustand
+└── docs/                                # private knowledge base (gitignored)
 ```
 
 ## Crate dependency graph
@@ -85,6 +87,7 @@ everything-imu/
 - Wire-compat tests against reference fixtures
 
 **Public API**:
+
 ```rust
 pub struct SlimeClient { /* ... */ }
 impl SlimeClient {
@@ -174,7 +177,7 @@ Implementations in `device-*` crates.
 - Per-device `Pipeline`: IMU events → fusion → SlimeVR UDP
 - Configuration loading (`persistence` integration)
 
-### `crates/everything-imu-app`
+### `apps/everything-imu-app`
 
 - Tauri 2 binary entrypoint
 - Tauri commands: device management, settings, calibration
@@ -228,7 +231,7 @@ High-frequency data (tracker pose 60-200 Hz) goes via `emit("tracker_update", pa
 
 ## Distribution
 
-| Target | Bundle |
-|--------|--------|
+| Target  | Bundle                                |
+| ------- | ------------------------------------- |
 | Windows | NSIS `.exe` installer (Tauri bundler) |
-| Linux | `.deb`, `.AppImage` (Tauri bundler) |
+| Linux   | `.deb`, `.AppImage` (Tauri bundler)   |

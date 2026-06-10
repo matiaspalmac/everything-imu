@@ -3,20 +3,30 @@
   "private": true,
   "version": "1.0.4",
   "type": "module",
+  "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "pnpm --filter @everything-imu/ui dev",
     "build": "pnpm --filter @everything-imu/ui build",
     "test": "pnpm --filter @everything-imu/ui test",
     "typecheck": "pnpm --filter @everything-imu/ui typecheck",
-    "tauri:dev": "cd crates/everything-imu-app && cargo tauri dev",
-    "tauri:build": "cd crates/everything-imu-app && cargo tauri build",
+    "tauri:dev": "cd apps/everything-imu-app && cargo tauri dev",
+    "tauri:build": "cd apps/everything-imu-app && cargo tauri build",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "format": "biome format --write ."
+    "format": "biome format --write . && prettier --write .",
+    "format:check": "biome check . && prettier --check .",
+    "docs:format": "prettier --write .",
+    "docs:check": "prettier --check .",
+    "knip": "pnpm --filter @everything-imu/ui knip",
+    "preinstall": "npx only-allow pnpm",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.0",
-    "@tauri-apps/cli": "^2.11.2"
+    "@tauri-apps/cli": "^2.11.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.8.4"
   },
   "engines": {
     "pnpm": ">=10",

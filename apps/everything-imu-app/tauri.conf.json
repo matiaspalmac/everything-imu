@@ -7,7 +7,7 @@
     "beforeDevCommand": "pnpm --filter @everything-imu/ui dev",
     "beforeBuildCommand": "pnpm --filter @everything-imu/ui build",
     "devUrl": "http://127.0.0.1:5173",
-    "frontendDist": "../../apps/ui/dist"
+    "frontendDist": "../ui/dist"
   },
   "app": {
     "windows": [
@@ -25,7 +25,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost ws://127.0.0.1:5173 http://127.0.0.1:5173"
     }
   },
   "bundle": {

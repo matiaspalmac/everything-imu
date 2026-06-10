@@ -3,13 +3,13 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to attach the draft release to (e.g. v0.0.0-test)'
+        description: "Tag to attach the draft release to (e.g. v0.0.0-test)"
         required: true
-        default: 'v0.0.0-test'
+        default: "v0.0.0-test"
 
 permissions:
   contents: write
@@ -89,11 +89,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ needs.prepare.outputs.tag }}
-          releaseName: 'everything-imu ${{ needs.prepare.outputs.tag }}'
-          releaseBody: 'See the auto-generated release notes below and CHANGELOG.md in the repository for the full history.'
+          releaseName: "everything-imu ${{ needs.prepare.outputs.tag }}"
+          releaseBody: "See the auto-generated release notes below and CHANGELOG.md in the repository for the full history."
           releaseDraft: true
           prerelease: ${{ needs.prepare.outputs.prerelease }}
-          projectPath: crates/everything-imu-app
+          projectPath: apps/everything-imu-app
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           makeLatest: true
