@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+publish.workspace = true
 description = "BLE IMU tracker driver over the Nordic UART Service — streams accel/gyro from a compact nRF52 motion puck as a virtual SlimeVR tracker"
 
 [features]

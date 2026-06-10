@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+publish.workspace = true
 description = "Tesla Fleet API streaming bridge — turns a Tesla vehicle's heading/speed feed into a virtual IMU tracker"
 
 [features]

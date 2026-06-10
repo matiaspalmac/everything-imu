@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+publish.workspace = true
 description = "SlimeVR UDP wire-protocol encoder/decoder + tokio client. Extended with v0.4.1 features (BUNDLE auto-fallback, FEATURE_FLAGS gating, magnetometer, battery)."
 
 [dependencies]

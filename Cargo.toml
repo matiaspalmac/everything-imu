@@ -30,6 +30,7 @@ rust-version = "1.88"
 authors = ["Matias Palma <matiaspalma2594@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/matiaspalmac/everything-imu"
+publish = false
 
 # Shared lint baseline — crates opt in via `[lints] workspace = true`.
 # Kept deliberately small: every entry here is a thing we never want on

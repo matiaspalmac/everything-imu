@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+publish.workspace = true
 description = "Nintendo 3DS / 2DS forwarded-homebrew IMU device driver (UDP)"
 
 [dependencies]

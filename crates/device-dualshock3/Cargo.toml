@@ -6,6 +6,7 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+publish.workspace = true
 description = "DualShock 3 / SIXAXIS (PS3) IMU device driver — experimental (accel + single-axis gyro)"
 
 [dependencies]
