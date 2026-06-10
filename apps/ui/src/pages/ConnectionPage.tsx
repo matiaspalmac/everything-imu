@@ -1,10 +1,10 @@
 import { Pulse } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { ActivityFeed } from "../components/ActivityFeed";
-import { ConnectionStatusCard } from "../components/ConnectionStatusCard";
-import { EmptyState } from "../components/EmptyState";
-import { LatencySummary } from "../components/LatencyPanel";
-import { Sparkline } from "../components/Sparkline";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Sparkline } from "../components/ui/Sparkline";
+import { ActivityFeed } from "../components/widgets/ActivityFeed";
+import { ConnectionStatusCard } from "../components/widgets/ConnectionStatusCard";
+import { LatencySummary } from "../components/widgets/LatencyPanel";
 import { macHex, macKey } from "../lib/macFormat";
 import { useConnectionStore } from "../stores/useConnectionStore";
 import { useMetricsStore } from "../stores/useMetricsStore";
@@ -21,17 +21,17 @@ export function ConnectionPage() {
   const totalPackets = status?.packets_sent ?? 0;
 
   return (
-    <div className="flex flex-col gap-5">
-      <header className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
+    <div className="flex flex-col gap-6">
+      <header className="flex items-end justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--fg-primary)]">
           {t("pages.connection")}
-        </h2>
-        <div className="flex items-center gap-3 text-[11px] text-[var(--fg-muted)]">
-          <span>{t("status.tracker_count_plural", { count: list.length })}</span>
-        </div>
+        </h1>
+        <span className="rounded-full border border-[var(--border-subtle)] px-3 py-1 text-[11px] text-[var(--fg-secondary)]">
+          {t("status.tracker_count_plural", { count: list.length })}
+        </span>
       </header>
 
-      {/* Bento: status hero (span 2 + feature halo) + at-a-glance stat tiles */}
+      {/* Bento: status hero (span 2 + elevated) + at-a-glance stat tiles */}
       <div className="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Tile span={2} feature title={t("pages.connection")}>
           <ConnectionStatusCard />
@@ -72,19 +72,36 @@ export function ConnectionPage() {
             compact
           />
         ) : (
-          <div className="flex flex-col divide-y divide-[var(--border-subtle)]">
+          <div className="flex flex-col">
             {list.map((tr) => {
               const macStr = macHex(tr.mac);
               const k = macKey(tr.mac);
               const hist = histByMac[k];
+              const stalled = tr.rate_hz <= 0;
               return (
-                <div key={macStr} className="flex items-center gap-4 py-2 text-sm">
-                  <span className="metric-num w-44 truncate font-mono text-[var(--fg-primary)]">
+                <div
+                  key={macStr}
+                  className="flex items-center gap-4 rounded-[var(--radius-md)] px-2 py-2.5 text-sm transition-colors hover:bg-[var(--bg-elevated)]"
+                >
+                  <span
+                    aria-hidden
+                    className="size-1.5 shrink-0 rounded-full"
+                    style={{ background: stalled ? "var(--fg-muted)" : "var(--success)" }}
+                  />
+                  <span className="metric-num min-w-0 flex-1 truncate font-mono text-[var(--fg-primary)] sm:w-44 sm:flex-none">
                     {macStr}
                   </span>
-                  <span className="w-32 truncate text-[var(--fg-secondary)]">{tr.serial}</span>
-                  <Sparkline values={hist?.rates ?? []} />
-                  <span className="metric-num ml-auto font-mono text-[var(--fg-secondary)]">
+                  <span className="hidden w-32 truncate text-[var(--fg-secondary)] md:block">
+                    {tr.serial}
+                  </span>
+                  <span className="hidden sm:block">
+                    <Sparkline values={hist?.rates ?? []} />
+                  </span>
+                  <span
+                    className={`metric-num ml-auto font-mono ${
+                      stalled ? "text-[var(--fg-muted)]" : "text-[var(--fg-primary)]"
+                    }`}
+                  >
                     {tr.rate_hz.toFixed(0)} Hz
                   </span>
                 </div>
@@ -115,11 +132,11 @@ function Tile({
   const spanCls =
     span === 4 ? "lg:col-span-4" : span === 3 ? "lg:col-span-3" : span === 2 ? "lg:col-span-2" : "";
   const featureCls = feature
-    ? "border-[var(--accent-soft)] shadow-[var(--shadow-card)] before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-gradient-to-r before:from-transparent before:via-[var(--accent)] before:to-transparent before:opacity-60 before:content-['']"
-    : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]";
+    ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-[var(--accent)] before:content-['']"
+    : "border-[var(--border-subtle)] bg-[var(--bg-panel)] hover:border-[var(--border-strong)]";
   return (
     <section
-      className={`relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--bg-panel)] p-4 ${spanCls} ${featureCls}`}
+      className={`relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-xl)] border p-5 transition-colors ${spanCls} ${featureCls}`}
     >
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
         {title}
@@ -131,11 +148,11 @@ function Tile({
 
 function Stat({ value, hint }: { value: string; hint?: string }) {
   return (
-    <div className="flex flex-col">
-      <span className="metric-num text-2xl font-semibold text-[var(--fg-primary)]">{value}</span>
-      {hint && (
-        <span className="text-[10px] uppercase tracking-wide text-[var(--fg-muted)]">{hint}</span>
-      )}
+    <div className="flex h-full flex-col justify-end gap-1">
+      <span className="metric-num text-[28px] font-semibold leading-none tracking-tight text-[var(--fg-primary)]">
+        {value}
+      </span>
+      {hint && <span className="text-[11px] text-[var(--fg-muted)]">{hint}</span>}
     </div>
   );
 }

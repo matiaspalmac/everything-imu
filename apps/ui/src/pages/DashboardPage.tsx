@@ -1,12 +1,12 @@
-import { ArrowsClockwise, Crosshair, Eye, Plugs, Target } from "@phosphor-icons/react";
+import { ArrowsClockwise, Crosshair, Eye, Pause, Play, Plugs, Target } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { api, type Mac, type TrackerSnapshot } from "../api/client";
-import { ConnectionStatusCard } from "../components/ConnectionStatusCard";
-import { EmptyState } from "../components/EmptyState";
-import { LatencySummary } from "../components/LatencyPanel";
-import { TrackerCard } from "../components/TrackerCard";
+import { EmptyState } from "../components/ui/EmptyState";
+import { ConnectionStatusCard } from "../components/widgets/ConnectionStatusCard";
+import { LatencySummary } from "../components/widgets/LatencyPanel";
+import { TrackerCard } from "../components/widgets/TrackerCard";
 import { macKey as macKeyFn } from "../lib/macFormat";
 import { useDeviceStore } from "../stores/useDeviceStore";
 import { usePerDeviceSettingsStore } from "../stores/usePerDeviceSettingsStore";
@@ -22,7 +22,15 @@ export function DashboardPage() {
   const patch = usePerDeviceSettingsStore((s) => s.patch);
   const pushToast = useToastStore((s) => s.push);
   const navigate = useNavigate();
-  const rawList = useMemo(() => Object.values(trackers), [trackers]);
+
+  // Live-view freeze: capturing the store snapshot by reference is enough —
+  // tracker snapshots are immutable, so the frozen map keeps rendering the
+  // exact poses from the moment of the click while the store keeps moving.
+  const [frozenTrackers, setFrozenTrackers] = useState<typeof trackers | null>(null);
+  const viewPaused = frozenTrackers !== null;
+  const displayTrackers = frozenTrackers ?? trackers;
+
+  const rawList = useMemo(() => Object.values(displayTrackers), [displayTrackers]);
 
   // Hydrate per-device settings once per tracker.
   useEffect(() => {
@@ -80,14 +88,20 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Bento hero row — connection (1fr), latency (1.4fr), broadcast (1fr).
-          Collapses to single column under md. Latency is the visual anchor
-          because that's the bridge's real-time health signal. */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1.4fr_1fr]">
+      {/* Bento hero row — connection (1fr), latency (1.4fr), broadcast (1fr)
+          on xl. At md the latency tile takes a full row (it's the widest
+          content) and connection + broadcast pair up; below md everything
+          stacks. Latency is the visual anchor because that's the bridge's
+          real-time health signal. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1.4fr_1fr]">
         <BentoTile title={t("pages.connection")} accent>
           <ConnectionStatusCard />
         </BentoTile>
-        <BentoTile title={t("pages.bridge_latency")} feature>
+        <BentoTile
+          title={t("pages.bridge_latency")}
+          feature
+          className="md:col-span-2 xl:col-span-1"
+        >
           <LatencySummary />
         </BentoTile>
         <BentoTile title={t("pages.broadcast_actions")}>
@@ -125,15 +139,32 @@ export function DashboardPage() {
       <SectionPanel
         title={t("pages.live_trackers")}
         action={
-          hiddenCount > 0 && (
-            <button
-              type="button"
-              onClick={() => void unhideAll()}
-              className="flex items-center gap-1 text-[11px] text-[var(--fg-muted)] hover:text-[var(--accent)]"
-            >
-              <Eye size={12} /> {t("actions.unhide_count", { count: hiddenCount })}
-            </button>
-          )
+          <div className="flex items-center gap-3">
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void unhideAll()}
+                className="flex items-center gap-1 text-[11px] text-[var(--fg-muted)] hover:text-[var(--accent)]"
+              >
+                <Eye size={12} /> {t("actions.unhide_count", { count: hiddenCount })}
+              </button>
+            )}
+            {rawList.length > 0 && (
+              <button
+                type="button"
+                aria-pressed={viewPaused}
+                onClick={() => setFrozenTrackers(viewPaused ? null : trackers)}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] transition-colors ${
+                  viewPaused
+                    ? "border-[var(--warn)]/40 bg-[var(--warn-soft)] text-[var(--warn)]"
+                    : "border-[var(--border-subtle)] text-[var(--fg-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                }`}
+              >
+                {viewPaused ? <Play size={11} /> : <Pause size={11} />}
+                {viewPaused ? t("actions.resume_view") : t("actions.pause_view")}
+              </button>
+            )}
+          </div>
         }
       >
         {visibleList.length === 0 ? (
@@ -154,7 +185,6 @@ export function DashboardPage() {
                 group={group}
                 items={items}
                 devices={devices}
-                perDevSettings={perDevSettings}
                 onReorder={async (macs) => {
                   // Persist new order as contiguous indices; bump by 10 to
                   // leave room for future intra-group inserts without
@@ -188,14 +218,12 @@ function GroupBlock({
   group,
   items,
   devices,
-  perDevSettings,
   onReorder,
   onBroadcastGroup,
 }: {
   group: string;
   items: TrackerSnapshot[];
   devices: Record<string, { native_imu_rate_hz?: number }>;
-  perDevSettings: Record<string, { group?: string }>;
   onReorder: (macsInOrder: Mac[]) => void | Promise<void>;
   onBroadcastGroup: (kind: "yaw" | "full" | "mounting") => void;
 }) {
@@ -292,11 +320,6 @@ function GroupBlock({
           );
         })}
       </div>
-      {/* perDevSettings is reserved for future per-tracker badges inside the
-          group block; reference it once so the prop isn't flagged unused. */}
-      <span hidden aria-hidden="true">
-        {JSON.stringify(perDevSettings).length}
-      </span>
     </div>
   );
 }
@@ -346,40 +369,37 @@ function SectionPanel({
 }
 
 /**
- * Bento tile primitive. `feature` boosts the visual weight (gradient
- * border + drop shadow) — used for whatever metric we want the eye to
- * land on first. `accent` adds a thin tinted top stripe for the
- * second-most-important tile in a row.
+ * Bento tile primitive. `feature` boosts the visual weight (elevated
+ * surface + solid accent stripe) — used for whatever metric we want
+ * the eye to land on first. `accent` adds a thin tinted top stripe for
+ * the second-most-important tile in a row. Flat surfaces only: depth
+ * comes from background steps and the stripe, never shadows.
  */
 function BentoTile({
   title,
   children,
   feature,
   accent,
+  className,
 }: {
   title: string;
   children: React.ReactNode;
   feature?: boolean;
   accent?: boolean;
+  className?: string;
 }) {
   return (
     <section
-      className={`relative flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--bg-panel)] p-4 transition-shadow ${
+      className={`relative flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border p-5 transition-colors ${
         feature
-          ? "border-[var(--accent-soft)] shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-pop)]"
-          : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
-      }`}
+          ? "border-[var(--border-strong)] bg-[var(--bg-elevated)]"
+          : "border-[var(--border-subtle)] bg-[var(--bg-panel)] hover:border-[var(--border-strong)]"
+      } ${className ?? ""}`}
     >
-      {accent && (
+      {(accent || feature) && (
         <span
           aria-hidden
-          className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--accent)] to-transparent opacity-60"
-        />
-      )}
-      {feature && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-12 -top-12 size-32 rounded-full bg-[var(--accent-glow)] blur-3xl"
+          className={`absolute inset-x-0 top-0 h-[2px] bg-[var(--accent)] ${feature ? "" : "opacity-60"}`}
         />
       )}
       <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
@@ -406,7 +426,7 @@ function ResetButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4 text-sm font-medium text-[var(--fg-primary)] transition-colors hover:bg-[var(--warn-soft)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] px-4 py-3 text-sm font-medium text-[var(--fg-secondary)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--fg-primary)] disabled:cursor-not-allowed disabled:opacity-40"
     >
       <span className="text-[var(--accent)]">{icon}</span>
       {label}

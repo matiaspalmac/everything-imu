@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { macKey } from "../lib/macFormat";
-import { useLatencyStore } from "../stores/useLatencyStore";
+import { macKey } from "../../lib/macFormat";
+import { useLatencyStore } from "../../stores/useLatencyStore";
 
 /// Compact connection-quality bars + packet-loss% + rate. Reads the
 /// latency stream (already running) and derives loss as
@@ -36,8 +36,7 @@ export function SignalMeter({
   else if (rateRatio < 0.9 || lossFrac > 0.03) level = 3;
   if (rateHz <= 0) level = 0;
 
-  const color =
-    level <= 1 ? "var(--warn)" : level === 2 ? "var(--accent)" : "var(--success, #4ade80)";
+  const color = level <= 1 ? "var(--warn)" : level === 2 ? "var(--accent)" : "var(--success)";
 
   return (
     <span

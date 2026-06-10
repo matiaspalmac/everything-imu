@@ -1,7 +1,7 @@
 import { Lightning } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { macKey } from "../lib/macFormat";
-import { useLatencyStore } from "../stores/useLatencyStore";
+import { macKey } from "../../lib/macFormat";
+import { useLatencyStore } from "../../stores/useLatencyStore";
 
 type Props = {
   mac: number[] | Uint8Array;
@@ -58,7 +58,7 @@ export function LatencyPanel({ mac, compact }: Props) {
           {intervals.map(([label, value]) => (
             <div
               key={label}
-              className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] px-2 py-1"
+              className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1"
             >
               <div className="text-[10px] text-[var(--fg-muted)]">{label}</div>
               <div className="font-mono text-[13px] text-[var(--fg-primary)]">{fmtUs(value)}</div>
@@ -69,13 +69,13 @@ export function LatencyPanel({ mac, compact }: Props) {
 
       {!compact && (
         <section className="mb-3 grid grid-cols-2 gap-2">
-          <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] px-2 py-1">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1">
             <div className="text-[10px] text-[var(--fg-muted)]">{t("latency.jitter")}</div>
             <div className="font-mono text-[13px] text-[var(--fg-primary)]">
               {fmtUs(entry.jitter_us)}
             </div>
           </div>
-          <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] px-2 py-1">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1">
             <div className="text-[10px] text-[var(--fg-muted)]">{t("latency.dropped")}</div>
             <div
               className={`font-mono text-[13px] ${
@@ -93,13 +93,13 @@ export function LatencyPanel({ mac, compact }: Props) {
           {t("latency.send_label")}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] px-2 py-1">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1">
             <div className="text-[10px] text-[var(--fg-muted)]">{t("latency.p50")}</div>
             <div className="font-mono text-[13px] text-[var(--fg-primary)]">
               {fmtUs(entry.send_us_p50)}
             </div>
           </div>
-          <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] px-2 py-1">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1">
             <div className="text-[10px] text-[var(--fg-muted)]">{t("latency.p95")}</div>
             <div className="font-mono text-[13px] text-[var(--fg-primary)]">
               {fmtUs(entry.send_us_p95)}
@@ -122,11 +122,7 @@ export function LatencySummary() {
   const ready = entries.filter((e) => e.samples_window > 0);
 
   if (ready.length === 0) {
-    return (
-      <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-3 text-[12px] text-[var(--fg-muted)]">
-        {t("latency.waiting")}
-      </div>
-    );
+    return <div className="py-2 text-[12px] text-[var(--fg-muted)]">{t("latency.waiting")}</div>;
   }
 
   const worstP95 = ready.reduce((m, e) => Math.max(m, e.interval_us_p95), 0);
@@ -134,27 +130,37 @@ export function LatencySummary() {
   const totalDropped = ready.reduce((s, e) => s + e.dropped_estimate, 0);
 
   return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-3">
-      <header className="mb-2 flex items-center gap-1.5 text-[12px] text-[var(--fg-secondary)]">
+    <div className="flex h-full flex-col justify-between gap-3">
+      <header className="flex items-center gap-1.5 text-[12px] text-[var(--fg-secondary)]">
         <Lightning size={13} weight="duotone" className="text-[var(--accent)]" />
         <span className="font-semibold">{t("latency.summary_title")}</span>
         <span className="ml-auto text-[10px] text-[var(--fg-muted)]">
           {t("latency.across", { n: ready.length })}
         </span>
       </header>
-      <div className="grid grid-cols-3 gap-2 text-[12px]">
-        <div>
-          <div className="text-[10px] text-[var(--fg-muted)]">{t("latency.worst_p95")}</div>
-          <div className="font-mono text-[var(--fg-primary)]">{fmtUs(worstP95)}</div>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3">
+          <div className="text-[10px] uppercase tracking-wide text-[var(--fg-muted)]">
+            {t("latency.worst_p95")}
+          </div>
+          <div className="metric-num mt-1 font-mono text-base text-[var(--fg-primary)]">
+            {fmtUs(worstP95)}
+          </div>
         </div>
-        <div>
-          <div className="text-[10px] text-[var(--fg-muted)]">{t("latency.jitter_mean")}</div>
-          <div className="font-mono text-[var(--fg-primary)]">{fmtUs(meanJitter)}</div>
+        <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3">
+          <div className="text-[10px] uppercase tracking-wide text-[var(--fg-muted)]">
+            {t("latency.jitter_mean")}
+          </div>
+          <div className="metric-num mt-1 font-mono text-base text-[var(--fg-primary)]">
+            {fmtUs(meanJitter)}
+          </div>
         </div>
-        <div>
-          <div className="text-[10px] text-[var(--fg-muted)]">{t("latency.dropped_total")}</div>
+        <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3">
+          <div className="text-[10px] uppercase tracking-wide text-[var(--fg-muted)]">
+            {t("latency.dropped_total")}
+          </div>
           <div
-            className={`font-mono ${
+            className={`metric-num mt-1 font-mono text-base ${
               totalDropped > 0 ? "text-[var(--warn)]" : "text-[var(--fg-primary)]"
             }`}
           >

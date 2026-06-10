@@ -16,10 +16,10 @@ import { Command } from "cmdk";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api/client";
-import { useCinemaStore } from "../stores/useCinemaStore";
-import { useEmissionStore } from "../stores/useEmissionStore";
-import { useTrackerStore } from "../stores/useTrackerStore";
+import { api } from "../../api/client";
+import { useCinemaStore } from "../../stores/useCinemaStore";
+import { useEmissionStore } from "../../stores/useEmissionStore";
+import { useTrackerStore } from "../../stores/useTrackerStore";
 
 type Action = {
   id: string;

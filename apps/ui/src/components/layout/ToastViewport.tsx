@@ -1,6 +1,6 @@
 import { CheckCircle, Info, Warning, WarningOctagon, X } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { type Toast, useToastStore } from "../stores/useToastStore";
+import { type Toast, useToastStore } from "../../stores/useToastStore";
 
 const ICON: Record<Toast["level"], React.ComponentType<{ size?: number }>> = {
   info: Info,
@@ -22,13 +22,13 @@ export function ToastViewport() {
   const dismiss = useToastStore((s) => s.dismiss);
   if (toasts.length === 0) return null;
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-40 flex w-80 flex-col gap-2">
+    <div className="pointer-events-none fixed right-4 top-[calc(var(--titlebar-h)+0.75rem)] z-40 flex w-80 flex-col gap-2">
       {toasts.map((toast) => {
         const Icon = ICON[toast.level];
         return (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-start gap-3 rounded-[var(--radius-md)] border bg-[var(--bg-panel)] p-3 shadow-lg ${LEVEL_CLS[toast.level]}`}
+            className={`toast-in pointer-events-auto flex items-start gap-3 rounded-[var(--radius-lg)] border bg-[var(--bg-elevated)] p-3 shadow-[var(--shadow-pop)] ${LEVEL_CLS[toast.level]}`}
           >
             <span className="pt-0.5">
               <Icon size={18} />

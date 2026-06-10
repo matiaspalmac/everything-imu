@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { FusionAlgoDto, MountingOrientationDto, PerDeviceSettingsDto } from "../api/client";
-import { api } from "../api/client";
+import type { FusionAlgoDto, MountingOrientationDto, PerDeviceSettingsDto } from "../../api/client";
+import { api } from "../../api/client";
 import { HapticCalibratorDialog } from "./HapticCalibratorDialog";
 import { MagCalibrationPanel } from "./MagCalibrationPanel";
 
@@ -146,7 +146,7 @@ export function PerDeviceConfig({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4">
+    <div className="flex flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5">
       <Section label={t("labels.label")}>
         <input
           type="text"
@@ -196,7 +196,7 @@ export function PerDeviceConfig({
                 title={opt.hint}
                 className={`flex flex-col items-start rounded-[var(--radius-sm)] border px-3 py-2 text-left transition-colors disabled:opacity-50 ${
                   active
-                    ? "border-[var(--accent)] bg-[var(--warn-soft)] text-[var(--accent)]"
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                     : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--fg-secondary)] hover:border-[var(--border-strong)]"
                 }`}
               >
@@ -220,7 +220,7 @@ export function PerDeviceConfig({
                 onClick={() => void changeMounting(opt.id)}
                 className={`rounded-[var(--radius-sm)] border px-3 py-1.5 text-xs transition-colors disabled:opacity-50 ${
                   active
-                    ? "border-[var(--accent)] bg-[var(--warn-soft)] text-[var(--accent)]"
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                     : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--fg-secondary)] hover:border-[var(--border-strong)]"
                 }`}
               >
@@ -235,7 +235,7 @@ export function PerDeviceConfig({
         <button
           type="button"
           onClick={() => setHapticCalOpen(true)}
-          className="self-start rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+          className="self-start rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
         >
           {t("haptic_cal.title")}
         </button>
@@ -265,7 +265,7 @@ export function PerDeviceConfig({
           <button
             type="button"
             onClick={() => setSettings((prev) => (prev ? { ...prev, gyro_scale: 1.0 } : prev))}
-            className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-2 py-1 text-[10px] text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+            className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-2 py-1 text-[10px] text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
           >
             {t("actions.reset")}
           </button>

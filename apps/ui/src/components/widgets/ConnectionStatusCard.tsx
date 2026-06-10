@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useConnectionStore } from "../stores/useConnectionStore";
-import { useTrackerStore } from "../stores/useTrackerStore";
+import { useConnectionStore } from "../../stores/useConnectionStore";
+import { useTrackerStore } from "../../stores/useTrackerStore";
 
 function formatMsAgo(ms: number | null | undefined): string {
   if (ms == null) return "—";
@@ -43,16 +43,16 @@ export function ConnectionStatusCard() {
     handshakeMs == null ? "var(--fg-muted)" : handshakeMs > 2000 ? "var(--warn)" : "var(--success)";
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {/* Hero row — ring on the left, identity strip on the right */}
-      <div className="flex items-center gap-4 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+      <div className="flex items-center gap-4">
         <HandshakeRing
           progress={handshakeProgress}
           tone={handshakeTone}
           label={statusBadge.label}
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="metric-num truncate font-mono text-sm text-[var(--fg-primary)]">
+          <div className="metric-num truncate font-mono text-lg text-[var(--fg-primary)]">
             {status?.server_addr ?? "—"}
           </div>
           <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--fg-muted)]">
@@ -87,7 +87,6 @@ export function ConnectionStatusCard() {
         <Stat label={t("conn.packets_sent")} value={(status?.packets_sent ?? 0).toLocaleString()} />
         <Stat label={t("conn.last_send")} value={formatMsAgo(status?.last_send_ms_ago)} />
         <Stat label={t("conn.last_handshake")} value={formatMsAgo(status?.last_handshake_ms_ago)} />
-        <Stat label={t("conn.protocol")} value={t("conn.protocol_short")} />
       </div>
     </div>
   );
@@ -157,14 +156,14 @@ function Stat({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-3">
+    <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] p-3">
       <div className="text-[10px] font-medium uppercase tracking-wide text-[var(--fg-muted)]">
         {label}
       </div>
       <div
-        className={`mt-1 truncate text-base ${
-          mono ? "font-mono text-[var(--fg-primary)]" : "text-[var(--fg-primary)]"
-        } ${valueClassName ?? ""}`}
+        className={`metric-num mt-1 truncate text-base font-medium ${
+          mono ? "font-mono" : ""
+        } text-[var(--fg-primary)] ${valueClassName ?? ""}`}
       >
         {value}
       </div>

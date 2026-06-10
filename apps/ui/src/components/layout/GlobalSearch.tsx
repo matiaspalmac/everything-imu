@@ -3,11 +3,11 @@ import { Command } from "cmdk";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { macHex, macKey } from "../lib/macFormat";
-import { useDeviceStore } from "../stores/useDeviceStore";
-import { useLogStore } from "../stores/useLogStore";
-import { usePerDeviceSettingsStore } from "../stores/usePerDeviceSettingsStore";
-import { useTrackerStore } from "../stores/useTrackerStore";
+import { macHex, macKey } from "../../lib/macFormat";
+import { useDeviceStore } from "../../stores/useDeviceStore";
+import { useLogStore } from "../../stores/useLogStore";
+import { usePerDeviceSettingsStore } from "../../stores/usePerDeviceSettingsStore";
+import { useTrackerStore } from "../../stores/useTrackerStore";
 
 type Hit =
   | { kind: "tracker"; key: string; label: string; mac: number[] }

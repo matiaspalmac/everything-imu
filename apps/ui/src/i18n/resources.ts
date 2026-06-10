@@ -88,10 +88,19 @@ export const resources = {
         keyboard_shortcuts: "Keyboard shortcuts",
         faq: "FAQ",
       },
+      errors: {
+        boundary_title: "Something went wrong",
+        boundary_body:
+          "The interface hit an unexpected error. Your trackers and the bridge keep running in the background — reloading the window is safe.",
+        boundary_reload: "Reload window",
+      },
       actions: {
         yaw_reset: "Yaw Reset",
         full_reset: "Full Reset",
         mounting_calibrate: "Mounting Calibrate",
+        pause_view: "Pause view",
+        resume_view: "Resume view",
+        export_logs: "Export",
         mounting_short: "Mounting",
         save_changes: "Save changes",
         apply: "apply",
@@ -194,9 +203,9 @@ export const resources = {
       },
       theme: {
         dark: "Dark",
-        dark_hint: "Sumi-ink (default)",
+        dark_hint: "Ember on charcoal (default)",
         light: "Light",
-        light_hint: "Washi paper",
+        light_hint: "Ember on paper",
         system: "System",
         system_hint: "Follow OS preference",
       },
@@ -563,10 +572,19 @@ export const resources = {
         keyboard_shortcuts: "Atajos de teclado",
         faq: "Preguntas frecuentes",
       },
+      errors: {
+        boundary_title: "Algo salió mal",
+        boundary_body:
+          "La interfaz encontró un error inesperado. Tus trackers y el puente siguen corriendo en segundo plano — recargar la ventana es seguro.",
+        boundary_reload: "Recargar ventana",
+      },
       actions: {
         yaw_reset: "Reset Yaw",
         full_reset: "Reset Completo",
         mounting_calibrate: "Calibrar montaje",
+        pause_view: "Pausar vista",
+        resume_view: "Reanudar vista",
+        export_logs: "Exportar",
         mounting_short: "Montaje",
         save_changes: "Guardar cambios",
         apply: "aplicar",
@@ -670,9 +688,9 @@ export const resources = {
       },
       theme: {
         dark: "Oscuro",
-        dark_hint: "Sumi-ink (por defecto)",
+        dark_hint: "Brasa sobre carbón (por defecto)",
         light: "Claro",
-        light_hint: "Papel washi",
+        light_hint: "Brasa sobre papel",
         system: "Sistema",
         system_hint: "Seguir preferencia del SO",
       },

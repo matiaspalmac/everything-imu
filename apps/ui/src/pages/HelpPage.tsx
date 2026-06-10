@@ -39,12 +39,12 @@ export function HelpPage() {
   return (
     <div className="flex flex-col gap-5">
       <header className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--fg-primary)]">
           {t("help.title")}
-        </h2>
+        </h1>
       </header>
 
-      <section className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4">
+      <section className="rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5">
         <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
           {t("pages.keyboard_shortcuts")}
         </h3>
@@ -63,7 +63,7 @@ export function HelpPage() {
           {faq.map((item) => (
             <article
               key={item.q}
-              className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4 transition-colors hover:border-[var(--border-strong)]"
+              className="flex flex-col gap-2 rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5 transition-colors hover:border-[var(--border-strong)]"
             >
               <div className="text-sm font-semibold text-[var(--fg-primary)]">{item.q}</div>
               <p className="text-xs leading-relaxed text-[var(--fg-secondary)]">{item.a}</p>
@@ -98,7 +98,7 @@ function ShortcutCard({ keys, action, icon }: Shortcut) {
 
 function KeyCap({ label }: { label: string }) {
   return (
-    <kbd className="metric-num inline-grid h-6 min-w-[1.5rem] place-items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-1.5 font-mono text-[11px] font-semibold text-[var(--fg-primary)] shadow-[inset_0_-1px_0_var(--border-strong)]">
+    <kbd className="metric-num inline-grid h-6 min-w-[1.5rem] place-items-center rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-1.5 font-mono text-[11px] font-semibold text-[var(--fg-primary)]">
       {label}
     </kbd>
   );

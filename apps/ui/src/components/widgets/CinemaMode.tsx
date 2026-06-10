@@ -1,12 +1,12 @@
 import { Broadcast, Pause, X } from "@phosphor-icons/react";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { macHex, macKey } from "../lib/macFormat";
-import { useCinemaStore } from "../stores/useCinemaStore";
-import { useEmissionStore } from "../stores/useEmissionStore";
-import { useLatencyStore } from "../stores/useLatencyStore";
-import { usePerDeviceSettingsStore } from "../stores/usePerDeviceSettingsStore";
-import { useTrackerStore } from "../stores/useTrackerStore";
+import { macHex, macKey } from "../../lib/macFormat";
+import { useCinemaStore } from "../../stores/useCinemaStore";
+import { useEmissionStore } from "../../stores/useEmissionStore";
+import { useLatencyStore } from "../../stores/useLatencyStore";
+import { usePerDeviceSettingsStore } from "../../stores/usePerDeviceSettingsStore";
+import { useTrackerStore } from "../../stores/useTrackerStore";
 import { TrackerViz } from "./TrackerViz";
 
 /**
@@ -157,7 +157,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Cell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] px-2 py-1">
+    <div className="rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1">
       <div className="text-[9px] uppercase tracking-wide">{label}</div>
       <div className="metric-num text-[var(--fg-primary)]">{value}</div>
     </div>

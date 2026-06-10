@@ -3,6 +3,7 @@ import {
   GearSix,
   House,
   ListBullets,
+  Pause,
   type Icon as PhosphorIcon,
   Plugs,
   Pulse,
@@ -10,9 +11,9 @@ import {
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useEmissionStore } from "../stores/useEmissionStore";
-import { useTrackerStore } from "../stores/useTrackerStore";
-import { CinemaMode } from "./CinemaMode";
+import { useEmissionStore } from "../../stores/useEmissionStore";
+import { useTrackerStore } from "../../stores/useTrackerStore";
+import { CinemaMode } from "../widgets/CinemaMode";
 import { CommandPalette } from "./CommandPalette";
 import { EventBridge } from "./EventBridge";
 import { GlobalSearch } from "./GlobalSearch";
@@ -53,10 +54,19 @@ export function AppShell() {
       <CinemaMode />
       <ToastViewport />
       <TitleBar />
+      {paused && (
+        <div
+          role="status"
+          className="flex items-center justify-center gap-2 border-b border-[var(--border-subtle)] bg-[var(--warn-soft)] px-3 py-1 text-[11px] font-medium text-[var(--warn)]"
+        >
+          <Pause size={11} weight="fill" />
+          {t("bridge.toast_paused")}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1">
         <aside
           aria-label={t("window.primary_nav")}
-          className="flex w-[var(--activitybar-w)] shrink-0 flex-col items-center gap-1 border-r border-[var(--border-subtle)] bg-[var(--bg-panel)] py-2"
+          className="flex w-[var(--activitybar-w)] shrink-0 flex-col items-center gap-1 border-r border-[var(--border-subtle)] bg-[var(--bg-base)] py-2"
         >
           {PRIMARY.map((it) => (
             <NavButton
@@ -79,7 +89,7 @@ export function AppShell() {
           </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
-          <main className="min-w-0 flex-1 overflow-auto p-6">
+          <main className="min-w-0 flex-1 overflow-auto p-4 md:p-6">
             <Outlet />
           </main>
           <StatusBar />
@@ -108,11 +118,11 @@ function NavButton({
       aria-current={active ? "page" : undefined}
       onClick={onClick}
       className={[
-        "relative grid h-10 w-10 place-items-center rounded-[var(--radius-sm)] transition-colors",
+        "relative grid h-10 w-10 place-items-center rounded-[var(--radius-md)] transition-colors",
         "after:absolute after:right-0 after:top-1.5 after:bottom-1.5 after:w-[2px] after:bg-transparent",
         active
-          ? "bg-[var(--warn-soft)] text-[var(--accent)] after:bg-[var(--accent)]"
-          : "text-[var(--fg-muted)] hover:bg-[var(--warn-soft)] hover:text-[var(--fg-primary)]",
+          ? "bg-[var(--accent-soft)] text-[var(--accent)] after:bg-[var(--accent)]"
+          : "text-[var(--fg-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--fg-primary)]",
       ].join(" ")}
     >
       {icon}

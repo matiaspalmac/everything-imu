@@ -1,14 +1,22 @@
-import type { LogEntryDto } from "../api/client";
+import { memo } from "react";
+import type { LogEntryDto } from "../../api/client";
 
+// Level tones mirror the LogsPage filter chips (status palette tokens).
 const LEVEL_CLS: Record<string, string> = {
-  ERROR: "text-rose-400",
-  WARN: "text-amber-400",
-  INFO: "text-[var(--accent)]",
-  DEBUG: "text-sky-400",
+  ERROR: "text-[var(--danger)]",
+  WARN: "text-[var(--warn)]",
+  INFO: "text-[var(--success)]",
+  DEBUG: "text-[var(--info)]",
   TRACE: "text-[var(--fg-muted)]",
 };
 
-export function LogRow({ entry }: { entry: LogEntryDto }) {
+/**
+ * Memoised: the log list renders up to 800 rows and appends at log-event
+ * rate. Entries are immutable and keyed by a stable `seq`, so memo lets
+ * every existing row skip re-render when a new line arrives — only the
+ * appended rows mount.
+ */
+export const LogRow = memo(function LogRow({ entry }: { entry: LogEntryDto }) {
   const cls = LEVEL_CLS[entry.level] ?? "text-[var(--fg-secondary)]";
   const ts = new Date(entry.ts_ms).toISOString().slice(11, 23);
   return (
@@ -19,4 +27,4 @@ export function LogRow({ entry }: { entry: LogEntryDto }) {
       <span className="truncate text-[var(--fg-primary)]">{entry.message}</span>
     </div>
   );
-}
+});

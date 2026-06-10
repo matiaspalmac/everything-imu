@@ -22,7 +22,7 @@ export function BatteryRing({
   const dash = clamped * c;
   const low = clamped < 0.15;
   const mid = clamped < 0.4;
-  const color = low ? "var(--warn)" : mid ? "var(--accent)" : "var(--success, #4ade80)";
+  const color = low ? "var(--warn)" : mid ? "var(--accent)" : "var(--success)";
 
   return (
     <span className="inline-flex items-center gap-1.5" title={`${pct}%`}>

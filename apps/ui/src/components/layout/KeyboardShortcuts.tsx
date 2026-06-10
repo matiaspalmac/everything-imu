@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../api/client";
-import { useCinemaStore } from "../stores/useCinemaStore";
-import { useEmissionStore } from "../stores/useEmissionStore";
-import { useToastStore } from "../stores/useToastStore";
-import { useTrackerStore } from "../stores/useTrackerStore";
+import { api } from "../../api/client";
+import { useCinemaStore } from "../../stores/useCinemaStore";
+import { useEmissionStore } from "../../stores/useEmissionStore";
+import { useToastStore } from "../../stores/useToastStore";
+import { useTrackerStore } from "../../stores/useTrackerStore";
 
 /**
  * Mounted once in AppShell. Listens for global hotkeys outside of input

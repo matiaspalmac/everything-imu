@@ -1,18 +1,18 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { api, events } from "../api/client";
-import { macHex, macKey } from "../lib/macFormat";
-import { useActivityStore } from "../stores/useActivityStore";
-import { useBiasStore } from "../stores/useBiasStore";
-import { useConnectionStore } from "../stores/useConnectionStore";
-import { useDeviceStore } from "../stores/useDeviceStore";
-import { useHapticStore } from "../stores/useHapticStore";
-import { useImuStreamStore } from "../stores/useImuStreamStore";
-import { useLatencyStore } from "../stores/useLatencyStore";
-import { useLogStore } from "../stores/useLogStore";
-import { useMetricsStore } from "../stores/useMetricsStore";
-import { useToastStore } from "../stores/useToastStore";
-import { useTrackerStore } from "../stores/useTrackerStore";
+import { api, events } from "../../api/client";
+import { macHex, macKey } from "../../lib/macFormat";
+import { useActivityStore } from "../../stores/useActivityStore";
+import { useBiasStore } from "../../stores/useBiasStore";
+import { useConnectionStore } from "../../stores/useConnectionStore";
+import { useDeviceStore } from "../../stores/useDeviceStore";
+import { useHapticStore } from "../../stores/useHapticStore";
+import { useImuStreamStore } from "../../stores/useImuStreamStore";
+import { useLatencyStore } from "../../stores/useLatencyStore";
+import { useLogStore } from "../../stores/useLogStore";
+import { useMetricsStore } from "../../stores/useMetricsStore";
+import { useToastStore } from "../../stores/useToastStore";
+import { useTrackerStore } from "../../stores/useTrackerStore";
 
 const BATTERY_LOW_THRESHOLD = 0.15;
 

@@ -1,10 +1,10 @@
 import { TrashIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { UdpHapticTarget } from "../api/bindings";
-import { api } from "../api/client";
-import { macHex } from "../lib/macFormat";
-import { useToastStore } from "../stores/useToastStore";
+import type { UdpHapticTarget } from "../../api/bindings";
+import { api } from "../../api/client";
+import { macHex } from "../../lib/macFormat";
+import { useToastStore } from "../../stores/useToastStore";
 
 /// UI for forwarded UDP haptic targets. Lets the user register
 /// `host:port` endpoints, fire a test pulse, and delete entries. The
@@ -61,7 +61,7 @@ export function UdpHaptics() {
   }
 
   return (
-    <section className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4">
+    <section className="rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5 transition-colors hover:border-[var(--border-strong)]">
       <header className="flex flex-col gap-1 pb-3">
         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
           {t("udp_haptics.title")}
@@ -131,7 +131,7 @@ export function UdpHaptics() {
               <button
                 type="button"
                 onClick={() => void test(t.mac)}
-                className="rounded-[var(--radius-sm)] bg-[var(--bg-panel)] px-2 py-1 text-[11px] text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+                className="rounded-[var(--radius-sm)] bg-[var(--bg-panel)] px-2 py-1 text-[11px] text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
               >
                 test
               </button>

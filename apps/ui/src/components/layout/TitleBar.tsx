@@ -2,7 +2,7 @@ import { Broadcast, Minus, Pause, Square, X } from "@phosphor-icons/react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useEmissionStore } from "../stores/useEmissionStore";
+import { useEmissionStore } from "../../stores/useEmissionStore";
 
 export function TitleBar() {
   const { t } = useTranslation();
@@ -29,7 +29,7 @@ export function TitleBar() {
   const bridgeState = paused ? t("bridge.off") : t("bridge.on");
 
   return (
-    <header className="flex h-[var(--titlebar-h)] items-stretch border-b border-[var(--border-subtle)] bg-[var(--bg-panel)] text-[12px] text-[var(--fg-secondary)] select-none">
+    <header className="flex h-[var(--titlebar-h)] items-stretch border-b border-[var(--border-subtle)] bg-[var(--bg-base)] text-[12px] text-[var(--fg-secondary)] select-none">
       <div className="flex items-center gap-2 px-3">
         <span className="font-semibold tracking-wide text-[var(--accent)]">eIMU</span>
         <span className="text-[var(--fg-muted)]">everything-imu</span>
@@ -76,7 +76,7 @@ export function TitleBar() {
         type="button"
         aria-label={t("window.minimize")}
         onClick={() => void win?.minimize()}
-        className="grid w-11 place-items-center text-[var(--fg-muted)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--fg-primary)]"
+        className="grid w-11 place-items-center text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg-primary)]"
       >
         <Minus size={14} weight="bold" />
       </button>
@@ -84,7 +84,7 @@ export function TitleBar() {
         type="button"
         aria-label={t("window.maximize")}
         onClick={() => void win?.toggleMaximize()}
-        className="grid w-11 place-items-center text-[var(--fg-muted)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--fg-primary)]"
+        className="grid w-11 place-items-center text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg-primary)]"
       >
         <Square size={12} weight="bold" />
       </button>

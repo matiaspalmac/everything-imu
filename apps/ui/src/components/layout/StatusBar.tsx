@@ -2,10 +2,10 @@ import { CircleNotch, Keyboard, Pause, Play, Plug, PlugsConnected } from "@phosp
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { useConnectionStore } from "../stores/useConnectionStore";
-import { useEmissionStore } from "../stores/useEmissionStore";
-import { useTrackerStore } from "../stores/useTrackerStore";
-import { Sparkline } from "./Sparkline";
+import { useConnectionStore } from "../../stores/useConnectionStore";
+import { useEmissionStore } from "../../stores/useEmissionStore";
+import { useTrackerStore } from "../../stores/useTrackerStore";
+import { Sparkline } from "../ui/Sparkline";
 
 const VERSION = __APP_VERSION__;
 // 60 samples at 1 Hz = a one-minute trailing window.
@@ -50,7 +50,7 @@ export function StatusBar() {
   const stale = lastSendMs == null || lastSendMs > 2000;
 
   return (
-    <footer className="flex h-[var(--statusbar-h)] shrink-0 items-center gap-3 border-t border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 text-[11px] text-[var(--fg-muted)]">
+    <footer className="flex h-[var(--statusbar-h)] shrink-0 items-center gap-3 border-t border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 text-[11px] text-[var(--fg-muted)]">
       <span className="flex items-center gap-1">
         {live && !stale ? (
           <PlugsConnected size={12} className="text-[var(--success)]" />
@@ -98,7 +98,7 @@ export function StatusBar() {
           className={`flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 transition-colors ${
             paused
               ? "bg-[var(--warn-soft)] text-[var(--warn)]"
-              : "hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+              : "hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
           }`}
         >
           {paused ? <Play size={12} /> : <Pause size={12} />}

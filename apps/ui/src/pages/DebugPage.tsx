@@ -24,14 +24,14 @@ export function DebugPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
+      <header className="flex flex-col gap-0.5">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--fg-primary)]">
           {t("debug.title")}
-        </h2>
+        </h1>
         <span className="text-[11px] text-[var(--fg-muted)]">{t("debug.body")}</span>
       </header>
 
-      <section className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-3">
+      <section className="rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5">
         <h3 className="pb-2 text-[11px] uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
           {t("debug.bridge")}
         </h3>
@@ -73,7 +73,7 @@ export function DebugPage() {
           return (
             <section
               key={k}
-              className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-3"
+              className="rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5 transition-colors hover:border-[var(--border-strong)]"
             >
               <h3 className="pb-2 text-[11px] uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
                 {dev.kind} · <span className="font-mono">{macHex(dev.mac)}</span>

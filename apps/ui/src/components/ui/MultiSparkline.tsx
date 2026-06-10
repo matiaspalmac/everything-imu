@@ -44,13 +44,13 @@ export function MultiSparkline({
 
   return (
     <div className="flex flex-col gap-1">
+      {/* Width/height props define the viewBox coordinate space; the SVG
+          itself stretches to its container so charts survive narrow tiles. */}
       <svg
-        width={width}
-        height={height}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label="multi-axis sparkline"
-        className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)]/50"
+        className="h-auto w-full rounded-[var(--radius-sm)] bg-[var(--bg-elevated)]/50"
       >
         <line
           x1={0}

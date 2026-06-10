@@ -95,10 +95,10 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-center justify-between gap-4">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
+      <header className="flex items-end justify-between gap-4">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--fg-primary)]">
           {t("pages.settings")}
-        </h2>
+        </h1>
         <div className="text-[11px] text-[var(--fg-muted)]">
           {saving ? (
             <span>{t("hints.saving")}</span>
@@ -141,14 +141,14 @@ export function SettingsPage() {
             <button
               type="button"
               onClick={() => void api.openLogsDir()}
-              className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+              className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
             >
               {t("actions.open_logs_folder")}
             </button>
             <button
               type="button"
               onClick={() => void api.openDataDir()}
-              className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+              className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
             >
               {t("actions.open_data_folder")}
             </button>
@@ -260,7 +260,7 @@ export function SettingsPage() {
                 type="button"
                 disabled={saving}
                 onClick={() => void spawnSynthetic(n)}
-                className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)] disabled:opacity-50"
+                className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:opacity-50"
               >
                 {n === 0 ? t("hints.spawn_stop") : `${n}`}
               </button>
@@ -302,11 +302,11 @@ function Card({
 }) {
   const spanCls = span === 3 ? "lg:col-span-3" : span === 2 ? "lg:col-span-2" : "";
   const featureCls = feature
-    ? "border-[var(--accent-soft)] shadow-[var(--shadow-card)] before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-gradient-to-r before:from-transparent before:via-[var(--accent)] before:to-transparent before:opacity-60 before:content-['']"
-    : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]";
+    ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-[var(--accent)] before:content-['']"
+    : "border-[var(--border-subtle)] bg-[var(--bg-panel)] hover:border-[var(--border-strong)]";
   return (
     <section
-      className={`relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--bg-panel)] p-5 transition-shadow ${spanCls} ${featureCls}`}
+      className={`relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-xl)] border p-5 transition-colors ${spanCls} ${featureCls}`}
     >
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
         {title}
@@ -347,7 +347,7 @@ function ThemePicker() {
             onClick={() => setTheme(opt.id)}
             className={`flex flex-col items-start rounded-[var(--radius-sm)] border px-3 py-2 text-left transition-colors ${
               active
-                ? "border-[var(--accent)] bg-[var(--warn-soft)] text-[var(--accent)]"
+                ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                 : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--fg-secondary)] hover:border-[var(--border-strong)]"
             }`}
           >
@@ -381,7 +381,7 @@ function LocalePicker() {
             onClick={() => setLocale(opt.id)}
             className={`rounded-[var(--radius-sm)] border px-3 py-1.5 text-xs transition-colors ${
               active === opt.id
-                ? "border-[var(--accent)] bg-[var(--warn-soft)] text-[var(--accent)]"
+                ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
                 : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] text-[var(--fg-secondary)] hover:border-[var(--border-strong)]"
             }`}
           >
@@ -447,7 +447,7 @@ function UpdaterPanel() {
             type="button"
             disabled={busy !== null}
             onClick={() => void check()}
-            className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)] disabled:opacity-50"
+            className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:opacity-50"
           >
             {busy === "check" ? t("updater.checking") : t("updater.check")}
           </button>
@@ -525,7 +525,7 @@ function UdevPanel() {
           type="button"
           disabled={busy}
           onClick={() => void install()}
-          className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)] disabled:opacity-50"
+          className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:opacity-50"
         >
           {busy ? t("udev.installing") : t("udev.install")}
         </button>

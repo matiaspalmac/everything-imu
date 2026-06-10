@@ -1,9 +1,9 @@
 import { Warning } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { SteamBlacklistStatus } from "../api/client";
-import { api } from "../api/client";
-import { useToastStore } from "../stores/useToastStore";
+import type { SteamBlacklistStatus } from "../../api/client";
+import { api } from "../../api/client";
+import { useToastStore } from "../../stores/useToastStore";
 
 /// Warns the user when Steam Input is grabbing Joy-Con / Pro Controllers
 /// (and offers a one-click fix that edits Steam's controller_blacklist).

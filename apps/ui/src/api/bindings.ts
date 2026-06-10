@@ -435,8 +435,9 @@ async checkForUpdate() : Promise<Result<UpdateInfo, IpcError>> {
 }
 },
 /**
- * Download and install the latest release. The Tauri binary is replaced
- * in place; the UI should prompt the user to restart afterwards.
+ * Download and install the latest release. On Windows the NSIS installer
+ * runs in passive mode and relaunches the app; on Linux the user must
+ * re-open after the AppImage/deb swap.
  */
 async applyUpdate() : Promise<Result<UpdateInfo, IpcError>> {
     try {

@@ -3,14 +3,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import { BiasDisplay } from "../components/BiasDisplay";
-import { LatencyPanel } from "../components/LatencyPanel";
-import { MultiSparkline } from "../components/MultiSparkline";
-import { PerDeviceConfig } from "../components/PerDeviceConfig";
-import { QuaternionDisplay } from "../components/QuaternionDisplay";
-import { Sparkline } from "../components/Sparkline";
-import { StatusBadge } from "../components/StatusBadge";
-import { TrackerViz } from "../components/TrackerViz";
+import { MultiSparkline } from "../components/ui/MultiSparkline";
+import { Sparkline } from "../components/ui/Sparkline";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import { BiasDisplay } from "../components/widgets/BiasDisplay";
+import { LatencyPanel } from "../components/widgets/LatencyPanel";
+import { PerDeviceConfig } from "../components/widgets/PerDeviceConfig";
+import { QuaternionDisplay } from "../components/widgets/QuaternionDisplay";
+import { TrackerViz } from "../components/widgets/TrackerViz";
 import { macHex } from "../lib/macFormat";
 import { useBiasStore } from "../stores/useBiasStore";
 import { useDeviceStore } from "../stores/useDeviceStore";
@@ -18,7 +18,10 @@ import { useImuStreamStore } from "../stores/useImuStreamStore";
 import { useMetricsStore } from "../stores/useMetricsStore";
 import { useTrackerStore } from "../stores/useTrackerStore";
 
-const AXIS_COLOR = ["#e57373", "#81c784", "#64b5f6"];
+// X/Y/Z follow the palette's status hues (danger/success/info) so the data
+// viz stays inside the theme. Hex literals approximate the OKLCH tokens —
+// SVG strokes and three.js materials can't read CSS variables.
+const AXIS_COLOR = ["#e0484e", "#34b575", "#6fa3db"];
 
 export function TrackerDetailPage() {
   const { t } = useTranslation();
@@ -169,7 +172,7 @@ export function TrackerDetailPage() {
       */}
       <Tile feature>
         <div className="flex flex-wrap items-center gap-5">
-          <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg)] p-2">
+          <div className="rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-base)] p-2">
             <TrackerViz quat={snap?.quat_xyzw ?? [0, 0, 0, 1]} />
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -194,6 +197,9 @@ export function TrackerDetailPage() {
               {t("status.live")}
             </span>
             <Sparkline values={rates} width={180} height={40} />
+            <span className="metric-num font-mono text-[11px] text-[var(--fg-secondary)]">
+              {(snap?.rate_hz ?? 0).toFixed(0)} / {targetHz} Hz
+            </span>
           </div>
         </div>
       </Tile>
@@ -297,7 +303,7 @@ export function TrackerDetailPage() {
                   key={d}
                   type="button"
                   onClick={() => setRotationDeg(d)}
-                  className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+                  className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
                 >
                   {d}°
                 </button>
@@ -315,11 +321,11 @@ export function TrackerDetailPage() {
 
 function Tile({ children, feature }: { children: React.ReactNode; feature?: boolean }) {
   const cls = feature
-    ? "border-[var(--accent-soft)] shadow-[var(--shadow-card)] before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-gradient-to-r before:from-transparent before:via-[var(--accent)] before:to-transparent before:opacity-60 before:content-['']"
-    : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]";
+    ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-[var(--accent)] before:content-['']"
+    : "border-[var(--border-subtle)] bg-[var(--bg-panel)] hover:border-[var(--border-strong)]";
   return (
     <section
-      className={`relative overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--bg-panel)] p-4 ${cls}`}
+      className={`relative overflow-hidden rounded-[var(--radius-xl)] border p-5 transition-colors ${cls}`}
     >
       {children}
     </section>
@@ -338,7 +344,7 @@ function TileTitled({
   const spanCls = span === 3 ? "lg:col-span-3" : span === 2 ? "lg:col-span-2" : "";
   return (
     <section
-      className={`flex min-w-0 flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4 transition-colors hover:border-[var(--border-strong)] ${spanCls}`}
+      className={`flex min-w-0 flex-col gap-3 rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5 transition-colors hover:border-[var(--border-strong)] ${spanCls}`}
     >
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
         {title}
@@ -364,7 +370,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-sm text-[var(--fg-primary)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2 text-sm text-[var(--fg-primary)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
     >
       <span className="text-[var(--accent)]">{icon}</span>
       {label}

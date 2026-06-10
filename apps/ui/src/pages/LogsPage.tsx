@@ -1,8 +1,15 @@
-import { ArrowDown, ListBullets, MagnifyingGlass, Pause, Play } from "@phosphor-icons/react";
+import {
+  ArrowDown,
+  DownloadSimple,
+  ListBullets,
+  MagnifyingGlass,
+  Pause,
+  Play,
+} from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { EmptyState } from "../components/EmptyState";
-import { LogRow } from "../components/LogRow";
+import { EmptyState } from "../components/ui/EmptyState";
+import { LogRow } from "../components/ui/LogRow";
 import { useLogStore } from "../stores/useLogStore";
 
 const LEVEL_ORDER = ["TRACE", "DEBUG", "INFO", "WARN", "ERROR"] as const;
@@ -19,8 +26,9 @@ const LEVEL_TONE: Record<Level, string> = {
 // Cap how many DOM rows we render at once. The store keeps the full
 // buffer; we only paint the tail. Cheap-and-correct windowing without
 // pulling react-window. If anyone wants to scroll back further they
-// should narrow the level filter.
-const MAX_RENDERED_ROWS = 800;
+// should narrow the level filter. 400 keeps page-mount cost low when
+// navigating in — rows are memoised but the first paint isn't.
+const MAX_RENDERED_ROWS = 400;
 
 export function LogsPage() {
   const { t } = useTranslation();
@@ -58,6 +66,22 @@ export function LogsPage() {
     el.scrollTop = el.scrollHeight;
   }, [trimmed.length, follow]);
 
+  // Export what the user currently sees (level + text filters applied) as a
+  // plain-text file via a Blob download — lands in the OS Downloads folder.
+  function exportLogs() {
+    const lines = filtered.map(
+      (e) =>
+        `[${new Date(e.ts_ms).toISOString()}] ${e.level.toUpperCase().padEnd(5)} ${e.target}: ${e.message}`,
+    );
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `eimu-logs-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-")}.log`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Level counts for the chip badges. O(N) but N is bounded by the
   // store's own ring buffer so it stays cheap.
   const counts = useMemo(() => {
@@ -71,21 +95,20 @@ export function LogsPage() {
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <header className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
+      <header className="flex items-end justify-between">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--fg-primary)]">
           {t("logs.title")}
-        </h2>
-        <div className="flex items-center gap-3 text-[11px] text-[var(--fg-muted)]">
-          <span>{t("status.shown", { count: filtered.length })}</span>
-          <span>·</span>
-          <span>{t("status.captured", { count: entries.length })}</span>
-        </div>
+        </h1>
+        <span className="rounded-full border border-[var(--border-subtle)] px-3 py-1 text-[11px] text-[var(--fg-secondary)]">
+          {t("status.shown", { count: filtered.length })} ·{" "}
+          {t("status.captured", { count: entries.length })}
+        </span>
       </header>
 
       {/* Sticky toolbar — survives scroll so the user always has filters within reach. */}
-      <div className="sticky top-0 z-10 flex flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-2 shadow-[var(--shadow-card)] backdrop-blur">
-        <div className="flex items-center gap-2">
-          <div className="flex flex-1 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3">
+      <div className="sticky top-0 z-10 flex flex-col gap-2 rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-[10rem] flex-1 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3">
             <MagnifyingGlass size={13} className="text-[var(--fg-muted)]" />
             <input
               type="text"
@@ -115,6 +138,15 @@ export function LogsPage() {
             <ArrowDown size={11} />
             {t("labels.follow")}
           </label>
+          <button
+            type="button"
+            disabled={filtered.length === 0}
+            onClick={exportLogs}
+            className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-1.5 text-[11px] text-[var(--fg-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
+          >
+            <DownloadSimple size={12} />
+            {t("actions.export_logs")}
+          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
@@ -147,7 +179,7 @@ export function LogsPage() {
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-auto rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-panel)]"
+        className="flex-1 overflow-auto rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-panel)]"
       >
         {hiddenAbove > 0 && (
           <div className="border-b border-dashed border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-1.5 text-center text-[10px] uppercase tracking-wide text-[var(--fg-muted)]">
@@ -155,12 +187,7 @@ export function LogsPage() {
           </div>
         )}
         {trimmed.map((e) => (
-          // Composite key: timestamp + target + first 24 chars of message.
-          // Log rows are append-only and never reordered, and React only
-          // needs the key to be stable within the rendered list — exact
-          // dupes within the same millisecond on the same target collapse
-          // visually but don't break correctness.
-          <LogRow key={`${e.ts_ms}-${e.target}-${e.message.slice(0, 24)}`} entry={e} />
+          <LogRow key={e.seq} entry={e} />
         ))}
         {trimmed.length === 0 && (
           <div className="p-4">

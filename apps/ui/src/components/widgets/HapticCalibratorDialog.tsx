@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { HapticCalibrationDto } from "../api/bindings";
-import { api } from "../api/client";
-import { useToastStore } from "../stores/useToastStore";
+import type { HapticCalibrationDto } from "../../api/bindings";
+import { api } from "../../api/client";
+import { useToastStore } from "../../stores/useToastStore";
 
 /// Per-device haptic perception wizard. The user steps the intensity
 /// slider, hits Test, and marks "barely felt" (sets floor) and "comfort
@@ -123,14 +123,14 @@ export function HapticCalibratorDialog({
             <button
               type="button"
               onClick={markFloor}
-              className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+              className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
             >
               {t("haptic_cal.set_floor")}
             </button>
             <button
               type="button"
               onClick={markCeiling}
-              className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--warn-soft)] hover:text-[var(--accent)]"
+              className="rounded-[var(--radius-sm)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--fg-secondary)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
             >
               {t("haptic_cal.set_ceiling")}
             </button>

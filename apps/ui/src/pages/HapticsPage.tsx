@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { HapticConfigDto, HapticModeDto, HapticRuleDto } from "../api/client";
 import { api } from "../api/client";
-import { EmptyState } from "../components/EmptyState";
-import { UdpHaptics } from "../components/UdpHaptics";
+import { EmptyState } from "../components/ui/EmptyState";
+import { UdpHaptics } from "../components/widgets/UdpHaptics";
 import { macHex, macKey } from "../lib/macFormat";
 import { useDeviceStore } from "../stores/useDeviceStore";
 import { useHapticStore } from "../stores/useHapticStore";
@@ -95,11 +95,11 @@ export function HapticsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex items-center justify-between gap-3">
-        <div className="flex flex-col">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
+      <header className="flex items-end justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--fg-primary)]">
             {t("haptics.title")}
-          </h2>
+          </h1>
           <span className="text-[11px] text-[var(--fg-muted)]">{t("haptics.subtitle")}</span>
         </div>
         <span
@@ -355,7 +355,7 @@ function NumField({
 
 function Tile({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4">
+    <section className="relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5 transition-colors hover:border-[var(--border-strong)]">
       <h3 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
         {title}
       </h3>

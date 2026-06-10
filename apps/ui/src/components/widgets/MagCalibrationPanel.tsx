@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Mac, MagCalibrationDto, MagCalProgressDto } from "../api/client";
-import { api } from "../api/client";
+import type { Mac, MagCalibrationDto, MagCalProgressDto } from "../../api/client";
+import { api } from "../../api/client";
 
 /// Coverage at which the fit is geometrically meaningful and "Finish" unlocks.
 const FINISH_THRESHOLD = 0.7;

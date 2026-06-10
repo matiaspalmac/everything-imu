@@ -36,7 +36,7 @@ export function BiasDisplay({ bias }: { bias: [number, number, number] | null })
         return (
           <div
             key={axis}
-            className="flex flex-col items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg)] p-2"
+            className="flex flex-col items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] p-2"
           >
             <Gauge angle={angle} tone={tone} axis={axis} />
             <div className="metric-num font-mono text-[11px] text-[var(--fg-primary)]">

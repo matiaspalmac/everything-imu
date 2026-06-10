@@ -13,8 +13,8 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import type { DeviceMetadataDto } from "../api/client";
 import { api } from "../api/client";
-import { EmptyState } from "../components/EmptyState";
-import { SteamBlacklistBanner } from "../components/SteamBlacklistBanner";
+import { EmptyState } from "../components/ui/EmptyState";
+import { SteamBlacklistBanner } from "../components/widgets/SteamBlacklistBanner";
 import { macHex, macKey as macKeyFn } from "../lib/macFormat";
 import { useDeviceStore } from "../stores/useDeviceStore";
 import { usePerDeviceSettingsStore } from "../stores/usePerDeviceSettingsStore";
@@ -112,10 +112,10 @@ export function DevicesPage() {
       <SteamBlacklistBanner />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--fg-section-header)]">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--fg-primary)]">
             {t("pages.devices")}
-          </h2>
-          <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px] text-[var(--fg-muted)]">
+          </h1>
+          <span className="rounded-full border border-[var(--border-subtle)] px-3 py-1 text-[11px] text-[var(--fg-secondary)]">
             {t("status.known", { count: list.length })} ·{" "}
             {t("status.shown", { count: filtered.length })}
           </span>
@@ -143,7 +143,7 @@ export function DevicesPage() {
         )}
       </header>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-xl)] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-2">
         <label className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-1.5 text-[11px] text-[var(--fg-muted)]">
           <input
             type="checkbox"
@@ -265,10 +265,10 @@ function DeviceCard({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onOpen();
       }}
-      className={`group/dev relative flex cursor-pointer flex-col gap-2 rounded-[var(--radius-md)] border bg-[var(--bg-panel)] p-3 transition ${
+      className={`group/dev relative flex cursor-pointer flex-col gap-2 rounded-[var(--radius-lg)] border p-4 transition-colors ${
         selected
-          ? "border-[var(--accent)] shadow-[var(--shadow-card)]"
-          : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
+          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+          : "border-[var(--border-subtle)] bg-[var(--bg-panel)] hover:border-[var(--border-strong)]"
       }`}
     >
       <div className="flex items-center justify-between gap-2">

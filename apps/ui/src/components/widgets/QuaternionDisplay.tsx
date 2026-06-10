@@ -1,4 +1,4 @@
-import { quatToEulerDeg } from "../lib/quat";
+import { quatToEulerDeg } from "../../lib/quat";
 
 const COMPONENTS = ["x", "y", "z", "w"] as const;
 
