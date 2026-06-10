@@ -31,3 +31,6 @@ device-traits = { path = "../device-traits", features = ["mock"] }
 device-joycon = { path = "../device-joycon", features = ["synthetic-source"] }
 device-dualsense = { path = "../device-dualsense", features = ["synthetic-source"] }
 device-psmove = { path = "../device-psmove", features = ["synthetic-source"] }
+
+[lints]
+workspace = true

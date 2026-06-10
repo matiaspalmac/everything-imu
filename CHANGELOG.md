@@ -10,6 +10,7 @@ reverse-chronological order below.
 ## [Unreleased]
 
 ### Added
+
 - Nintendo 3DS / 2DS support via a libctru homebrew UDP forwarder (`:9305`),
   with a clean-room companion app in `companions/3ds/`.
 - PlayStation Vita support via a VitaSDK homebrew UDP forwarder (`:9306`), with a
@@ -20,6 +21,7 @@ reverse-chronological order below.
   listen addresses.
 
 ### Changed
+
 - The Android phone and Wear OS apps moved to a dedicated repository,
   [everything-imu-mobile](https://github.com/matiaspalmac/everything-imu-mobile).
   The `jni-android` crate and the Android CI jobs moved with them; this repo is
@@ -28,6 +30,7 @@ reverse-chronological order below.
 ## [1.0.4] - 2026-06-01
 
 ### Added
+
 - HOPX / Triki BLE IMU support (Nordic UART Service driver, name-based discovery).
 - DualShock 4 Bluetooth input and DualSense RGB lightbar control.
 - Wii Remote MotionPlus gyro via a homebrew Wi-Fi forwarder companion.
@@ -36,6 +39,7 @@ reverse-chronological order below.
 - In-app and VRChat avatar haptics setup guide.
 
 ### Changed
+
 - DualSense fusion timestep now driven by the controller hardware sensor clock.
 - Phone and Wear OS apps: single connect button, launch auto-connect, adaptive
   gyro-rate fusion, OS rotation source, and steadier networking.
@@ -43,6 +47,7 @@ reverse-chronological order below.
   @tanstack/react-virtual).
 
 ### Fixed
+
 - Joy-Con gyro drift on high-rate Bluetooth links (live-adaptive fusion timestep).
 - Corrected Wii Remote accelerometer scale.
 - PS Move HID input-report parser and axis frame.
@@ -50,6 +55,7 @@ reverse-chronological order below.
 ## [1.0.2] - 2026-05-28
 
 ### Changed
+
 - Desktop app promoted to stable `1.0.2`, aligning the version line with the
   mobile clients. Supersedes the `1.0.0-beta.x` / `1.0.1-beta.0` pre-releases;
   no functional change beyond the version bump.
@@ -57,29 +63,33 @@ reverse-chronological order below.
 ## [mobile/1.0.2] - 2026-05-28
 
 ### Added
+
 - Wear OS standalone host configuration. The watch no longer needs a companion
   phone to set the SlimeVR server address:
-  - **Auto-sync from phone.** When the watch is paired and Play Services is
-    present, setting the server address on the phone pushes it to the watch over
-    the Wearable Data Layer; the watch persists it automatically.
-  - **On-watch IP picker.** A rotary/swipe wheel picker (four octet wheels plus
-    a port wheel) lets you enter the address directly on the watch — no keyboard,
-    no network, no Play Services. This is the universal fallback for AOSP /
-    de-Googled / China-market watches where Data Layer sync is unavailable.
-  - An "Edit IP" button on the watch reopens the picker at any time.
+    - **Auto-sync from phone.** When the watch is paired and Play Services is
+      present, setting the server address on the phone pushes it to the watch over
+      the Wearable Data Layer; the watch persists it automatically.
+    - **On-watch IP picker.** A rotary/swipe wheel picker (four octet wheels plus
+      a port wheel) lets you enter the address directly on the watch — no keyboard,
+      no network, no Play Services. This is the universal fallback for AOSP /
+      de-Googled / China-market watches where Data Layer sync is unavailable.
+    - An "Edit IP" button on the watch reopens the picker at any time.
 - Release APK signing wired through Gradle and CI so the phone and watch builds
   share one signing key (a hard requirement for the Data Layer to deliver
   messages between the two apps).
 
 ### Changed
+
 - Mobile phone + wear apps bumped to `1.0.2`.
 
 ### Fixed
+
 - Release APKs are now signed. The previous unsigned release artifacts failed to
   install ("package appears invalid") because Android rejects APKs with no
   certificate.
 
 ### Upgrade notes
+
 - Upgrading from an earlier unsigned build: uninstall the old app first, then
   install `1.0.2`. Android refuses an in-place upgrade when the signing key
   changes.
@@ -87,6 +97,7 @@ reverse-chronological order below.
 ## [1.0.0-beta.8] - 2026-05-24
 
 ### Security
+
 - Bumped `sentry` 0.34 → 0.48 to drop the vulnerable `rustls` 0.22.4 /
   `rustls-webpki` 0.102.8 subtree. Closes GHSA-82j2-j2ch-gfr8 (high —
   DoS via panic on malformed CRL BIT STRING) and three medium/low
@@ -99,6 +110,7 @@ reverse-chronological order below.
 ## [1.0.0-beta.7] - 2026-05-24
 
 ### Fixed
+
 - `slime-tracker`: receive + watchdog tasks are now aborted on `SlimeClient`
   drop instead of leaking across device reconnects.
 - `slime-tracker`: `encode_bundle` returns `Err` on u16 length overflow
@@ -141,6 +153,7 @@ reverse-chronological order below.
   `useLogStore.pushBatch` honors the paused flag.
 
 ### Tooling
+
 - Release workflow autodetects prerelease tags via the `-alpha|-beta|-rc`
   suffix instead of always shipping as stable.
 - CI gates UI tests (`pnpm test`) in addition to typecheck and build.

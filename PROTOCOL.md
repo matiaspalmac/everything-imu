@@ -10,25 +10,25 @@ UDP packets, big-endian byte order. **Every datagram begins with a 12-byte heade
 
 ### Packet IDs (tracker → server)
 
-| ID | Name | Notes |
-|----|------|-------|
-| 0 | Heartbeat | Trailing 1-byte tracker id (always 0) |
-| 1 | Rotation | **Deprecated** — use ID 17 (`ROTATION_DATA`) for modern servers |
-| 2 | Gyro | Raw gyro (rad/s) |
-| 3 | Handshake | Initial connect |
-| 4 | Acceleration | Linear acceleration vector (m/s², NOT g) |
-| 5 | Magnetometer | Mag readings (µT) when 9D fusion is active |
-| 10 | Ping/Pong | Server-issued challenge, tracker echoes |
-| 12 | Battery level | `[f32 voltage_volts][f32 level_0_to_1]` |
-| 15 | Sensor info | Tracker description (multiple per controller for multi-IMU devices) |
-| 17 | Rotation data | **Modern rotation** — quaternion in `(X, Y, Z, W)` byte order |
-| 21 | Calibration action | User-button reset events (yaw/full/mounting) |
-| 22 | Feature flags | **Bidirectional** — see § Feature flags below |
-| 23 | Rotation+Accel compact | Q15/Q7 packed combined frame for `BUNDLE_COMPACT` |
-| 24 | Ack config change | Tracker → server ack of inbound `SET_CONFIG_FLAG` |
-| 25 | Set config flag | **Server → tracker** request (mag enable, etc.) |
-| 100 | BUNDLE | Multi-packet batched datagram (gated by server FEATURE_FLAGS) |
-| 101 | BUNDLE_COMPACT | Halved bandwidth bundle of `ROTATION_AND_ACCELERATION_COMPACT` frames |
+| ID  | Name                   | Notes                                                                 |
+| --- | ---------------------- | --------------------------------------------------------------------- |
+| 0   | Heartbeat              | Trailing 1-byte tracker id (always 0)                                 |
+| 1   | Rotation               | **Deprecated** — use ID 17 (`ROTATION_DATA`) for modern servers       |
+| 2   | Gyro                   | Raw gyro (rad/s)                                                      |
+| 3   | Handshake              | Initial connect                                                       |
+| 4   | Acceleration           | Linear acceleration vector (m/s², NOT g)                              |
+| 5   | Magnetometer           | Mag readings (µT) when 9D fusion is active                            |
+| 10  | Ping/Pong              | Server-issued challenge, tracker echoes                               |
+| 12  | Battery level          | `[f32 voltage_volts][f32 level_0_to_1]`                               |
+| 15  | Sensor info            | Tracker description (multiple per controller for multi-IMU devices)   |
+| 17  | Rotation data          | **Modern rotation** — quaternion in `(X, Y, Z, W)` byte order         |
+| 21  | Calibration action     | User-button reset events (yaw/full/mounting)                          |
+| 22  | Feature flags          | **Bidirectional** — see § Feature flags below                         |
+| 23  | Rotation+Accel compact | Q15/Q7 packed combined frame for `BUNDLE_COMPACT`                     |
+| 24  | Ack config change      | Tracker → server ack of inbound `SET_CONFIG_FLAG`                     |
+| 25  | Set config flag        | **Server → tracker** request (mag enable, etc.)                       |
+| 100 | BUNDLE                 | Multi-packet batched datagram (gated by server FEATURE_FLAGS)         |
+| 101 | BUNDLE_COMPACT         | Halved bandwidth bundle of `ROTATION_AND_ACCELERATION_COMPACT` frames |
 
 ### Handshake (packet 3)
 
@@ -97,6 +97,7 @@ Client → server. Establishes session. Server replies with a packet whose first
 ```
 
 `sensor_config` bitmask for magnetometer: bit 0 = enabled, bit 1 = supported. So:
+
 - `0x0003` — magnetometer enabled
 - `0x0002` — magnetometer supported but disabled
 - `0x0000` — magnetometer not supported
@@ -115,10 +116,10 @@ Tracker advertises capabilities to the server (and vice versa) using the same pa
 
 Bit semantics differ per direction:
 
-| Direction | Namespace | Bit 0 | Bit 1 | Bit 2 |
-|-----------|-----------|-------|-------|-------|
-| Tracker → Server | `FirmwareFeatureFlagBits` | REMOTE_COMMAND | B64_WIFI_SCANNING | SENSOR_CONFIG |
-| Server → Tracker | `ServerFeatureFlagBits` | PROTOCOL_BUNDLE_SUPPORT | PROTOCOL_BUNDLE_COMPACT_SUPPORT | — |
+| Direction        | Namespace                 | Bit 0                   | Bit 1                           | Bit 2         |
+| ---------------- | ------------------------- | ----------------------- | ------------------------------- | ------------- |
+| Tracker → Server | `FirmwareFeatureFlagBits` | REMOTE_COMMAND          | B64_WIFI_SCANNING               | SENSOR_CONFIG |
+| Server → Tracker | `ServerFeatureFlagBits`   | PROTOCOL_BUNDLE_SUPPORT | PROTOCOL_BUNDLE_COMPACT_SUPPORT | —             |
 
 The tracker advertises `SENSOR_CONFIG` outbound so the server can issue `SET_CONFIG_FLAG` requests, and reads `PROTOCOL_BUNDLE_SUPPORT` from the inbound reply to drive the BUNDLE auto-fallback gate.
 
@@ -142,8 +143,8 @@ Inner packets do **not** carry their own 8-byte sequence number — only the out
 1. On startup, default `server_supports_bundle = false`.
 2. After handshake, the server's FEATURE_FLAGS reply lands; parse it and set `server_supports_bundle = (flag_bytes[0] & (1 << PROTOCOL_BUNDLE_SUPPORT)) != 0`.
 3. When emitting per-tick rotation+accel:
-   - If `server_supports_bundle` → send single BUNDLE (packet 100).
-   - Else → send rotation (packet 17) THEN acceleration (packet 4) as separate datagrams. **Rotation first** — accel-first produced visible 1-frame jitter on servers without bundle support.
+    - If `server_supports_bundle` → send single BUNDLE (packet 100).
+    - Else → send rotation (packet 17) THEN acceleration (packet 4) as separate datagrams. **Rotation first** — accel-first produced visible 1-frame jitter on servers without bundle support.
 4. The ~1–2 samples that land before the FEATURE_FLAGS reply go via the fallback path automatically; no data loss.
 
 ---

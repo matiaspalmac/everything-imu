@@ -16,3 +16,6 @@ approx = { workspace = true }
 proptest = { workspace = true }
 serde_json = { workspace = true }
 slime-tracker = { path = "../slime-tracker" }
+
+[lints]
+workspace = true

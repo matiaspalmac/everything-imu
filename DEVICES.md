@@ -6,32 +6,32 @@ convention, on-device reset gestures, and known quirks.
 
 ## Summary
 
-| Device | VID:PID | IMU part | Transport | Rate | Mag | Battery | Rumble |
-|--------|--------:|----------|-----------|-----:|:---:|:-------:|:------:|
-| Joy-Con L | `057E:2006` | LSM6DS3-TR-C¹ | USB · BT Classic | 200 Hz | ✗ | ✓ | ✓ |
-| Joy-Con R | `057E:2007` | LSM6DS3-TR-C¹ | USB · BT Classic | 200 Hz | ✗ | ✓ | ✓ |
-| Switch Pro Controller | `057E:2009` | LSM6DS3-TR-C | USB · BT Classic | 200 Hz | ✗ | ✓ | ✓ |
-| Joy-Con 2 (L/R) | BLE only | ICM-42670-P + AK09919 | BLE | 62 Hz | ✓ | ✓ | ✓ |
-| Switch 2 Pro Controller | BLE only | ICM-42670-P + AK09919 | BLE | 62 Hz | ✓ | ✓ | ✓ |
-| NSO GameCube 2 | BLE only | ICM-42670-P + AK09919 | BLE | 62 Hz | ✓ | ✓ | ✓ |
-| DualSense | `054C:0CE6` | BMI270 | USB · BT | 250 Hz | ✗ | ✓ | ✓ |
-| DualSense Edge | `054C:0DF2` | BMI270 | USB · BT | 250 Hz | ✗ | ✓ | ✓ |
-| DualShock 4 v1 | `054C:05C4` | BMI055 | USB | 250 Hz | ✗ | ✓ | ✓ |
-| DualShock 4 v2 | `054C:09CC` | BMI055 | USB | 250 Hz | ✗ | ✓ | ✓ |
-| PS Move ZCM1 | `054C:03D5` | MPU-6050 + AK8975 | USB · BT | 175 Hz | ✓ | ✓ | ✓ |
-| PS Move ZCM2 | `054C:0C5E` | MPU-6500 | USB · BT | 175 Hz | ✗ | ✓ | ✓ |
-| Wii Remote | TCP forwarder | ADXL345 + IDG-600 / ADXL330² | TCP `127.0.0.1:9909` | 100 Hz | ✗ | ✓ | ✓ |
-| 3DS / 2DS (XL) | UDP forwarder | ST accel + InvenSense gyro | UDP `:9305` | 100 Hz | ✗ | ✗ | ✗ |
-| PS Vita | UDP forwarder | 3-axis accel + 3-axis gyro (`sceMotion`) | UDP `:9306` | 100 Hz | ✗ | ✗ | ✗ |
-| DualShock 3 | `054C:0268` | Kionix accel + 1-axis gyro³ | USB | ~100 Hz | ✗ | ✗ | ✗ |
-| HOPX / Triki | BLE (name `Triki`) | LSM6DS (nRF52810) | BLE | 52 Hz | ✗ | ✗ | ✗ |
+| Device                  |            VID:PID | IMU part                                 | Transport            |    Rate | Mag | Battery | Rumble |
+| ----------------------- | -----------------: | ---------------------------------------- | -------------------- | ------: | :-: | :-----: | :----: |
+| Joy-Con L               |        `057E:2006` | LSM6DS3-TR-C¹                            | USB · BT Classic     |  200 Hz |  ✗  |    ✓    |   ✓    |
+| Joy-Con R               |        `057E:2007` | LSM6DS3-TR-C¹                            | USB · BT Classic     |  200 Hz |  ✗  |    ✓    |   ✓    |
+| Switch Pro Controller   |        `057E:2009` | LSM6DS3-TR-C                             | USB · BT Classic     |  200 Hz |  ✗  |    ✓    |   ✓    |
+| Joy-Con 2 (L/R)         |           BLE only | ICM-42670-P + AK09919                    | BLE                  |   62 Hz |  ✓  |    ✓    |   ✓    |
+| Switch 2 Pro Controller |           BLE only | ICM-42670-P + AK09919                    | BLE                  |   62 Hz |  ✓  |    ✓    |   ✓    |
+| NSO GameCube 2          |           BLE only | ICM-42670-P + AK09919                    | BLE                  |   62 Hz |  ✓  |    ✓    |   ✓    |
+| DualSense               |        `054C:0CE6` | BMI270                                   | USB · BT             |  250 Hz |  ✗  |    ✓    |   ✓    |
+| DualSense Edge          |        `054C:0DF2` | BMI270                                   | USB · BT             |  250 Hz |  ✗  |    ✓    |   ✓    |
+| DualShock 4 v1          |        `054C:05C4` | BMI055                                   | USB                  |  250 Hz |  ✗  |    ✓    |   ✓    |
+| DualShock 4 v2          |        `054C:09CC` | BMI055                                   | USB                  |  250 Hz |  ✗  |    ✓    |   ✓    |
+| PS Move ZCM1            |        `054C:03D5` | MPU-6050 + AK8975                        | USB · BT             |  175 Hz |  ✓  |    ✓    |   ✓    |
+| PS Move ZCM2            |        `054C:0C5E` | MPU-6500                                 | USB · BT             |  175 Hz |  ✗  |    ✓    |   ✓    |
+| Wii Remote              |      TCP forwarder | ADXL345 + IDG-600 / ADXL330²             | TCP `127.0.0.1:9909` |  100 Hz |  ✗  |    ✓    |   ✓    |
+| 3DS / 2DS (XL)          |      UDP forwarder | ST accel + InvenSense gyro               | UDP `:9305`          |  100 Hz |  ✗  |    ✗    |   ✗    |
+| PS Vita                 |      UDP forwarder | 3-axis accel + 3-axis gyro (`sceMotion`) | UDP `:9306`          |  100 Hz |  ✗  |    ✗    |   ✗    |
+| DualShock 3             |        `054C:0268` | Kionix accel + 1-axis gyro³              | USB                  | ~100 Hz |  ✗  |    ✗    |   ✗    |
+| HOPX / Triki            | BLE (name `Triki`) | LSM6DS (nRF52810)                        | BLE                  |   52 Hz |  ✗  |    ✗    |   ✗    |
 
 ¹ Genuine Nintendo. Clones ship with ICM-20600 — auto-detected via SPI ID, fall
 back to longer VQF warm-up.
 ² Wii Remote IMUs vary by revision; values forwarded by the companion process.
 ³ DualShock 3 has only a **single-axis (yaw) gyroscope** + 3-axis accel, no
 mag — experimental/not-recommended tracker (accel-dominant, unconstrained yaw
-drift). See `docs/ref_dualshock3_protocol.md`.
+drift). See `docs/reference/dualshock3_protocol.md`.
 
 Charging Grip (`057E:200E`) enumerates as USB but is not directly driven — it
 proxies its docked Joy-Cons. Connect them via Bluetooth instead.
@@ -45,10 +45,10 @@ proxies its docked Joy-Cons. Connect them via Bluetooth instead.
 
 ### Hardware
 
-| Component | Part | Notes |
-|-----------|------|-------|
-| IMU 6-axis (genuine) | STMicroelectronics LSM6DS3-TR-C | ±2000 dps, ±8 g |
-| IMU 6-axis (clones) | InvenSense ICM-20600 | Auto-detected, slower bias warm-up |
+| Component            | Part                            | Notes                              |
+| -------------------- | ------------------------------- | ---------------------------------- |
+| IMU 6-axis (genuine) | STMicroelectronics LSM6DS3-TR-C | ±2000 dps, ±8 g                    |
+| IMU 6-axis (clones)  | InvenSense ICM-20600            | Auto-detected, slower bias warm-up |
 
 ### Transport
 
@@ -64,23 +64,23 @@ proxies its docked Joy-Cons. Connect them via Bluetooth instead.
 
 ### Calibration
 
-| Source | SPI region | Bytes | Notes |
-|--------|-----------|------:|-------|
-| Factory | `0x6020` | 12 | Accel + gyro offsets/scales |
-| User | `0x8026` | 12 | Override gated by magic bytes `B2 A1` |
+| Source  | SPI region | Bytes | Notes                                 |
+| ------- | ---------- | ----: | ------------------------------------- |
+| Factory | `0x6020`   |    12 | Accel + gyro offsets/scales           |
+| User    | `0x8026`   |    12 | Override gated by magic bytes `B2 A1` |
 
 Read via subcommand `0x10` (SPI read). Bias is also persisted client-side after
-30 s of stillness, see VQF *rest bias estimation*.
+30 s of stillness, see VQF _rest bias estimation_.
 
 ### Subcommands
 
-| ID | Purpose |
-|----|---------|
-| `0x40` | Enable IMU |
-| `0x30` | Player LEDs |
-| `0x38` | Home LED |
+| ID     | Purpose           |
+| ------ | ----------------- |
+| `0x40` | Enable IMU        |
+| `0x30` | Player LEDs       |
+| `0x38` | Home LED          |
 | `0x48` | HD rumble (basic) |
-| `0x10` | SPI read |
+| `0x10` | SPI read          |
 
 ### Axis convention
 
@@ -88,11 +88,11 @@ Body frame is `(x, z, -y)` of the raw IMU output (gravity = +Z when face-up).
 
 ### Reset gestures
 
-| Gesture | Action |
-|---------|--------|
-| Capture button | `RESET_YAW` |
-| Home (short press) | `RESET_YAW` |
-| Home (≥1 s hold) | `RESET_FULL` |
+| Gesture            | Action       |
+| ------------------ | ------------ |
+| Capture button     | `RESET_YAW`  |
+| Home (short press) | `RESET_YAW`  |
+| Home (≥1 s hold)   | `RESET_FULL` |
 
 ### Quirks
 
@@ -110,10 +110,10 @@ Body frame is `(x, z, -y)` of the raw IMU output (gravity = +Z when face-up).
 
 ### Hardware
 
-| Component | Part | Scale |
-|-----------|------|-------|
-| IMU 6-axis | TDK InvenSense **ICM-42670-P** | gyro ±2000 dps (coeff `34.8 / INT16_MAX ≈ 0.001062 rad/s/raw`), accel ±8 g (`4096 = 1 g`) |
-| Magnetometer | Asahi Kasei **AK09919** | 3-axis ±4900 µT, 16-bit |
+| Component    | Part                           | Scale                                                                                     |
+| ------------ | ------------------------------ | ----------------------------------------------------------------------------------------- |
+| IMU 6-axis   | TDK InvenSense **ICM-42670-P** | gyro ±2000 dps (coeff `34.8 / INT16_MAX ≈ 0.001062 rad/s/raw`), accel ±8 g (`4096 = 1 g`) |
+| Magnetometer | Asahi Kasei **AK09919**        | 3-axis ±4900 µT, 16-bit                                                                   |
 
 ### Transport
 
@@ -127,46 +127,46 @@ Body frame is `(x, z, -y)` of the raw IMU output (gravity = +Z when face-up).
 
 Service UUID `ab7de9be-89fe-49ad-828f-118f09df7fd0` (handle `0x0008`):
 
-| Role | UUID | Handle |
-|------|------|--------|
-| Common input report (`0x05`) | `ab7de9be-89fe-49ad-828f-118f09df7fd2` | `0x000A` |
-| Joy-Con L input (`0x07`) | `cc1bbbb5-7354-4d32-a716-a81cb241a32a` | `0x000E` |
-| Joy-Con R input (`0x08`) | `d5a9e01e-2ffc-4cca-b20c-8b67142bf442` | `0x000E` |
+| Role                            | UUID                                   | Handle   |
+| ------------------------------- | -------------------------------------- | -------- |
+| Common input report (`0x05`)    | `ab7de9be-89fe-49ad-828f-118f09df7fd2` | `0x000A` |
+| Joy-Con L input (`0x07`)        | `cc1bbbb5-7354-4d32-a716-a81cb241a32a` | `0x000E` |
+| Joy-Con R input (`0x08`)        | `d5a9e01e-2ffc-4cca-b20c-8b67142bf442` | `0x000E` |
 | Pro Controller 2 input (`0x09`) | `7492866c-ec3e-4619-8258-32755ffcc0f8` | `0x000E` |
-| NSO GC2 input (`0x0A`) | `8261cba1-9435-420c-84d6-f0c75a2c8e4d` | `0x000E` |
-| Write commands | `649d4ac9-8eb7-4e6c-af44-1ea54fe5f005` | — |
-| Output / rumble | `289326cb-a471-485d-a8f4-240c14f18241` | `0x0012` |
-| Command response (notify) | `c765a961-d9d8-4d36-a20a-5315b111836a` | — |
+| NSO GC2 input (`0x0A`)          | `8261cba1-9435-420c-84d6-f0c75a2c8e4d` | `0x000E` |
+| Write commands                  | `649d4ac9-8eb7-4e6c-af44-1ea54fe5f005` | —        |
+| Output / rumble                 | `289326cb-a471-485d-a8f4-240c14f18241` | `0x0012` |
+| Command response (notify)       | `c765a961-d9d8-4d36-a20a-5315b111836a` | —        |
 
 ### Input report `0x05` (62 bytes plaintext)
 
-| Offset | Size | Field |
-|-------:|-----:|-------|
-| `0x00` | 4 | Counter (`uint32 LE`, +1 per packet) |
-| `0x04` | 4 | Buttons bitfield |
-| `0x0A` | 3 | Left stick (12-bit packed) |
-| `0x0D` | 3 | Right stick |
-| `0x10` | 8 | Mouse data |
-| **`0x19`** | **6** | **Magnetometer X/Y/Z** (`int16 LE`, feature bit 7) |
-| **`0x1F`** | **2** | **Battery voltage mV** (`uint16 LE`) |
-| `0x21` | 1 | Charging state |
-| `0x22` | 2 | Battery current (feature bit 5) |
-| **`0x2A`** | **18** | **Motion block** (feature bit 2) |
-| `0x3C` | 1 | Left trigger (NSO GC2 only) |
-| `0x3D` | 1 | Right trigger (NSO GC2 only) |
+|     Offset |   Size | Field                                              |
+| ---------: | -----: | -------------------------------------------------- |
+|     `0x00` |      4 | Counter (`uint32 LE`, +1 per packet)               |
+|     `0x04` |      4 | Buttons bitfield                                   |
+|     `0x0A` |      3 | Left stick (12-bit packed)                         |
+|     `0x0D` |      3 | Right stick                                        |
+|     `0x10` |      8 | Mouse data                                         |
+| **`0x19`** |  **6** | **Magnetometer X/Y/Z** (`int16 LE`, feature bit 7) |
+| **`0x1F`** |  **2** | **Battery voltage mV** (`uint16 LE`)               |
+|     `0x21` |      1 | Charging state                                     |
+|     `0x22` |      2 | Battery current (feature bit 5)                    |
+| **`0x2A`** | **18** | **Motion block** (feature bit 2)                   |
+|     `0x3C` |      1 | Left trigger (NSO GC2 only)                        |
+|     `0x3D` |      1 | Right trigger (NSO GC2 only)                       |
 
 Motion block (`0x2A`):
 
-| Offset | Size | Field |
-|-------:|-----:|-------|
-| +0 | 4 | Motion timestamp |
-| +4 | 2 | Temperature |
-| +6 | 2 | Accel X (`int16 LE`, `4096 = 1 g`) |
-| +8 | 2 | Accel Y |
-| +10 | 2 | Accel Z |
-| +12 | 2 | Gyro X (`int16 LE`) |
-| +14 | 2 | Gyro Y |
-| +16 | 2 | Gyro Z |
+| Offset | Size | Field                              |
+| -----: | ---: | ---------------------------------- |
+|     +0 |    4 | Motion timestamp                   |
+|     +4 |    2 | Temperature                        |
+|     +6 |    2 | Accel X (`int16 LE`, `4096 = 1 g`) |
+|     +8 |    2 | Accel Y                            |
+|    +10 |    2 | Accel Z                            |
+|    +12 |    2 | Gyro X (`int16 LE`)                |
+|    +14 |    2 | Gyro Y                             |
+|    +16 |    2 | Gyro Z                             |
 
 Effective IMU rate ≈ **62 Hz** (16 ms packet interval).
 
@@ -174,15 +174,15 @@ Effective IMU rate ≈ **62 Hz** (16 ms packet interval).
 
 Header: `CMD | 0x91 | 0x01 | SUBCMD | 0x00 | LEN | 0x00 | 0x00 | DATA…`
 
-| CMD | Purpose |
-|-----|---------|
-| `0x02` | Flash read/write (factory cal) |
-| `0x03` | Init (input report select) |
-| `0x09` | Player LED |
-| `0x0A` | Vibration / sound |
-| `0x0B` | Battery query |
-| **`0x0C`** | Feature select (enable IMU/mag) |
-| ⚠ `0x15` | **DO NOT USE** — pairing persistence write, *can brick the controller* |
+| CMD        | Purpose                                                                |
+| ---------- | ---------------------------------------------------------------------- |
+| `0x02`     | Flash read/write (factory cal)                                         |
+| `0x03`     | Init (input report select)                                             |
+| `0x09`     | Player LED                                                             |
+| `0x0A`     | Vibration / sound                                                      |
+| `0x0B`     | Battery query                                                          |
+| **`0x0C`** | Feature select (enable IMU/mag)                                        |
+| ⚠ `0x15`   | **DO NOT USE** — pairing persistence write, _can brick the controller_ |
 
 Canonical IMU enable sequence (validated against real hardware):
 
@@ -194,14 +194,14 @@ Masks: `0x04` IMU, `0x80` mag, `0xFF` all.
 
 ### Memory map (CMD `0x02` flash read)
 
-| Address | Content |
-|---------|---------|
-| `0x13000–0x14FFF` | Factory data block |
-| `0x13002` | Serial number |
-| `0x13012` | USB product ID (authoritative variant id) |
-| `0x13040 + 4/8/12` | 3 × `float32` gyro bias |
-| `0x13100 + 12/16/20` | 3 × `float32` accel bias |
-| `0x1FA000` | BLE pairing info (host + LTK) |
+| Address              | Content                                   |
+| -------------------- | ----------------------------------------- |
+| `0x13000–0x14FFF`    | Factory data block                        |
+| `0x13002`            | Serial number                             |
+| `0x13012`            | USB product ID (authoritative variant id) |
+| `0x13040 + 4/8/12`   | 3 × `float32` gyro bias                   |
+| `0x13100 + 12/16/20` | 3 × `float32` accel bias                  |
+| `0x1FA000`           | BLE pairing info (host + LTK)             |
 
 ### Axis convention (SDL2 authoritative)
 
@@ -211,8 +211,8 @@ output = (raw_x, raw_z, -raw_y)         # body frame, gravity +Z face-up
 
 Variant-specific remaps applied on top:
 
-| Variant | Remap |
-|---------|-------|
+| Variant                  | Remap                                    |
+| ------------------------ | ---------------------------------------- |
 | Joy-Con 2 L (standalone) | `(x, y, z) → ( z, y, -x)` (+90° about Y) |
 | Joy-Con 2 R (standalone) | `(x, y, z) → (-z, y,  x)` (−90° about Y) |
 
@@ -220,11 +220,11 @@ The magnetometer is co-mounted on the same PCB → same base remap as the IMU.
 
 ### Reset gestures
 
-| Gesture | Bit in report | Action |
-|---------|---------------|--------|
-| Home (short) | byte `0x05`, bit `0x10` | `RESET_YAW` |
+| Gesture          | Bit in report                   | Action       |
+| ---------------- | ------------------------------- | ------------ |
+| Home (short)     | byte `0x05`, bit `0x10`         | `RESET_YAW`  |
 | Home (≥1 s hold) | byte `0x05`, bit `0x10` (timer) | `RESET_FULL` |
-| Capture | byte `0x05`, bit `0x20` | `RESET_YAW` |
+| Capture          | byte `0x05`, bit `0x20`         | `RESET_YAW`  |
 
 ### Auto-calibration
 
@@ -248,16 +248,16 @@ is persisted to SQLite per MAC.
 
 ### Hardware
 
-| Component | Part | Scale |
-|-----------|------|-------|
+| Component  | Part             | Scale                                             |
+| ---------- | ---------------- | ------------------------------------------------- |
 | IMU 6-axis | Bosch **BMI270** | gyro ±2000 dps, accel `8192 LSB/g` (≈ ±4 g range) |
 
 ### Transport
 
-| Mode | Library | Rate |
-|------|---------|-----:|
-| USB | `hidapi` | 250 Hz (standard), 1000 Hz reported by Edge |
-| BT | `btleplug` | 250 Hz |
+| Mode | Library    |                                        Rate |
+| ---- | ---------- | ------------------------------------------: |
+| USB  | `hidapi`   | 250 Hz (standard), 1000 Hz reported by Edge |
+| BT   | `btleplug` |                                      250 Hz |
 
 ### Calibration
 
@@ -266,13 +266,13 @@ before the sample reaches fusion.
 
 ### Reports
 
-| Report ID | Purpose |
-|-----------|---------|
-| `0x01` | Input (USB) |
-| `0x31` | Input (BT, 78 bytes incl. CRC32 trailer) |
-| `0x02` | Output (rumble, LEDs) |
-| `0x05` | Feature: calibration |
-| `0x09` | Feature: pairing info |
+| Report ID | Purpose                                  |
+| --------- | ---------------------------------------- |
+| `0x01`    | Input (USB)                              |
+| `0x31`    | Input (BT, 78 bytes incl. CRC32 trailer) |
+| `0x02`    | Output (rumble, LEDs)                    |
+| `0x05`    | Feature: calibration                     |
+| `0x09`    | Feature: pairing info                    |
 
 ### Quirks
 
@@ -289,8 +289,8 @@ before the sample reaches fusion.
 
 ### Hardware
 
-| Component | Part | Scale |
-|-----------|------|-------|
+| Component  | Part             | Scale                              |
+| ---------- | ---------------- | ---------------------------------- |
 | IMU 6-axis | Bosch **BMI055** | gyro ±2000 dps, accel `8192 LSB/g` |
 
 ### Transport
@@ -316,26 +316,26 @@ Same feature-report `0x05` scheme as DualSense.
 
 ### Hardware
 
-| Variant | IMU | Magnetometer | Notes |
-|---------|-----|--------------|-------|
-| ZCM1 (PS3 era) | InvenSense MPU-6050 | Asahi Kasei AK8975 | Mag is **only** on ZCM1 |
-| ZCM2 (PS4 refresh) | InvenSense MPU-6500 | — | Mag removed, smaller PCB |
+| Variant            | IMU                 | Magnetometer       | Notes                    |
+| ------------------ | ------------------- | ------------------ | ------------------------ |
+| ZCM1 (PS3 era)     | InvenSense MPU-6050 | Asahi Kasei AK8975 | Mag is **only** on ZCM1  |
+| ZCM2 (PS4 refresh) | InvenSense MPU-6500 | —                  | Mag removed, smaller PCB |
 
 ### Transport
 
-| Mode | Library | Notes |
-|------|---------|-------|
-| USB | `hidapi` | Feature report `0x05` carries pairing handshake |
-| BT | HID report `0x01` | Standard L2CAP after pairing |
+| Mode | Library           | Notes                                           |
+| ---- | ----------------- | ----------------------------------------------- |
+| USB  | `hidapi`          | Feature report `0x05` carries pairing handshake |
+| BT   | HID report `0x01` | Standard L2CAP after pairing                    |
 
 ### Layout
 
-| Aspect | Value |
-|--------|-------|
-| Axis remap | X → X, Y → Z, Z → −Y |
-| Accel scale | ±3 g |
-| Gyro scale | ±2000 dps |
-| IMU rate | 175 Hz |
+| Aspect      | Value                |
+| ----------- | -------------------- |
+| Axis remap  | X → X, Y → Z, Z → −Y |
+| Accel scale | ±3 g                 |
+| Gyro scale  | ±2000 dps            |
+| IMU rate    | 175 Hz               |
 
 ### Quirks
 
@@ -358,10 +358,10 @@ master) forwards 17-byte legacy Wii input packets over TCP to
 `127.0.0.1:9909`. The bridge listens, parses, and emits IMU samples like any
 other device.
 
-| Direction | Protocol |
-|-----------|----------|
+| Direction          | Protocol                                             |
+| ------------------ | ---------------------------------------------------- |
 | Companion → bridge | 17-byte Wii packet (button + accel + extension slot) |
-| Bridge → companion | Per-controller rumble state + polling interval hint |
+| Bridge → companion | Per-controller rumble state + polling interval hint  |
 
 No HID / BLE code path; this crate is a passive packet receiver + back-channel.
 
@@ -384,10 +384,10 @@ through the Nordic UART Service - the host never talks to the sensor directly.
 
 ### Hardware
 
-| Component | Part | Notes |
-|-----------|------|-------|
-| BLE SoC | Nordic nRF52810 | packs IMU samples into UART notifications |
-| IMU 6-axis | STMicroelectronics LSM6DS family | 2000 dps, 16 g |
+| Component  | Part                             | Notes                                     |
+| ---------- | -------------------------------- | ----------------------------------------- |
+| BLE SoC    | Nordic nRF52810                  | packs IMU samples into UART notifications |
+| IMU 6-axis | STMicroelectronics LSM6DS family | 2000 dps, 16 g                            |
 
 ### Transport
 
@@ -416,7 +416,7 @@ through the Nordic UART Service - the host never talks to the sensor directly.
 **Crate**: `crates/device-3ds/`
 **Status**: implemented (forwarder + parser + tests); axis remap + accel scale
 pending live-console validation. Protocol recovered from a known-working
-forwarder — see `docs/ref_3ds_protocol.md`.
+forwarder — see `docs/reference/3ds_protocol.md`.
 
 ### Hardware
 
@@ -429,12 +429,12 @@ Joy-Con 1.
 The console is not host-drivable, so a **homebrew app runs on the 3DS** and
 streams raw IMU over **UDP** to the bridge (Wii-style companion model, but UDP).
 
-| Aspect | Value |
-|--------|-------|
+| Aspect   | Value                                                |
+| -------- | ---------------------------------------------------- |
 | Protocol | UDP, bridge binds `0.0.0.0:9305` (`--three-ds-bind`) |
-| Packet | 12 bytes, little-endian: `i16 ax ay az gx gy gz` |
-| Rate | ~100 Hz |
-| Identity | sender IP (one console = one tracker) |
+| Packet   | 12 bytes, little-endian: `i16 ax ay az gx gy gz`     |
+| Rate     | ~100 Hz                                              |
+| Identity | sender IP (one console = one tracker)                |
 
 ### Scale
 
@@ -459,7 +459,7 @@ from the working forwarder; confirm on hardware before treating as canonical.
 
 **Crate**: `crates/device-vita/`
 **Status**: implemented (forwarder + parser + tests); axis convention pending
-live-Vita validation. See `docs/ref_vita_protocol.md`.
+live-Vita validation. See `docs/reference/vita_protocol.md`.
 
 ### Hardware
 
@@ -468,12 +468,12 @@ JC1 tier. Not host-drivable, so a VitaSDK homebrew streams over UDP.
 
 ### Transport
 
-| Aspect | Value |
-|--------|-------|
-| Protocol | UDP, bridge binds `0.0.0.0:9306` (`--vita-bind`) |
-| Packet | 24 bytes, little-endian: 6 × `f32` (accel g, gyro rad/s) |
-| Rate | ~100 Hz |
-| Identity | sender IP |
+| Aspect   | Value                                                    |
+| -------- | -------------------------------------------------------- |
+| Protocol | UDP, bridge binds `0.0.0.0:9306` (`--vita-bind`)         |
+| Packet   | 24 bytes, little-endian: 6 × `f32` (accel g, gyro rad/s) |
+| Rate     | ~100 Hz                                                  |
+| Identity | sender IP                                                |
 
 The Vita SDK returns calibrated floats, so the wire carries SI `f32` values —
 `accel_m_s2 = accel_g * 9.80665`, gyro passed through. No raw-count scaling.
@@ -490,7 +490,7 @@ The Vita SDK returns calibrated floats, so the wire carries SI `f32` values —
 **Crate**: `crates/device-dualshock3/`
 **Status**: implemented — **experimental**. USB only. Single-axis gyro means
 this is a tilt-dominant tracker; ship behind a UI warning. Scales + axis
-convention are estimates pending hardware. See `docs/ref_dualshock3_protocol.md`.
+convention are estimates pending hardware. See `docs/reference/dualshock3_protocol.md`.
 
 ### Hardware
 

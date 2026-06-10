@@ -24,3 +24,6 @@ uuid = { workspace = true, features = ["macro-diagnostics"] }
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }
 approx = { workspace = true }
+
+[lints]
+workspace = true

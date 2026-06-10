@@ -1,0 +1,15 @@
+# Prettier owns Markdown + YAML only; Biome formats TS/JS/JSON, rustfmt owns Rust.
+*
+!*/
+
+!**/*.md
+!**/*.yml
+!**/*.yaml
+
+# Generated / vendored
+node_modules/
+dist/
+dist-portable/
+target/
+pnpm-lock.yaml
+pnpm-workspace.yaml

@@ -16,3 +16,6 @@ async-trait = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["net", "sync", "rt", "time", "macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

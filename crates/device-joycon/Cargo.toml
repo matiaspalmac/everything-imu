@@ -29,3 +29,6 @@ uuid = { workspace = true, features = ["macro-diagnostics"] }
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }
 device-traits = { path = "../device-traits", features = ["mock"] }
+
+[lints]
+workspace = true

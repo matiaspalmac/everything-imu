@@ -1,6 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/main.tsx", "src/globals.d.ts", "vite.config.ts"],
+  "entry": ["src/globals.d.ts"],
   "project": ["src/**/*.{ts,tsx}"],
-  "ignore": ["src/api/bindings.ts"]
+  "ignore": ["src/api/bindings.ts"],
+  "ignoreDependencies": ["tailwindcss"],
+  "rules": {
+    "types": "off"
+  }
 }

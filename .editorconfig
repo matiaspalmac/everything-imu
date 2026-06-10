@@ -1,3 +1,5 @@
+# Editor-agnostic baseline; Biome (TS/JS/JSON), rustfmt (Rust) and
+# Prettier (Markdown/YAML) enforce the details on top of this.
 root = true
 
 [*]
@@ -8,10 +10,8 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 
-[*.{kt,kts}]
-indent_size = 4
-ij_kotlin_allow_trailing_comma = true
-ij_kotlin_allow_trailing_comma_on_call_site = true
+[*.{ts,tsx,js,jsx,css,html}]
+indent_size = 2
 
 [*.{yml,yaml,toml,json}]
 indent_size = 2

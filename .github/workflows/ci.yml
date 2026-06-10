@@ -9,10 +9,17 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Cancel superseded runs on the same ref — pushing a fix-up shouldn't leave
+# the previous pipeline burning runner minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   rust:
     name: Rust ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -48,17 +55,18 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Cargo check
-        run: cargo check --workspace --all-targets
+        run: cargo check --workspace --all-targets --locked
 
       - name: Cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       - name: Cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   ui:
     name: UI ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -90,3 +98,22 @@ jobs:
 
       - name: Lint (biome)
         run: pnpm lint
+
+      - name: Docs format (prettier)
+        run: pnpm docs:check
+
+      - name: Dead code (knip)
+        run: pnpm --filter @everything-imu/ui knip
+
+      - name: Dependency audit (pnpm)
+        run: pnpm audit --audit-level high
+
+  supply-chain:
+    name: Supply chain (cargo-deny)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories licenses bans sources

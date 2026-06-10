@@ -23,3 +23,6 @@ nalgebra = ["dep:nalgebra"]
 [dev-dependencies]
 nalgebra = { workspace = true }
 tokio = { workspace = true, features = ["net", "rt", "rt-multi-thread", "macros", "sync", "time"] }
+
+[lints]
+workspace = true

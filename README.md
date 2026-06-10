@@ -26,6 +26,7 @@ quaternion to SlimeVR-Server over UDP using the official protocol.
 > hardware-validated across the supported controllers. If you hit a snag,
 > please file an issue with reproduction steps and the logs from the **Logs**
 > tab.
+
 ## Features
 
 - **13+ controller & device families** supported across USB · BT Classic · BLE ·
@@ -49,35 +50,35 @@ quaternion to SlimeVR-Server over UDP using the official protocol.
 ## Why this exists
 
 SlimeVR-Server already supports full-body tracking with dedicated SlimeVR
-hardware. This project plugs the *bring-your-own-IMU* gap: most homes have
+hardware. This project plugs the _bring-your-own-IMU_ gap: most homes have
 controllers with high-quality IMUs sitting in a drawer, and they make great
 secondary trackers (waist, knees, feet) when you're trying SlimeVR for the
 first time and don't want to commit to buying nodes yet.
 
 We **deliberately do not reimplement SlimeVR-Server features** (skeletal model,
-SteamVR driver, calibration UI, etc.). everything-imu is the *bridge layer*
+SteamVR driver, calibration UI, etc.). everything-imu is the _bridge layer_
 only.
 
 ## Supported devices
 
-| Device | Transport | Native rate | Mag | Status |
-|--------|-----------|------------:|:---:|--------|
-| Joy-Con (L/R) | USB · BT Classic | 200 Hz | ✗ | hardware-validated |
-| Switch Pro Controller | USB · BT Classic | 200 Hz | ✗ | hardware-validated |
-| Joy-Con 2 / Pro 2 / NSO GC2 | BLE only | 62 Hz | ✓ | hardware-validated |
-| DualSense (PS5) | USB · BT | 250 Hz | ✗ | hardware-validated |
-| DualSense Edge | USB · BT | 250 Hz | ✗ | needs hardware |
-| DualShock 4 (PS4) | USB | 250 Hz | ✗ | hardware-validated |
-| PS Move ZCM1 | USB · BT | 175 Hz | ✓ | hardware-validated |
-| PS Move ZCM2 | USB · BT | 175 Hz | ✗ | hardware-validated |
-| Wii Remote | TCP forwarder (`127.0.0.1:9909`) | 100 Hz | ✗ | hardware-validated |
-| HOPX / Triki | BLE | 52 Hz | ✗ | hardware-validated |
-| 3DS / 2DS (XL) | UDP forwarder (`:9305`) | 100 Hz | ✗ | needs hardware |
-| PS Vita | UDP forwarder (`:9306`) | 100 Hz | ✗ | needs hardware |
-| DualShock 3 (PS3) | USB | ~100 Hz | ✗ | experimental¹ |
-| Steam Deck | USB (integrated) | 250 Hz | ✗ | needs hardware |
-| Steam Controller | USB · BLE | 100 Hz | ✗ | needs hardware |
-| Tesla (vehicle IMU) | Fleet API | — | ✗ | experimental |
+| Device                      | Transport                        | Native rate | Mag | Status             |
+| --------------------------- | -------------------------------- | ----------: | :-: | ------------------ |
+| Joy-Con (L/R)               | USB · BT Classic                 |      200 Hz |  ✗  | hardware-validated |
+| Switch Pro Controller       | USB · BT Classic                 |      200 Hz |  ✗  | hardware-validated |
+| Joy-Con 2 / Pro 2 / NSO GC2 | BLE only                         |       62 Hz |  ✓  | hardware-validated |
+| DualSense (PS5)             | USB · BT                         |      250 Hz |  ✗  | hardware-validated |
+| DualSense Edge              | USB · BT                         |      250 Hz |  ✗  | needs hardware     |
+| DualShock 4 (PS4)           | USB                              |      250 Hz |  ✗  | hardware-validated |
+| PS Move ZCM1                | USB · BT                         |      175 Hz |  ✓  | hardware-validated |
+| PS Move ZCM2                | USB · BT                         |      175 Hz |  ✗  | hardware-validated |
+| Wii Remote                  | TCP forwarder (`127.0.0.1:9909`) |      100 Hz |  ✗  | hardware-validated |
+| HOPX / Triki                | BLE                              |       52 Hz |  ✗  | hardware-validated |
+| 3DS / 2DS (XL)              | UDP forwarder (`:9305`)          |      100 Hz |  ✗  | needs hardware     |
+| PS Vita                     | UDP forwarder (`:9306`)          |      100 Hz |  ✗  | needs hardware     |
+| DualShock 3 (PS3)           | USB                              |     ~100 Hz |  ✗  | experimental¹      |
+| Steam Deck                  | USB (integrated)                 |      250 Hz |  ✗  | needs hardware     |
+| Steam Controller            | USB · BLE                        |      100 Hz |  ✗  | needs hardware     |
+| Tesla (vehicle IMU)         | Fleet API                        |           — |  ✗  | experimental       |
 
 ¹ DualShock 3 has only a single-axis (yaw) gyroscope and no magnetometer — it is
 a tilt-dominant, drift-prone tracker included for completeness. Not recommended.
@@ -110,15 +111,17 @@ page:
 Or build from source — see [Building from source](#building-from-source) below.
 
 ## HAPTICS
+
 ### VRChat Avatar Setup
+
 You **MUST** have [VRCFury](https://vrcfury.com/download) on your Unity Project.
 
-You **MUST NOT** Upload the avatar as a *test*, as it prevents the initialization of OSC protocols, please create a duplicate avatar and test it from there. 
+You **MUST NOT** Upload the avatar as a _test_, as it prevents the initialization of OSC protocols, please create a duplicate avatar and test it from there.
 
 1. Import the [IMUHaptics.unitypackage](https://github.com/matiaspalmac/everything-imu/releases/latest/download/IMUHaptics.unitypackage) into your Unity Project
 
 2. Drag and drop the prefab found under `Assets/MooshPaw/IMU Haptics` into your Avatar
-<img width="489" height="698" alt="image" src="https://github.com/user-attachments/assets/183da3cd-8745-402b-9380-9466f5a2eca8" />
+   <img width="489" height="698" alt="image" src="https://github.com/user-attachments/assets/183da3cd-8745-402b-9380-9466f5a2eca8" />
 
 3. Move the GameObjects to match your avatar proportions
 
@@ -133,20 +136,21 @@ You **MUST NOT** Upload the avatar as a *test*, as it prevents the initializatio
 5. Upload avatar and test
 
 ### How to create more points of tracking?
-Duplicate any of the existing tracking points and position it where you want them. Then, change the Avatar Parameter to `Haptics/{YourDesiredName}` and ***REPLACE*** the parent bone under **Armature Link** 
 
-* You may also move the GameObject to the bone you want it parented to in the *Hierarchy*
-* You should **avoid** putting the bone on the **Contact Receiver** Component as the [*Gizmo*](#gizmo) won't Sync
+Duplicate any of the existing tracking points and position it where you want them. Then, change the Avatar Parameter to `Haptics/{YourDesiredName}` and **_REPLACE_** the parent bone under **Armature Link**
 
-***To create one from scratch***, take in mind the following:
+- You may also move the GameObject to the bone you want it parented to in the _Hierarchy_
+- You should **avoid** putting the bone on the **Contact Receiver** Component as the [_Gizmo_](#gizmo) won't Sync
+
+**_To create one from scratch_**, take in mind the following:
 You **MUST** Change the Parameter address. It's recommended to leave the `Haptic/` nomenclature for organization
-You **Should** leave *Local Only* enabled, as there's no need to Sync this parameter since your Haptics run locally. This allows the avatar to get a better rating and avoids VRChat's maximum contacts
+You **Should** leave _Local Only_ enabled, as there's no need to Sync this parameter since your Haptics run locally. This allows the avatar to get a better rating and avoids VRChat's maximum contacts
 
 <img width="479" height="201" alt="image" src="https://github.com/user-attachments/assets/2f3a90b9-fbbd-4e48-afca-1d292cfaeb06" />
 
-**Armature Link** automatically parents your haptic point to a Humanoid bone. You must change this bone to the one you want parented to, or move the GameObject within a bone from the *Hierarchy*.
+**Armature Link** automatically parents your haptic point to a Humanoid bone. You must change this bone to the one you want parented to, or move the GameObject within a bone from the _Hierarchy_.
 
-**Avoid** putting the bone on the **Contact Receiver** Component as the [*Gizmo*](#gizmo) won't Sync
+**Avoid** putting the bone on the **Contact Receiver** Component as the [_Gizmo_](#gizmo) won't Sync
 
 <img width="488" height="220" alt="image" src="https://github.com/user-attachments/assets/05287ac1-386a-4967-a584-c04c73c4231a" />
 
@@ -168,7 +172,7 @@ If your tracker is going to be at your stomach, your Haptic point should also be
 <img width="1096" height="577" alt="image" src="https://github.com/user-attachments/assets/fbdce4e9-9f52-40b8-a21a-3a638982b672" />
 
 1. Go to the Haptics section
-2. Enable the *Bridge*
+2. Enable the _Bridge_
 3. Ensure the OSC Port is `9001` (VRChat's default output)
 4. Test your devices
 5. Add the mappings you need
@@ -176,19 +180,19 @@ If your tracker is going to be at your stomach, your Haptic point should also be
 7. Select the device that will rumble when your haptic point is triggered
 8. Adjust settings accordingly
 
-***Proximity (variable)*** 
+**_Proximity (variable)_**
 
 <img width="159" height="64" alt="image" src="https://github.com/user-attachments/assets/de9188e0-7890-4939-babc-a47ad0704e82" />
 
-Variable float strength from 0 to 1, will rumble more when the VRC contact receiver is touched at the center, and less when is touched at the edges. 
+Variable float strength from 0 to 1, will rumble more when the VRC contact receiver is touched at the center, and less when is touched at the edges.
 
-***Pulse (fixed)*** 
+**_Pulse (fixed)_**
 
 <img width="157" height="61" alt="image" src="https://github.com/user-attachments/assets/58e3e542-311d-473a-bd86-0360c71df2a5" />
 
-Activates the Rumble **Once** for a certain amount of time (*Pulse (ms)*) before turning it off. Useful to pair with a VRC contact receiver set to **On Enter**
+Activates the Rumble **Once** for a certain amount of time (_Pulse (ms)_) before turning it off. Useful to pair with a VRC contact receiver set to **On Enter**
 
-***Select available OSC addresses***
+**_Select available OSC addresses_**
 
 <img width="1023" height="150" alt="image" src="https://github.com/user-attachments/assets/9393ee7b-a520-47e7-979f-9526d949248c" />
 
@@ -199,12 +203,12 @@ To avoid typing the address manually, you may add them via the **Discovered OSC 
 1. **Install SlimeVR-Server** and leave it running. The default UDP port is `6969`.
 2. **Run everything-imu**. The status bar at the bottom will read `Live` once a
    handshake with the server completes.
-3. **Plug or pair a supported controller**. It appears in the *Devices* tab; a
+3. **Plug or pair a supported controller**. It appears in the _Devices_ tab; a
    tracker for it shows up automatically in SlimeVR-Server.
 4. **Mount the controller** to your body (waist, knee, ankle, etc.) and assign it
-   in SlimeVR-Server's *Body Proportions* flow.
+   in SlimeVR-Server's _Body Proportions_ flow.
 5. **Reset orientation**: `R` (yaw) / `Shift+R` (full) from the global hotkeys,
-   or click *Reset Yaw* / *Reset Full* / *Reset Mounting* on the device card.
+   or click _Reset Yaw_ / _Reset Full_ / _Reset Mounting_ on the device card.
    On controllers without a magnetometer (Joy-Con 1, DualSense, DualShock 4,
    Wii Remote, 3DS, PS Vita, DualShock 3) yaw drifts on body rotation — re-yaw
    facing forward, or use
@@ -213,15 +217,15 @@ To avoid typing the address manually, you may add them via the **Discovered OSC 
 
 ### Global hotkeys
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+K` | Command palette |
-| `Ctrl+F` | Global search |
-| `Ctrl+Enter` | Cinema mode (immersive overlay) |
-| `Ctrl+Shift+B` | Kill-switch the bridge (pause emission) |
-| `R` / `Shift+R` | Broadcast yaw / full reset |
+| Shortcut        | Action                                  |
+| --------------- | --------------------------------------- |
+| `Ctrl+K`        | Command palette                         |
+| `Ctrl+F`        | Global search                           |
+| `Ctrl+Enter`    | Cinema mode (immersive overlay)         |
+| `Ctrl+Shift+B`  | Kill-switch the bridge (pause emission) |
+| `R` / `Shift+R` | Broadcast yaw / full reset              |
 
-Mounting reset is per-device — click *Reset Mounting* on the device card or
+Mounting reset is per-device — click _Reset Mounting_ on the device card or
 the tracker detail page.
 
 ## Building from source
@@ -255,14 +259,14 @@ no-UI driver useful for tracing protocol-level issues.
 
 ## Documentation
 
-| File | Purpose |
-|------|---------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Crate graph + responsibilities |
-| [DEVICES.md](DEVICES.md) | Per-device IMU, transport, calibration |
-| [PROTOCOL.md](PROTOCOL.md) | SlimeVR UDP wire format notes |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Dev workflow, style, PR rules |
-| [SECURITY.md](SECURITY.md) | Reporting vulnerabilities |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community ground rules |
+| File                                     | Purpose                                |
+| ---------------------------------------- | -------------------------------------- |
+| [ARCHITECTURE.md](ARCHITECTURE.md)       | Crate graph + responsibilities         |
+| [DEVICES.md](DEVICES.md)                 | Per-device IMU, transport, calibration |
+| [PROTOCOL.md](PROTOCOL.md)               | SlimeVR UDP wire format notes          |
+| [CONTRIBUTING.md](CONTRIBUTING.md)       | Dev workflow, style, PR rules          |
+| [SECURITY.md](SECURITY.md)               | Reporting vulnerabilities              |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community ground rules                 |
 
 ## Stack
 

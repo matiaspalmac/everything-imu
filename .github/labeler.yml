@@ -1,0 +1,57 @@
+# Path-based PR labels — consumed by .github/workflows/label.yml.
+
+area:ui:
+  - changed-files:
+      - any-glob-to-any-file: "apps/ui/**"
+
+area:core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/core/**"
+          - "crates/slime-tracker/**"
+          - "crates/persistence/**"
+
+area:fusion:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/imu-math/**"
+          - "crates/imu-fusion/**"
+
+area:devices:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "crates/device-*/**"
+
+area:app:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/everything-imu-app/**"
+          - "apps/headless-cli/**"
+
+area:haptics:
+  - changed-files:
+      - any-glob-to-any-file: "crates/osc-haptics/**"
+
+area:companions:
+  - changed-files:
+      - any-glob-to-any-file: "companions/**"
+
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
+
+area:ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "deny.toml"
+          - "biome.json"
+          - ".prettierrc.json"
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "Cargo.lock"
+          - "pnpm-lock.yaml"

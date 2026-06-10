@@ -18,16 +18,16 @@ Conventional commits with scope:
 [optional footer(s)]
 ```
 
-| Type | Use |
-|------|-----|
-| `feat` | New feature |
-| `fix` | Bug fix |
+| Type       | Use                                  |
+| ---------- | ------------------------------------ |
+| `feat`     | New feature                          |
+| `fix`      | Bug fix                              |
 | `refactor` | Code restructure, no behavior change |
-| `chore` | Build, deps, tooling |
-| `docs` | Documentation only |
-| `test` | Test additions / fixes |
-| `perf` | Performance improvement |
-| `ci` | CI/CD config |
+| `chore`    | Build, deps, tooling                 |
+| `docs`     | Documentation only                   |
+| `test`     | Test additions / fixes               |
+| `perf`     | Performance improvement              |
+| `ci`       | CI/CD config                         |
 
 Scopes: `tracker`, `fusion`, `joycon`, `dualsense`, `dualshock3`, `psmove`, `wii`, `3ds`, `vita`, `steam`, `hopx`, `tesla`, `companions`, `core`, `ui`, `tauri`, `persistence`, `protocol`.
 
@@ -76,6 +76,7 @@ chore(deps): bump btleplug to 0.11.5
 ## Reporting bugs / requesting features
 
 Use GitHub Issues with templates:
+
 - Bug report: include OS, app version, device, log excerpt
 - Feature request: include use case + acceptance criteria
 
@@ -88,8 +89,8 @@ For SlimeVR protocol questions, cross-reference `docs/PROTOCOL.md` first.
 - Rust stable (matches `rust-toolchain.toml`)
 - Node.js 22+ + pnpm 10
 - Tauri 2 prerequisites per OS:
-  - Windows: WebView2 (preinstalled Win11)
-  - Linux: `webkit2gtk-4.1`, `libgtk-3-dev`, `libsoup-3.0-dev`, `librsvg2-dev`, `libudev-dev`
+    - Windows: WebView2 (preinstalled Win11)
+    - Linux: `webkit2gtk-4.1`, `libgtk-3-dev`, `libsoup-3.0-dev`, `librsvg2-dev`, `libudev-dev`
 
 ### Build
 
