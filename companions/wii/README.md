@@ -6,7 +6,7 @@ desktop app over TCP. Up to four remotes at once.
 
 This is the **console-side** half of the Wii path. The desktop app provides the
 PC-side TCP listener (`crates/device-wii`). Protocol details: see
-`docs/ref_wii_protocol.md`.
+`docs/reference/wii_protocol.md`.
 
 ## Why a homebrew forwarder?
 
@@ -36,14 +36,14 @@ Output: `eimu-wii.dol`.
 ## Install & run
 
 1. Copy to your SD/USB card under `apps/eimu-wii/`:
-   - `eimu-wii.dol` → rename to `boot.dol`
-   - (optional) `meta.xml`, `icon.png` for the Homebrew Channel
+    - `eimu-wii.dol` → rename to `boot.dol`
+    - (optional) `meta.xml`, `icon.png` for the Homebrew Channel
 2. (Optional) create `apps/eimu-wii/config.txt`:
-   ```
-   server_ip=192.168.1.50
-   server_port=9909
-   ```
-   Without it the compiled-in default IP/port is used.
+    ```
+    server_ip=192.168.1.50
+    server_port=9909
+    ```
+    Without it the compiled-in default IP/port is used.
 3. Pair your Wii Remote(s) to the **console** as usual.
 4. Launch from the Homebrew Channel. It connects to the PC, which auto-detects
    each remote as a tracker.

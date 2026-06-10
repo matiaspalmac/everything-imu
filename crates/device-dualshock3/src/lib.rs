@@ -4,7 +4,7 @@
 //! gyroscope** and no magnetometer. It cannot produce drift-free full
 //! orientation: pitch/roll come from gravity, yaw drifts unconstrained. Ship it
 //! behind a clear UI warning; it is included for completeness, not because it is
-//! a good tracker. See `docs/ref_dualshock3_protocol.md`.
+//! a good tracker. See `docs/reference/dualshock3_protocol.md`.
 //!
 //! Transport: USB HID via hidapi. The pad must be told to start streaming with a
 //! feature-report handshake before input report `0x01` flows.

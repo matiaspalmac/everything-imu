@@ -1,6 +1,6 @@
 //! PS Move HID input report 0x01 parser.
 //!
-//! Layout reference: `docs/ref_psmove_protocol.md`. The 49-byte report packs
+//! Layout reference: `docs/reference/psmove_protocol.md`. The 49-byte report packs
 //! *two* IMU sub-frames, so each parse emits two [`ImuSample`]s.
 //!
 //! Byte offsets (0-indexed, report ID at byte 0):
@@ -168,7 +168,7 @@ fn parse_frame(
 /// (fig-8) lives in [`crate::calibration`].
 fn parse_mag(kind: ControllerKind, buf: &[u8]) -> Option<[f32; 3]> {
     let b = buf.get(OFS_MAG..OFS_MAG + 5)?;
-    // Packed layout (per `docs/ref_psmove_protocol.md`): X = lo-nibble(b0):b1,
+    // Packed layout (per `docs/reference/psmove_protocol.md`): X = lo-nibble(b0):b1,
     // Z = b2:hi-nibble(b3), Y = lo-nibble(b3):b4. Wire order X-Z-Y like accel/gyro.
     let x = sign_extend_12((((b[0] & 0x0F) as u16) << 8) | b[1] as u16);
     let z = sign_extend_12(((b[2] as u16) << 4) | ((b[3] >> 4) as u16));

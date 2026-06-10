@@ -1,7 +1,7 @@
 //! Wire-order axis remap for the PS Move IMU.
 //!
 //! The Move streams its accelerometer / gyroscope / magnetometer triplets in
-//! physical order **X, Z, Y** on the wire (see `docs/ref_psmove_protocol.md`).
+//! physical order **X, Z, Y** on the wire (see `docs/reference/psmove_protocol.md`).
 //! The fusion pipeline expects **X, Y, Z** in
 //! the JSL Y-up convention (same target frame the DualSense remap feeds), so the
 //! 2nd and 3rd components are swapped here to restore X-Y-Z.

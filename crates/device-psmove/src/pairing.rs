@@ -5,7 +5,7 @@
 //! itself streams exclusively over Bluetooth, but pairing and the per-unit cal
 //! blob are read/written over the USB HID interface.
 //!
-//! ## Pairing flow (per `docs/ref_psmove_protocol.md`)
+//! ## Pairing flow (per `docs/reference/psmove_protocol.md`)
 //! 1. Plug the Move in over USB; it enumerates as HID (VID 0x054C).
 //! 2. Write the host Bluetooth adapter MAC via feature report 0x05.
 //! 3. Unplug USB and press the PS button — the Move reconnects over BT using the

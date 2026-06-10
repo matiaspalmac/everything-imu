@@ -118,7 +118,7 @@ const GYRO_RAD_PER_LSB: f32 = 0.00125;
 /// ⚠ Axis convention is provisional — ported from the known-working forwarder
 /// (accel `(ax, az, ay)`, gyro `(-gx, -gy, -gz)`). It must be confirmed on a
 /// live console (gravity = +Z screen-up, gyro sign agrees with accel-derived
-/// rotation) before it is treated as canonical. See `docs/ref_3ds_protocol.md`.
+/// rotation) before it is treated as canonical. See `docs/reference/3ds_protocol.md`.
 fn imu_from_raw(pkt: ThreeDsPacket, division: f32, start: Instant, now: Instant) -> ImuSample {
     let a = pkt.accel;
     let g = pkt.gyro;

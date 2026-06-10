@@ -6,7 +6,7 @@
 //! Each controller stores a per-unit cal blob in firmware, read via **feature
 //! report 0x10**. The device splits it across **two blocks**; the host must
 //! issue the feature read twice and concatenate (block-order discriminator at
-//! byte 1 of each block). The blob holds, per `docs/ref_psmove_protocol.md`:
+//! byte 1 of each block). The blob holds, per `docs/reference/psmove_protocol.md`:
 //!
 //! - accelerometer samples for the 6 tumble orientations (±X, ±Y, ±Z),
 //! - a gyro zero-rate bias region,
@@ -18,7 +18,7 @@
 //! documented fallback — VQF learns the residual bias during its ~5 s warm-up
 //! (per the ref doc's guidance that skipping factory cal is acceptable).
 //!
-//! Exact field offsets follow `docs/ref_psmove_protocol.md` and are flagged
+//! Exact field offsets follow `docs/reference/psmove_protocol.md` and are flagged
 //! validation-pending: no Move hardware was available to confirm them this
 //! session, so the loader is defensive (length-checked, never panics).
 

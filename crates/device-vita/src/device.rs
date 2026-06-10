@@ -99,7 +99,7 @@ const G: f32 = 9.80665;
 /// ⚠ Axis convention is provisional — passed through as `sceMotion` reports it.
 /// Confirm on a live Vita (gravity = +Z screen-up, gyro sign agrees with
 /// accel-derived rotation) before treating as canonical. See
-/// `docs/ref_vita_protocol.md`.
+/// `docs/reference/vita_protocol.md`.
 fn imu_from_packet(pkt: VitaPacket, start: Instant, now: Instant) -> ImuSample {
     ImuSample {
         accel: [pkt.accel_g[0] * G, pkt.accel_g[1] * G, pkt.accel_g[2] * G],

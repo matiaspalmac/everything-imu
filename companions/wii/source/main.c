@@ -6,7 +6,7 @@
 // socket (default port 9909). The PC replies with per-slot rumble flags and a
 // requested frame interval.
 //
-// Protocol: see docs/ref_wii_protocol.md. 17 bytes per controller record,
+// Protocol: see docs/reference/wii_protocol.md. 17 bytes per controller record,
 // little-endian; 5-byte reply (4 rumble + 1 interval).
 //
 // Build: devkitPPC + libogc/wiiuse. See companions/wii/Makefile.

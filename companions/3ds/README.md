@@ -5,7 +5,7 @@ gyroscope) to the everything-imu desktop app over UDP.
 
 This is the **console-side** half of the 3DS path. The desktop app provides the
 PC-side UDP listener (`crates/device-3ds`, port 9305). Protocol details:
-`docs/ref_3ds_protocol.md`.
+`docs/reference/3ds_protocol.md`.
 
 ## Why a homebrew forwarder?
 
@@ -33,10 +33,10 @@ Output: `eimu-3ds.3dsx` (+ `.smdh`).
 
 1. Copy `eimu-3ds.3dsx` to your SD card under `sdmc:/3ds/`.
 2. (Optional) set the PC IP in `sdmc:/3ds/eimu/server.cfg` — a single line:
-   ```
-   192.168.1.50
-   ```
-   Without it the compiled-in default IP is used. Port is fixed at 9305.
+    ```
+    192.168.1.50
+    ```
+    Without it the compiled-in default IP is used. Port is fixed at 9305.
 3. Connect the console to the same Wi-Fi network as the PC.
 4. Launch from the Homebrew Launcher. It enables the sensors and starts
    streaming; the desktop app auto-detects it as a tracker.

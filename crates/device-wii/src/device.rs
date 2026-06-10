@@ -144,7 +144,7 @@ fn imu_from_raw(
     // Wiimote core accelerometer: ~512 raw at 0 g, ~200 LSB/g (ADXL330-class).
     // Matches the legacy `(raw-512)/200*g` mapping — zero-offset matters, the
     // earlier `raw/512` form put rest gravity at the wrong magnitude and never
-    // settled to ‖a‖≈9.81 m/s². See `docs/ref_wii_protocol.md`.
+    // settled to ‖a‖≈9.81 m/s². See `docs/reference/wii_protocol.md`.
     const ACCEL_ZERO_G: f32 = 512.0;
     const ACCEL_LSB_PER_G: f32 = 200.0;
     const GYRO_DPS_PER_LSB: f32 = 0.07;

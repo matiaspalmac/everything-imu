@@ -1,11 +1,12 @@
 # everything-imu — PS Vita IMU forwarder (homebrew)
 
 Runs on a PlayStation Vita (or PS TV) and streams its 6-axis IMU (accelerometer
-+ gyroscope) to the everything-imu desktop app over UDP.
+
+- gyroscope) to the everything-imu desktop app over UDP.
 
 This is the **console-side** half of the Vita path. The desktop app provides the
 PC-side UDP listener (`crates/device-vita`, port 9306). Protocol details:
-`docs/ref_vita_protocol.md`.
+`docs/reference/vita_protocol.md`.
 
 ## Why a homebrew forwarder?
 
@@ -32,10 +33,10 @@ Output: `build/eimu-vita.vpk`.
 1. Install `eimu-vita.vpk` with **VitaShell** (or any homebrew installer). Needs
    a homebrew-enabled Vita (HENkaku / h-encore / Enso).
 2. (Optional) set the PC IP in `ux0:data/eimu/server.cfg` — a single line:
-   ```
-   192.168.1.50
-   ```
-   Without it the compiled-in default is used. Port is fixed at 9306.
+    ```
+    192.168.1.50
+    ```
+    Without it the compiled-in default is used. Port is fixed at 9306.
 3. Connect the Vita to the same Wi-Fi network as the PC.
 4. Launch **everything-imu Vita** from the LiveArea. It starts sampling and
    streaming; the desktop app auto-detects it as a tracker.

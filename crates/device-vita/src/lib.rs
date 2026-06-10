@@ -4,7 +4,7 @@
 //! homebrew reads the full 6-axis IMU via `sceMotionGetSensorState()` and streams
 //! it over UDP. Unlike the 3DS, the Vita SDK already returns calibrated SI-ish
 //! floats (accel in g, gyro in rad/s), so the wire carries `f32` values and no
-//! raw-count scaling is needed on this side. See `docs/ref_vita_protocol.md`.
+//! raw-count scaling is needed on this side. See `docs/reference/vita_protocol.md`.
 
 mod device;
 mod factory;
