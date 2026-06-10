@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
@@ -26,6 +27,13 @@ export default defineConfig({
       ignored: ["**/crates/**", "**/target/**"],
     },
   },
+  test: {
+    // Default stays node — store tests are DOM-free. Files that need a DOM
+    // (toast TTL timers, theme DOM application) opt in per-file with a
+    // `// @vitest-environment jsdom` docblock.
+    environment: "node",
+    setupFiles: ["./vitest.setup.ts"],
+  },
   envPrefix: ["VITE_", "TAURI_"],
   define: {
     __APP_VERSION__: JSON.stringify(rootPkg.version),
@@ -44,10 +52,8 @@ export default defineConfig({
           if (!id.includes("node_modules")) return;
           if (id.includes("@react-three")) return "three-fiber";
           if (id.includes("/three/")) return "three";
-          if (id.includes("@radix-ui")) return "radix";
           if (id.includes("@phosphor-icons")) return "icons";
           if (id.includes("i18next") || id.includes("react-i18next")) return "i18n";
-          if (id.includes("uplot")) return "uplot";
           if (id.includes("cmdk")) return "cmdk";
         },
       },
