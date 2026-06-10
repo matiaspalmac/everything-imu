@@ -41,6 +41,9 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Workspace crates reference each other by path without a version; that is
+# the only wildcard shape we accept.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"
