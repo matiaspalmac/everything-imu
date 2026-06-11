@@ -31,6 +31,14 @@ export function TitleBar() {
   return (
     <header className="flex h-[var(--titlebar-h)] items-stretch border-b border-[var(--border-subtle)] bg-[var(--bg-base)] text-[12px] text-[var(--fg-secondary)] select-none">
       <div className="flex items-center gap-2 px-3">
+        <svg width="15" height="15" viewBox="0 0 1024 1024" aria-hidden="true">
+          <g fill="none" stroke="var(--accent)" strokeWidth="84">
+            <circle cx="512" cy="512" r="280" />
+            <ellipse cx="512" cy="512" rx="330" ry="104" transform="rotate(-24 512 512)" />
+          </g>
+          <circle cx="813" cy="378" r="92" fill="var(--accent)" />
+          <circle cx="211" cy="646" r="92" fill="var(--accent)" />
+        </svg>
         <span className="font-semibold tracking-wide text-[var(--accent)]">eIMU</span>
         <span className="text-[var(--fg-muted)]">everything-imu</span>
       </div>

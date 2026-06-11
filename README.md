@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>everything-imu</h1>
+  <img src="assets/logo.svg" alt="eIMU" width="420">
   <p><strong>Cross-platform SlimeVR IMU bridge for game controllers</strong></p>
 
   <p>
