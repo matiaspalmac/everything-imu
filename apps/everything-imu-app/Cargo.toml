@@ -41,6 +41,7 @@ osc-haptics = { path = "../../crates/osc-haptics" }
 device-joycon = { path = "../../crates/device-joycon", features = ["synthetic-source"] }
 device-dualsense = { path = "../../crates/device-dualsense", features = ["synthetic-source"] }
 device-psmove = { path = "../../crates/device-psmove", features = ["synthetic-source"] }
+device-remote = { path = "../../crates/device-remote" }
 device-wii = { path = "../../crates/device-wii" }
 device-3ds = { path = "../../crates/device-3ds" }
 device-vita = { path = "../../crates/device-vita" }

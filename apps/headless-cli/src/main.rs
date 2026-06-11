@@ -14,6 +14,7 @@ use device_dualshock3::DualShock3Factory;
 use device_hopx::HopxFactory;
 use device_joycon::JoyconFactory;
 use device_psmove::PsMoveFactory;
+use device_remote::RemoteFactory;
 use device_steam_controller::SteamControllerFactory;
 use device_steam_deck::SteamDeckFactory;
 use device_tesla::{TeslaConfig, TeslaFactory};
@@ -139,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
             Arc::new(WiiFactory::with_bind_addr(args.wii_bind.clone())),
             Arc::new(ThreeDsFactory::with_bind_addr(args.three_ds_bind.clone())),
             Arc::new(VitaFactory::with_bind_addr(args.vita_bind.clone())),
+            Arc::new(RemoteFactory::with_bind_addr(args.remote_bind.clone())),
             Arc::new(DualShock3Factory::new()),
             Arc::new(SteamDeckFactory::new()),
             Arc::new(SteamControllerFactory::new()),

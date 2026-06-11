@@ -9,6 +9,7 @@ use device_dualshock3::DualShock3Factory;
 use device_hopx::HopxFactory;
 use device_joycon::JoyconFactory;
 use device_psmove::PsMoveFactory;
+use device_remote::RemoteFactory;
 use device_steam_controller::SteamControllerFactory;
 use device_steam_deck::SteamDeckFactory;
 use device_tesla::{TeslaConfig, TeslaFactory};
@@ -73,6 +74,7 @@ pub fn spawn(app: &TauriAppHandle, auto_start_synthetic: bool) {
                 Arc::new(SteamDeckFactory::new()),
                 Arc::new(SteamControllerFactory::new()),
                 Arc::new(HopxFactory::new()),
+                Arc::new(RemoteFactory::new()),
             ]
         };
         // Opt-in Tesla bridge driven by env vars. Same gating as the

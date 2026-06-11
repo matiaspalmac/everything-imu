@@ -113,6 +113,10 @@ pub struct Cli {
     #[arg(long, default_value = "0.0.0.0:9306")]
     pub vita_bind: String,
 
+    /// UDP address the eimu remote-hub (phone) listener binds to.
+    #[arg(long, default_value = "0.0.0.0:9320")]
+    pub remote_bind: String,
+
     /// Pair the first USB-connected PS Move to a host Bluetooth MAC
     /// (AA:BB:CC:DD:EE:FF) via feature report 0x05, then exit.
     #[arg(long, value_name = "MAC")]
