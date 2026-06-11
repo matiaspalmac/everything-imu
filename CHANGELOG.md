@@ -9,6 +9,8 @@ reverse-chronological order below.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-06-10
+
 ### Added
 
 - Nintendo 3DS / 2DS support via a libctru homebrew UDP forwarder (`:9305`),
@@ -19,13 +21,21 @@ reverse-chronological order below.
   magnetometer, drift-prone, not recommended.
 - Headless CLI flags `--three-ds-bind` and `--vita-bind` for the forwarder
   listen addresses.
+- Logs page export and live-view pause controls.
+- New eIMU logo and app icon set.
 
 ### Changed
 
+- Full UI redesign: new "Ember" theme (charcoal + orange), flat surfaces across
+  every page, and snappier rendering — the 3D tracker view now renders on
+  demand and WebGL loads lazily.
+- Connection page protocol labels rewritten in plain language.
 - The Android phone and Wear OS apps moved to a dedicated repository,
   [everything-imu-mobile](https://github.com/matiaspalmac/everything-imu-mobile).
   The `jni-android` crate and the Android CI jobs moved with them; this repo is
   now desktop + console forwarders only.
+- Repository layout reorganized: binaries now live under `apps/`
+  (`everything-imu-app`, `headless-cli`, `ui`), libraries stay under `crates/`.
 
 ## [1.0.4] - 2026-06-01
 
