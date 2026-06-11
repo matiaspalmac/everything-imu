@@ -25,6 +25,7 @@ convention, on-device reset gestures, and known quirks.
 | PS Vita                 |      UDP forwarder | 3-axis accel + 3-axis gyro (`sceMotion`) | UDP `:9306`          |  100 Hz |  ✗  |    ✗    |   ✗    |
 | DualShock 3             |        `054C:0268` | Kionix accel + 1-axis gyro³              | USB                  | ~100 Hz |  ✗  |    ✗    |   ✗    |
 | HOPX / Triki            | BLE (name `Triki`) | LSM6DS (nRF52810)                        | BLE                  |   52 Hz |  ✗  |    ✗    |   ✗    |
+| Remote hub (phone)      |      UDP forwarder | phone IMU + forwarded BLE controllers⁴   | UDP `:9320`          |  varies |  ✓  |    ✓    |   ✓    |
 
 ¹ Genuine Nintendo. Clones ship with ICM-20600 — auto-detected via SPI ID, fall
 back to longer VQF warm-up.
@@ -32,6 +33,11 @@ back to longer VQF warm-up.
 ³ DualShock 3 has only a **single-axis (yaw) gyroscope** + 3-axis accel, no
 mag — experimental/not-recommended tracker (accel-dominant, unconstrained yaw
 drift). See `docs/reference/dualshock3_protocol.md`.
+⁴ The everything-imu mobile app can act as a remote hub: it streams the
+phone's own IMU as a tracker and forwards BLE controllers paired to the
+phone (Joy-Con 2 / Pro Controller 2 / HOPX) as additional trackers. Each
+forwarded device registers individually with its own kind, battery, and
+rumble backchannel.
 
 Charging Grip (`057E:200E`) enumerates as USB but is not directly driven — it
 proxies its docked Joy-Cons. Connect them via Bluetooth instead.
