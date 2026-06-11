@@ -8,6 +8,7 @@ members = [
     "crates/device-joycon",
     "crates/device-dualsense",
     "crates/device-psmove",
+    "crates/device-remote",
     "crates/device-wii",
     "crates/device-3ds",
     "crates/device-vita",

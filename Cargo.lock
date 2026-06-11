@@ -1166,6 +1166,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "device-remote"
+version = "1.0.5"
+dependencies = [
+ "async-trait",
+ "device-traits",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "device-steam-controller"
 version = "1.0.5"
 dependencies = [
@@ -1513,6 +1523,7 @@ dependencies = [
  "device-hopx",
  "device-joycon",
  "device-psmove",
+ "device-remote",
  "device-steam-controller",
  "device-steam-deck",
  "device-tesla",
@@ -2277,6 +2288,7 @@ dependencies = [
  "device-hopx",
  "device-joycon",
  "device-psmove",
+ "device-remote",
  "device-steam-controller",
  "device-steam-deck",
  "device-tesla",

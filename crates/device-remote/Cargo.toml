@@ -1,0 +1,22 @@
+[package]
+name = "device-remote"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "eimu remote-hub UDP ingest: phones/watches forwarding their own and BLE controllers' IMU"
+
+[dependencies]
+device-traits = { path = "../device-traits" }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt", "macros", "time", "net"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+
+[lints]
+workspace = true
