@@ -25,6 +25,11 @@ pub struct RemoteDevice {
     socket: Arc<UdpSocket>,
     peer: SocketAddr,
     handle: u16,
+    /// Announced with `rate_hz = 0`: a haptics-only endpoint (phone in
+    /// gamepads-only hub role). The device is registered so haptics rules can
+    /// target it, but it never emits pipeline events — no `Connected`, so no
+    /// `sensor_info` reaches SlimeVR and no ghost tracker appears.
+    haptics_only: bool,
 }
 
 impl RemoteDevice {
@@ -54,6 +59,7 @@ impl RemoteDevice {
             socket,
             peer,
             handle: announce.handle,
+            haptics_only: announce.rate_hz == 0,
         }
     }
 }
@@ -71,9 +77,17 @@ impl Device for RemoteDevice {
             .ok_or_else(|| DeviceError::Hid("remote device already started".into()))?;
         let (tx, rx) = mpsc::channel::<ChannelInfo>(256);
         let id = self.metadata.id.clone();
+        let haptics_only = self.haptics_only;
         self.reader = Some(tokio::spawn(async move {
-            let _ = tx.send(ChannelInfo::Connected(id)).await;
+            if !haptics_only {
+                let _ = tx.send(ChannelInfo::Connected(id)).await;
+            }
             while let Some(ev) = event_rx.recv().await {
+                if haptics_only {
+                    // Swallow stray events — this endpoint must stay invisible
+                    // to the SlimeVR pipeline.
+                    continue;
+                }
                 let out = match ev {
                     RemoteEvent::Imu(samples) => ChannelInfo::ImuSamples(samples),
                     RemoteEvent::Battery(b) => ChannelInfo::Battery(b),
@@ -84,7 +98,9 @@ impl Device for RemoteDevice {
                 }
             }
             // The factory dropped the sender: REMOVE message or stale timeout.
-            let _ = tx.send(ChannelInfo::Disconnected).await;
+            if !haptics_only {
+                let _ = tx.send(ChannelInfo::Disconnected).await;
+            }
         }));
         Ok(rx)
     }
@@ -126,6 +142,47 @@ mod tests {
             rate_hz: 200,
             name: "Pixel".into(),
         }
+    }
+
+    #[tokio::test]
+    async fn haptics_only_endpoint_emits_no_pipeline_events_but_rumbles() {
+        let receiver = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let peer = receiver.local_addr().unwrap();
+        let sock = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
+        let (tx, rx) = mpsc::channel(8);
+        let mut a = announce();
+        a.rate_hz = 0; // haptics-only marker
+        let mut dev = RemoteDevice::new(&a, peer, sock, rx);
+        let mut ch = dev.start().await.unwrap();
+
+        // No Connected, and stray events are swallowed.
+        tx.send(RemoteEvent::Battery(BatteryState {
+            fraction: 0.5,
+            charging: false,
+        }))
+        .await
+        .unwrap();
+        drop(tx); // route gone — must NOT surface Disconnected either
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(300), ch.recv())
+                .await
+                .map(|e| e.is_none())
+                .unwrap_or(true),
+            "haptics-only device leaked a pipeline event"
+        );
+
+        // Rumble backchannel still works.
+        dev.set_rumble(1.0).await.unwrap();
+        let mut buf = [0u8; 32];
+        let (n, _) = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            receiver.recv_from(&mut buf),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(n, 12);
+        assert_eq!(buf[5], crate::protocol::MSG_RUMBLE);
     }
 
     #[tokio::test]
