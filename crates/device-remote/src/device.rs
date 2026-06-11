@@ -4,7 +4,7 @@ use device_traits::{
     ImuSample, ResetKind,
 };
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -22,8 +22,11 @@ pub struct RemoteDevice {
     event_rx: Option<mpsc::Receiver<RemoteEvent>>,
     reader: Option<JoinHandle<()>>,
     /// Shared server socket + the hub's address, for the rumble backchannel.
+    /// The peer is shared with the factory, which refreshes it on every
+    /// datagram — the hub's ephemeral source port changes whenever the app
+    /// reconnects, and rumble must follow it or it lands on a dead socket.
     socket: Arc<UdpSocket>,
-    peer: SocketAddr,
+    peer: Arc<RwLock<SocketAddr>>,
     handle: u16,
     /// Announced with `rate_hz = 0`: a haptics-only endpoint (phone in
     /// gamepads-only hub role). The device is registered so haptics rules can
@@ -35,15 +38,16 @@ pub struct RemoteDevice {
 impl RemoteDevice {
     pub fn new(
         announce: &Announce,
-        peer: SocketAddr,
+        peer: Arc<RwLock<SocketAddr>>,
         socket: Arc<UdpSocket>,
         event_rx: mpsc::Receiver<RemoteEvent>,
     ) -> Self {
+        let peer_ip = peer.read().map(|p| p.ip().to_string()).unwrap_or_default();
         Self {
             metadata: DeviceMetadata {
                 id: DeviceId {
                     mac: announce.mac,
-                    serial: format!("remote-{}-{}", peer.ip(), announce.handle),
+                    serial: format!("remote-{}-{}", peer_ip, announce.handle),
                 },
                 kind: announce.kind,
                 firmware: Some(format!("remote:{}", announce.name)),
@@ -118,8 +122,13 @@ impl Device for RemoteDevice {
 
     async fn set_rumble(&mut self, intensity: f32) -> Result<(), DeviceError> {
         let pkt = encode_rumble(self.handle, intensity.clamp(0.0, 1.0));
+        let peer = *self
+            .peer
+            .read()
+            .map_err(|_| DeviceError::Hid("remote peer lock poisoned".into()))?;
+        tracing::debug!(handle = self.handle, %peer, intensity, "remote rumble send");
         self.socket
-            .send_to(&pkt, self.peer)
+            .send_to(&pkt, peer)
             .await
             .map_err(|e| DeviceError::Hid(format!("remote rumble send failed: {e}")))?;
         Ok(())
@@ -152,7 +161,7 @@ mod tests {
         let (tx, rx) = mpsc::channel(8);
         let mut a = announce();
         a.rate_hz = 0; // haptics-only marker
-        let mut dev = RemoteDevice::new(&a, peer, sock, rx);
+        let mut dev = RemoteDevice::new(&a, Arc::new(RwLock::new(peer)), sock, rx);
         let mut ch = dev.start().await.unwrap();
 
         // No Connected, and stray events are swallowed.
@@ -191,7 +200,7 @@ mod tests {
         let sock = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
         let peer: SocketAddr = "127.0.0.1:9".parse().unwrap();
         let (tx, rx) = mpsc::channel(8);
-        let mut dev = RemoteDevice::new(&announce(), peer, sock, rx);
+        let mut dev = RemoteDevice::new(&announce(), Arc::new(RwLock::new(peer)), sock, rx);
         assert_eq!(dev.metadata().kind, device_traits::DeviceKind::Phone);
         let mut ch = dev.start().await.unwrap();
         assert!(matches!(
@@ -228,7 +237,7 @@ mod tests {
         let peer = receiver.local_addr().unwrap();
         let sock = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
         let (_tx, rx) = mpsc::channel(1);
-        let mut dev = RemoteDevice::new(&announce(), peer, sock, rx);
+        let mut dev = RemoteDevice::new(&announce(), Arc::new(RwLock::new(peer)), sock, rx);
         dev.set_rumble(0.5).await.unwrap();
         let mut buf = [0u8; 32];
         let (n, _) = tokio::time::timeout(

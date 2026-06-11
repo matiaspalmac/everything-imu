@@ -3,7 +3,7 @@ use crate::protocol::{self, RemoteMsg};
 use device_traits::{BatteryState, Device, DeviceError, DeviceFactory, DeviceMetadata};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, Instant};
@@ -15,6 +15,21 @@ const SWEEP_EVERY: Duration = Duration::from_secs(5);
 struct Route {
     tx: mpsc::Sender<RemoteEvent>,
     last_seen: Instant,
+    /// Shared with the RemoteDevice's rumble path; refreshed on every inbound
+    /// datagram so the backchannel follows the hub's current source port.
+    peer: Arc<RwLock<SocketAddr>>,
+}
+
+impl Route {
+    fn touch(&mut self, from: SocketAddr) {
+        self.last_seen = Instant::now();
+        if let Ok(mut p) = self.peer.write() {
+            if *p != from {
+                tracing::debug!(old = %*p, new = %from, "remote hub source port moved");
+                *p = from;
+            }
+        }
+    }
 }
 
 /// eimu remote-hub UDP listener. One device per `(hub ip, handle)`.
@@ -95,11 +110,12 @@ async fn handle_msg(
         RemoteMsg::Announce(a) => {
             let key = (peer.ip(), a.handle);
             if let Some(route) = routes.get_mut(&key) {
-                route.last_seen = Instant::now();
+                route.touch(peer);
                 return;
             }
             let (tx, rx) = mpsc::channel::<RemoteEvent>(256);
-            let dev = RemoteDevice::new(&a, peer, socket.clone(), rx);
+            let shared_peer = Arc::new(RwLock::new(peer));
+            let dev = RemoteDevice::new(&a, shared_peer.clone(), socket.clone(), rx);
             let meta = dev.metadata().clone();
             tracing::info!(id = %meta.id, kind = ?meta.kind, "remote device announced");
             if out.send((meta, Box::new(dev))).await.is_err() {
@@ -110,6 +126,7 @@ async fn handle_msg(
                 Route {
                     tx,
                     last_seen: Instant::now(),
+                    peer: shared_peer,
                 },
             );
         }
@@ -117,7 +134,7 @@ async fn handle_msg(
             routes.remove(&(peer.ip(), handle));
         }
         RemoteMsg::Imu { handle, samples } => {
-            route_event(routes, (peer.ip(), handle), RemoteEvent::Imu(samples)).await;
+            route_event(routes, peer, handle, RemoteEvent::Imu(samples)).await;
         }
         RemoteMsg::Battery {
             handle,
@@ -126,24 +143,27 @@ async fn handle_msg(
         } => {
             route_event(
                 routes,
-                (peer.ip(), handle),
+                peer,
+                handle,
                 RemoteEvent::Battery(BatteryState { fraction, charging }),
             )
             .await;
         }
         RemoteMsg::Button { handle, reset } => {
-            route_event(routes, (peer.ip(), handle), RemoteEvent::Reset(reset)).await;
+            route_event(routes, peer, handle, RemoteEvent::Reset(reset)).await;
         }
     }
 }
 
 async fn route_event(
     routes: &mut HashMap<(IpAddr, u16), Route>,
-    key: (IpAddr, u16),
+    peer: SocketAddr,
+    handle: u16,
     event: RemoteEvent,
 ) {
+    let key = (peer.ip(), handle);
     if let Some(route) = routes.get_mut(&key) {
-        route.last_seen = Instant::now();
+        route.touch(peer);
         if route.tx.send(event).await.is_err() {
             routes.remove(&key);
         }
