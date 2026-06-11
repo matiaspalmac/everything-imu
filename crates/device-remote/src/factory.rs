@@ -235,4 +235,93 @@ mod tests {
 
         server.abort();
     }
+
+    fn announce_pkt_kind(handle: u16, kind: u8) -> Vec<u8> {
+        let mut b = announce_pkt(handle);
+        b[6 + 2] = kind; // kind byte sits after header + handle
+        b
+    }
+
+    fn imu_pkt_ts(handle: u16, ts: u64) -> Vec<u8> {
+        let mut b = imu_pkt(handle);
+        b[6 + 3..6 + 3 + 8].copy_from_slice(&ts.to_le_bytes());
+        b
+    }
+
+    #[tokio::test]
+    async fn one_hub_streams_phone_and_controllers_concurrently() {
+        let probe = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = probe.local_addr().unwrap();
+        drop(probe);
+        let factory = RemoteFactory::with_bind_addr(server_addr.to_string());
+        let (tx, mut rx) = mpsc::channel::<(DeviceMetadata, Box<dyn Device>)>(8);
+        let server = tokio::spawn(async move {
+            let _ = factory.enumerate_loop(tx).await;
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+
+        // Same hub announces phone (0), a BLE Joy-Con 2 (1), and an
+        // InputDevice-forwarded DualSense (1000).
+        for (handle, kind) in [
+            (0u16, protocol::KIND_PHONE),
+            (1u16, protocol::KIND_JOYCON2_L),
+            (1000u16, protocol::KIND_DUALSENSE),
+        ] {
+            client
+                .send_to(&announce_pkt_kind(handle, kind), server_addr)
+                .await
+                .unwrap();
+        }
+
+        let mut channels = Vec::new();
+        for _ in 0..3 {
+            let (meta, mut dev) = tokio::time::timeout(Duration::from_secs(2), rx.recv())
+                .await
+                .expect("registration timeout")
+                .expect("device");
+            let mut ch = dev.start().await.unwrap();
+            assert!(matches!(
+                ch.recv().await.unwrap(),
+                ChannelInfo::Connected(_)
+            ));
+            channels.push((meta.kind, ch));
+        }
+        let kinds: Vec<_> = channels.iter().map(|(k, _)| *k).collect();
+        assert!(kinds.contains(&device_traits::DeviceKind::Phone));
+        assert!(kinds.contains(&device_traits::DeviceKind::JoyCon2L));
+        assert!(kinds.contains(&device_traits::DeviceKind::DualSense));
+
+        // Interleaved IMU traffic routes to the right device by handle.
+        for (handle, ts) in [
+            (0u16, 10u64),
+            (1u16, 20u64),
+            (1000u16, 30u64),
+            (0u16, 11u64),
+        ] {
+            client
+                .send_to(&imu_pkt_ts(handle, ts), server_addr)
+                .await
+                .unwrap();
+        }
+        let expect_ts = |kind: device_traits::DeviceKind| match kind {
+            device_traits::DeviceKind::Phone => vec![10u64, 11],
+            device_traits::DeviceKind::JoyCon2L => vec![20],
+            _ => vec![30],
+        };
+        for (kind, ch) in channels.iter_mut() {
+            for want in expect_ts(*kind) {
+                let evt = tokio::time::timeout(Duration::from_secs(2), ch.recv())
+                    .await
+                    .expect("imu timeout")
+                    .unwrap();
+                let ChannelInfo::ImuSamples(samples) = evt else {
+                    panic!("expected samples for {kind:?}, got {evt:?}");
+                };
+                assert_eq!(samples[0].timestamp_us, want, "wrong routing for {kind:?}");
+            }
+        }
+
+        server.abort();
+    }
 }
