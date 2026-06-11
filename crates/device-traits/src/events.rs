@@ -3,7 +3,7 @@
 use crate::device::DeviceId;
 use crate::reset::ResetKind;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ImuSample {
     /// Gyroscope in rad/s, body frame.
     pub gyro: [f32; 3],

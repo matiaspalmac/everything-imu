@@ -52,6 +52,10 @@ pub enum DeviceKind {
     ThreeDs,
     Vita,
     DualShock3,
+    /// Android phone forwarded via the eimu remote protocol.
+    Phone,
+    /// Wear OS watch forwarded via the eimu remote protocol.
+    Watch,
 }
 
 #[derive(Debug, Clone)]
