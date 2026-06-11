@@ -56,6 +56,9 @@ pub enum DeviceKind {
     Phone,
     /// Wear OS watch forwarded via the eimu remote protocol.
     Watch,
+    /// Generic motion-capable gamepad forwarded via the eimu remote protocol
+    /// (read through Android's InputDevice sensor API, exact model unknown).
+    Gamepad,
 }
 
 #[derive(Debug, Clone)]

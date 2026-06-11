@@ -24,6 +24,12 @@ pub const KIND_JOYCON2_L: u8 = 3;
 pub const KIND_JOYCON2_R: u8 = 4;
 pub const KIND_PRO_CONTROLLER_2: u8 = 5;
 pub const KIND_HOPX: u8 = 6;
+pub const KIND_DUALSENSE: u8 = 7;
+pub const KIND_DUALSHOCK4: u8 = 8;
+pub const KIND_JOYCON_L: u8 = 9;
+pub const KIND_JOYCON_R: u8 = 10;
+pub const KIND_PRO_CONTROLLER: u8 = 11;
+pub const KIND_GAMEPAD: u8 = 12;
 
 const HEADER_LEN: usize = 6;
 const SAMPLE_LEN: usize = 8 + 12 + 12 + 1 + 12; // 45
@@ -73,6 +79,12 @@ fn kind_from_wire(b: u8) -> Option<DeviceKind> {
         KIND_JOYCON2_R => Some(DeviceKind::JoyCon2R),
         KIND_PRO_CONTROLLER_2 => Some(DeviceKind::ProController2),
         KIND_HOPX => Some(DeviceKind::Hopx),
+        KIND_DUALSENSE => Some(DeviceKind::DualSense),
+        KIND_DUALSHOCK4 => Some(DeviceKind::DualShock4),
+        KIND_JOYCON_L => Some(DeviceKind::JoyConL),
+        KIND_JOYCON_R => Some(DeviceKind::JoyConR),
+        KIND_PRO_CONTROLLER => Some(DeviceKind::ProController),
+        KIND_GAMEPAD => Some(DeviceKind::Gamepad),
         _ => None,
     }
 }
@@ -271,6 +283,32 @@ mod tests {
         assert!(!a.has_mag && a.has_battery && a.has_rumble);
         assert_eq!(a.rate_hz, 120);
         assert_eq!(a.name, "JC2");
+    }
+
+    #[test]
+    fn gamepad_kinds_map_to_device_kinds() {
+        use device_traits::DeviceKind;
+        let cases = [
+            (KIND_DUALSENSE, DeviceKind::DualSense),
+            (KIND_DUALSHOCK4, DeviceKind::DualShock4),
+            (KIND_JOYCON_L, DeviceKind::JoyConL),
+            (KIND_JOYCON_R, DeviceKind::JoyConR),
+            (KIND_PRO_CONTROLLER, DeviceKind::ProController),
+            (KIND_GAMEPAD, DeviceKind::Gamepad),
+        ];
+        for (wire, expected) in cases {
+            let mut b = hdr(MSG_ANNOUNCE);
+            b.extend_from_slice(&1u16.to_le_bytes());
+            b.push(wire);
+            b.extend_from_slice(&[0u8; 6]);
+            b.extend_from_slice(&[0, 1, 1]);
+            b.extend_from_slice(&200u16.to_le_bytes());
+            b.push(0);
+            let Some(RemoteMsg::Announce(a)) = parse(&b) else {
+                panic!("expected announce for wire kind {wire}");
+            };
+            assert_eq!(a.kind, expected);
+        }
     }
 
     #[test]
