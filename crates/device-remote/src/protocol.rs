@@ -17,6 +17,8 @@ pub const MSG_IMU: u8 = 0x05;
 pub const MSG_BATTERY: u8 = 0x06;
 pub const MSG_BUTTON: u8 = 0x07;
 pub const MSG_RUMBLE: u8 = 0x08;
+/// MSG_IMU plus a wrapping `seq: u16` after `handle`, for loss measurement.
+pub const MSG_IMU2: u8 = 0x09;
 
 pub const KIND_PHONE: u8 = 1;
 pub const KIND_WATCH: u8 = 2;
@@ -58,6 +60,8 @@ pub enum RemoteMsg {
     },
     Imu {
         handle: u16,
+        /// Wrapping send counter (MSG_IMU2 only) — `None` for legacy MSG_IMU.
+        seq: Option<u16>,
         samples: Vec<ImuSample>,
     },
     Battery {
@@ -143,47 +147,21 @@ pub fn parse(buf: &[u8]) -> Option<RemoteMsg> {
                 handle: u16le(p, 0),
             })
         }
-        MSG_IMU => {
-            if p.len() < 3 {
+        MSG_IMU => parse_imu_samples(p, 0).map(|(handle, samples)| RemoteMsg::Imu {
+            handle,
+            seq: None,
+            samples,
+        }),
+        MSG_IMU2 => {
+            if p.len() < 5 {
                 return None;
             }
-            let handle = u16le(p, 0);
-            let count = p[2] as usize;
-            if p.len() < 3 + count * SAMPLE_LEN {
-                return None;
-            }
-            let mut samples = Vec::with_capacity(count);
-            for i in 0..count {
-                let off = 3 + i * SAMPLE_LEN;
-                let ts = u64::from_le_bytes([
-                    p[off],
-                    p[off + 1],
-                    p[off + 2],
-                    p[off + 3],
-                    p[off + 4],
-                    p[off + 5],
-                    p[off + 6],
-                    p[off + 7],
-                ]);
-                let gx = f32le(p, off + 8);
-                let gy = f32le(p, off + 12);
-                let gz = f32le(p, off + 16);
-                let ax = f32le(p, off + 20);
-                let ay = f32le(p, off + 24);
-                let az = f32le(p, off + 28);
-                let has_mag = p[off + 32] != 0;
-                let mx = f32le(p, off + 33);
-                let my = f32le(p, off + 37);
-                let mz = f32le(p, off + 41);
-
-                samples.push(ImuSample {
-                    timestamp_us: ts,
-                    gyro: [gx, gy, gz],
-                    accel: [ax, ay, az],
-                    mag: if has_mag { Some([mx, my, mz]) } else { None },
-                });
-            }
-            Some(RemoteMsg::Imu { handle, samples })
+            let seq = u16le(p, 2);
+            parse_imu_samples(p, 2).map(|(handle, samples)| RemoteMsg::Imu {
+                handle,
+                seq: Some(seq),
+                samples,
+            })
         }
         MSG_BATTERY => {
             if p.len() < 7 {
@@ -211,6 +189,39 @@ pub fn parse(buf: &[u8]) -> Option<RemoteMsg> {
         }
         _ => None,
     }
+}
+
+/// Shared sample-burst body of MSG_IMU / MSG_IMU2. `extra` is the number of
+/// payload bytes between `handle` and `count` (0 for v1, 2 for the seq).
+fn parse_imu_samples(p: &[u8], extra: usize) -> Option<(u16, Vec<ImuSample>)> {
+    if p.len() < 3 + extra {
+        return None;
+    }
+    let u16le = |b: &[u8], o: usize| u16::from_le_bytes([b[o], b[o + 1]]);
+    let f32le = |b: &[u8], o: usize| f32::from_le_bytes([b[o], b[o + 1], b[o + 2], b[o + 3]]);
+    let handle = u16le(p, 0);
+    let count = p[2 + extra] as usize;
+    let base = 3 + extra;
+    if p.len() < base + count * SAMPLE_LEN {
+        return None;
+    }
+    let mut samples = Vec::with_capacity(count);
+    for i in 0..count {
+        let off = base + i * SAMPLE_LEN;
+        let ts = u64::from_le_bytes(p[off..off + 8].try_into().ok()?);
+        let has_mag = p[off + 32] != 0;
+        samples.push(ImuSample {
+            timestamp_us: ts,
+            gyro: [f32le(p, off + 8), f32le(p, off + 12), f32le(p, off + 16)],
+            accel: [f32le(p, off + 20), f32le(p, off + 24), f32le(p, off + 28)],
+            mag: if has_mag {
+                Some([f32le(p, off + 33), f32le(p, off + 37), f32le(p, off + 41)])
+            } else {
+                None
+            },
+        });
+    }
+    Some((handle, samples))
 }
 
 pub fn encode_hello_ack() -> Vec<u8> {
@@ -341,10 +352,16 @@ mod tests {
         }
         b.push(0);
         b.extend_from_slice(&[0u8; 12]);
-        let Some(RemoteMsg::Imu { handle, samples }) = parse(&b) else {
+        let Some(RemoteMsg::Imu {
+            handle,
+            seq,
+            samples,
+        }) = parse(&b)
+        else {
             panic!("expected imu");
         };
         assert_eq!(handle, 0);
+        assert_eq!(seq, None, "legacy MSG_IMU carries no seq");
         assert_eq!(samples.len(), 2);
         assert_eq!(samples[0].timestamp_us, 1_000);
         assert_eq!(samples[0].gyro, [0.1, 0.2, 0.3]);
@@ -352,6 +369,33 @@ mod tests {
         assert_eq!(samples[0].mag, Some([20.0, -30.0, 40.0]));
         assert_eq!(samples[1].mag, None);
         assert_eq!(samples[1].timestamp_us, 2_000);
+    }
+
+    #[test]
+    fn parses_imu2_with_seq() {
+        let mut b = hdr(MSG_IMU2);
+        b.extend_from_slice(&0u16.to_le_bytes()); // handle
+        b.extend_from_slice(&41u16.to_le_bytes()); // seq
+        b.push(1);
+        b.extend_from_slice(&1_000u64.to_le_bytes());
+        for v in [0.1f32, 0.2, 0.3, 9.8, 0.0, 0.1] {
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        b.push(0);
+        b.extend_from_slice(&[0u8; 12]);
+        let Some(RemoteMsg::Imu {
+            handle,
+            seq,
+            samples,
+        }) = parse(&b)
+        else {
+            panic!("expected imu2");
+        };
+        assert_eq!(handle, 0);
+        assert_eq!(seq, Some(41));
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].timestamp_us, 1_000);
+        assert_eq!(samples[0].gyro, [0.1, 0.2, 0.3]);
     }
 
     #[test]

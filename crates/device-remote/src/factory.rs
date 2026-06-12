@@ -15,11 +15,52 @@ const SWEEP_EVERY: Duration = Duration::from_secs(5);
 struct Route {
     tx: mpsc::Sender<RemoteEvent>,
     last_seen: Instant,
+    loss: LossStats,
 }
 
 impl Route {
     fn touch(&mut self) {
         self.last_seen = Instant::now();
+    }
+}
+
+/// Per-route packet-loss tracking from MSG_IMU2 sequence numbers. Reports a
+/// log line per 10 s window when anything was lost, then resets the window.
+#[derive(Default)]
+struct LossStats {
+    last_seq: Option<u16>,
+    received: u64,
+    lost: u64,
+    window_start: Option<Instant>,
+}
+
+impl LossStats {
+    fn record(&mut self, seq: u16, key: &(IpAddr, u16)) {
+        if let Some(prev) = self.last_seq {
+            let gap = seq.wrapping_sub(prev);
+            // gap 1 = in order; 0 or huge = duplicate/reorder/restart — skip.
+            if gap > 1 && gap < 1000 {
+                self.lost += u64::from(gap) - 1;
+            }
+        }
+        self.last_seq = Some(seq);
+        self.received += 1;
+        let start = *self.window_start.get_or_insert_with(Instant::now);
+        if start.elapsed() >= Duration::from_secs(10) {
+            let total = self.received + self.lost;
+            if total > 0 && self.lost > 0 {
+                let pct = self.lost as f64 * 100.0 / total as f64;
+                tracing::info!(
+                    ip = %key.0, handle = key.1,
+                    received = self.received, lost = self.lost,
+                    loss_pct = format!("{pct:.1}"),
+                    "remote packet loss (10s window)"
+                );
+            }
+            self.received = 0;
+            self.lost = 0;
+            self.window_start = Some(Instant::now());
+        }
     }
 }
 
@@ -147,13 +188,24 @@ async fn handle_msg(
                 Route {
                     tx,
                     last_seen: Instant::now(),
+                    loss: LossStats::default(),
                 },
             );
         }
         RemoteMsg::Remove { handle } => {
             routes.remove(&(peer.ip(), handle));
         }
-        RemoteMsg::Imu { handle, samples } => {
+        RemoteMsg::Imu {
+            handle,
+            seq,
+            samples,
+        } => {
+            if let Some(seq) = seq {
+                let key = (peer.ip(), handle);
+                if let Some(route) = routes.get_mut(&key) {
+                    route.loss.record(seq, &key);
+                }
+            }
             route_event(routes, hub_peers, peer, handle, RemoteEvent::Imu(samples)).await;
         }
         RemoteMsg::Battery {
@@ -363,6 +415,65 @@ mod tests {
                 };
                 assert_eq!(samples[0].timestamp_us, want, "wrong routing for {kind:?}");
             }
+        }
+
+        server.abort();
+    }
+
+    fn imu2_pkt(handle: u16, seq: u16, ts: u64) -> Vec<u8> {
+        let mut b = vec![0x45, 0x49, 0x4D, 0x55, 0x01, protocol::MSG_IMU2];
+        b.extend_from_slice(&handle.to_le_bytes());
+        b.extend_from_slice(&seq.to_le_bytes());
+        b.push(1);
+        b.extend_from_slice(&ts.to_le_bytes());
+        for v in [0.1f32, 0.2, 0.3, 0.0, 0.0, 9.8] {
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        b.push(0);
+        b.extend_from_slice(&[0u8; 12]);
+        b
+    }
+
+    #[tokio::test]
+    async fn imu2_routes_samples_like_imu() {
+        let probe = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = probe.local_addr().unwrap();
+        drop(probe);
+        let factory = RemoteFactory::with_bind_addr(server_addr.to_string());
+        let (tx, mut rx) = mpsc::channel::<(DeviceMetadata, Box<dyn Device>)>(8);
+        let server = tokio::spawn(async move {
+            let _ = factory.enumerate_loop(tx).await;
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        client.send_to(&announce_pkt(0), server_addr).await.unwrap();
+        let (_meta, mut dev) = tokio::time::timeout(Duration::from_secs(2), rx.recv())
+            .await
+            .expect("registration timeout")
+            .expect("device");
+        let mut ch = dev.start().await.unwrap();
+        assert!(matches!(
+            ch.recv().await.unwrap(),
+            ChannelInfo::Connected(_)
+        ));
+
+        // A seq gap (1 -> 5) must not disturb routing — loss is only counted.
+        for (seq, ts) in [(0u16, 10u64), (1, 11), (5, 12)] {
+            client
+                .send_to(&imu2_pkt(0, seq, ts), server_addr)
+                .await
+                .unwrap();
+        }
+        for want in [10u64, 11, 12] {
+            let evt = tokio::time::timeout(Duration::from_secs(2), ch.recv())
+                .await
+                .expect("imu timeout")
+                .unwrap();
+            let ChannelInfo::ImuSamples(samples) = evt else {
+                panic!("expected samples, got {evt:?}");
+            };
+            assert_eq!(samples[0].timestamp_us, want);
         }
 
         server.abort();
