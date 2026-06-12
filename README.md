@@ -22,7 +22,7 @@ The bridge reads the controller's built-in IMU at its native sample rate, runs a
 sensor fusion filter (VQF or Madgwick) in Rust, and forwards the resulting
 quaternion to SlimeVR-Server over UDP using the official protocol.
 
-> **Status:** 1.0.4. The core fusion + protocol pipeline is stable and
+> **Status:** 1.0.6. The core fusion + protocol pipeline is stable and
 > hardware-validated across the supported controllers. If you hit a snag,
 > please file an issue with reproduction steps and the logs from the **Logs**
 > tab.
@@ -46,6 +46,9 @@ quaternion to SlimeVR-Server over UDP using the official protocol.
   via Sentry. Both opt-in, both off by default.
 - **Live diagnostics** — per-tracker rate panels, bridge latency, raw IMU
   charts on the Debug page, circular battery rings, signal meter.
+- **Remote hub ingest** — phones, watches, and phone-paired controllers stream
+  in over UDP with auto-discovery, round-trip-time echo, packet-loss
+  measurement, and a rumble backchannel.
 
 ## Why this exists
 
@@ -92,11 +95,13 @@ Deep-dive on each: [DEVICES.md](DEVICES.md).
 
 ## Mobile companion (Android + Wear OS)
 
-The native Android phone tracker + Wear OS companion now live in their own
+The native Android phone tracker + Wear OS companion live in their own
 repository: **[everything-imu-mobile](https://github.com/matiaspalmac/everything-imu-mobile)**.
-They stream the phone IMU straight to SlimeVR-Server over the same UDP protocol
-this desktop bridge speaks — no PC controller required — and receive VRChat OSC
-haptics back. Grab the phone/watch APKs from that repo's releases.
+The app auto-discovers this desktop bridge on your LAN and streams the phone's
+IMU to it — the desktop runs fusion and registers the phone as one more
+tracker. Phone-paired controllers (DualSense, Joy-Con 2, and more) forward
+through the same link, and desktop haptics rumble back to every device. Grab
+the phone/watch APKs from that repo's releases.
 
 ## Install
 
