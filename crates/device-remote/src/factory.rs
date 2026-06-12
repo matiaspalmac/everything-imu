@@ -15,21 +15,33 @@ const SWEEP_EVERY: Duration = Duration::from_secs(5);
 struct Route {
     tx: mpsc::Sender<RemoteEvent>,
     last_seen: Instant,
-    /// Shared with the RemoteDevice's rumble path; refreshed on every inbound
-    /// datagram so the backchannel follows the hub's current source port.
-    peer: Arc<RwLock<SocketAddr>>,
 }
 
 impl Route {
-    fn touch(&mut self, from: SocketAddr) {
+    fn touch(&mut self) {
         self.last_seen = Instant::now();
-        if let Ok(mut p) = self.peer.write() {
-            if *p != from {
-                tracing::debug!(old = %*p, new = %from, "remote hub source port moved");
-                *p = from;
-            }
+    }
+}
+
+/// One rumble target per hub IP, shared by every RemoteDevice from that hub.
+/// A per-route peer would only refresh on datagrams for its own handle, so a
+/// handle that goes quiet (or a device outliving its route) keeps rumbling at
+/// the hub's previous ephemeral source port after an app reconnect.
+fn touch_hub_peer(
+    hub_peers: &mut HashMap<IpAddr, Arc<RwLock<SocketAddr>>>,
+    from: SocketAddr,
+) -> Arc<RwLock<SocketAddr>> {
+    let shared = hub_peers
+        .entry(from.ip())
+        .or_insert_with(|| Arc::new(RwLock::new(from)))
+        .clone();
+    if let Ok(mut p) = shared.write() {
+        if *p != from {
+            tracing::debug!(old = %*p, new = %from, "remote hub source port moved");
+            *p = from;
         }
     }
+    shared
 }
 
 /// eimu remote-hub UDP listener. One device per `(hub ip, handle)`.
@@ -70,6 +82,7 @@ impl DeviceFactory for RemoteFactory {
         tracing::info!(addr = %self.bind_addr, "eimu remote-hub UDP listener online");
 
         let mut routes: HashMap<(IpAddr, u16), Route> = HashMap::new();
+        let mut hub_peers: HashMap<IpAddr, Arc<RwLock<SocketAddr>>> = HashMap::new();
         let mut sweep = tokio::time::interval(SWEEP_EVERY);
         let mut buf = [0u8; 2048];
         loop {
@@ -82,13 +95,14 @@ impl DeviceFactory for RemoteFactory {
                         }
                         alive
                     });
+                    hub_peers.retain(|ip, _| routes.keys().any(|(rip, _)| rip == ip));
                 }
                 recv = socket.recv_from(&mut buf) => {
                     let (n, peer) = recv.map_err(|e| {
                         DeviceError::Hid(format!("remote recv failed: {e}"))
                     })?;
                     let Some(msg) = protocol::parse(&buf[..n]) else { continue };
-                    handle_msg(msg, peer, &socket, &mut routes, &out).await;
+                    handle_msg(msg, peer, &socket, &mut routes, &mut hub_peers, &out).await;
                 }
             }
         }
@@ -100,22 +114,29 @@ async fn handle_msg(
     peer: SocketAddr,
     socket: &Arc<UdpSocket>,
     routes: &mut HashMap<(IpAddr, u16), Route>,
+    hub_peers: &mut HashMap<IpAddr, Arc<RwLock<SocketAddr>>>,
     out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
 ) {
     match msg {
         RemoteMsg::Hello { name, .. } => {
             tracing::debug!(hub = %name, ip = %peer.ip(), "remote hub hello");
+            // Hellos arrive every few seconds even when no handle is
+            // streaming — refresh the rumble target only if the hub already
+            // has devices (otherwise sweeps would never reap the entry).
+            if routes.keys().any(|(rip, _)| *rip == peer.ip()) {
+                touch_hub_peer(hub_peers, peer);
+            }
             let _ = socket.send_to(&protocol::encode_hello_ack(), peer).await;
         }
         RemoteMsg::Announce(a) => {
+            let shared_peer = touch_hub_peer(hub_peers, peer);
             let key = (peer.ip(), a.handle);
             if let Some(route) = routes.get_mut(&key) {
-                route.touch(peer);
+                route.touch();
                 return;
             }
             let (tx, rx) = mpsc::channel::<RemoteEvent>(256);
-            let shared_peer = Arc::new(RwLock::new(peer));
-            let dev = RemoteDevice::new(&a, shared_peer.clone(), socket.clone(), rx);
+            let dev = RemoteDevice::new(&a, shared_peer, socket.clone(), rx);
             let meta = dev.metadata().clone();
             tracing::info!(id = %meta.id, kind = ?meta.kind, "remote device announced");
             if out.send((meta, Box::new(dev))).await.is_err() {
@@ -126,7 +147,6 @@ async fn handle_msg(
                 Route {
                     tx,
                     last_seen: Instant::now(),
-                    peer: shared_peer,
                 },
             );
         }
@@ -134,7 +154,7 @@ async fn handle_msg(
             routes.remove(&(peer.ip(), handle));
         }
         RemoteMsg::Imu { handle, samples } => {
-            route_event(routes, peer, handle, RemoteEvent::Imu(samples)).await;
+            route_event(routes, hub_peers, peer, handle, RemoteEvent::Imu(samples)).await;
         }
         RemoteMsg::Battery {
             handle,
@@ -143,6 +163,7 @@ async fn handle_msg(
         } => {
             route_event(
                 routes,
+                hub_peers,
                 peer,
                 handle,
                 RemoteEvent::Battery(BatteryState { fraction, charging }),
@@ -150,20 +171,22 @@ async fn handle_msg(
             .await;
         }
         RemoteMsg::Button { handle, reset } => {
-            route_event(routes, peer, handle, RemoteEvent::Reset(reset)).await;
+            route_event(routes, hub_peers, peer, handle, RemoteEvent::Reset(reset)).await;
         }
     }
 }
 
 async fn route_event(
     routes: &mut HashMap<(IpAddr, u16), Route>,
+    hub_peers: &mut HashMap<IpAddr, Arc<RwLock<SocketAddr>>>,
     peer: SocketAddr,
     handle: u16,
     event: RemoteEvent,
 ) {
     let key = (peer.ip(), handle);
     if let Some(route) = routes.get_mut(&key) {
-        route.touch(peer);
+        route.touch();
+        touch_hub_peer(hub_peers, peer);
         if route.tx.send(event).await.is_err() {
             routes.remove(&key);
         }
@@ -341,6 +364,62 @@ mod tests {
                 assert_eq!(samples[0].timestamp_us, want, "wrong routing for {kind:?}");
             }
         }
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn rumble_follows_hub_across_socket_reconnect() {
+        let probe = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = probe.local_addr().unwrap();
+        drop(probe);
+        let factory = RemoteFactory::with_bind_addr(server_addr.to_string());
+        let (tx, mut rx) = mpsc::channel::<(DeviceMetadata, Box<dyn Device>)>(8);
+        let server = tokio::spawn(async move {
+            let _ = factory.enumerate_loop(tx).await;
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // Hub announces a phone and a gamepad from socket A.
+        let socket_a = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        for (handle, kind) in [
+            (0u16, protocol::KIND_PHONE),
+            (1000u16, protocol::KIND_DUALSENSE),
+        ] {
+            socket_a
+                .send_to(&announce_pkt_kind(handle, kind), server_addr)
+                .await
+                .unwrap();
+        }
+        let mut pad_dev = None;
+        for _ in 0..2 {
+            let (meta, dev) = tokio::time::timeout(Duration::from_secs(2), rx.recv())
+                .await
+                .expect("registration timeout")
+                .expect("device");
+            if meta.kind == device_traits::DeviceKind::DualSense {
+                pad_dev = Some(dev);
+            }
+        }
+        let mut pad_dev = pad_dev.expect("gamepad registered");
+
+        // App reconnects: socket B takes over, but only the phone keeps
+        // announcing. Rumble for the gamepad must still reach socket B.
+        let socket_b = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        socket_b
+            .send_to(&announce_pkt_kind(0, protocol::KIND_PHONE), server_addr)
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        pad_dev.set_rumble(1.0).await.unwrap();
+        let mut buf = [0u8; 32];
+        let (n, _) = tokio::time::timeout(Duration::from_secs(2), socket_b.recv_from(&mut buf))
+            .await
+            .expect("rumble did not follow the hub to its new socket")
+            .unwrap();
+        assert_eq!(buf[5], protocol::MSG_RUMBLE);
+        assert_eq!(n, 12);
 
         server.abort();
     }
