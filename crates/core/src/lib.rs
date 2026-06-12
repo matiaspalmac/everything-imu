@@ -3,6 +3,7 @@
 pub mod app_state;
 pub mod error;
 pub mod latency;
+pub mod lazy_slime;
 pub mod pipeline;
 pub mod quat;
 pub mod supervisor;

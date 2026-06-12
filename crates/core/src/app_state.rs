@@ -2,6 +2,7 @@
 
 use crate::error::AppError;
 use crate::latency::LatencySnapshot;
+use crate::lazy_slime::LazySlime;
 use crate::pipeline::{
     BiasSnapshot, FusionAlgo, ImuSampleSnapshot, MagCalCommand, MagCalProgress,
     MountingOrientation, Pipeline, PipelineConfig,
@@ -9,7 +10,7 @@ use crate::pipeline::{
 use crate::quat::QuatXyzw;
 use device_traits::{BiasStore, ChannelInfo, DeviceId, DeviceMetadata, SettingsStore};
 use imu_math::mag_cal::MagCalibration;
-use slime_tracker::client::{ClientStats, HandshakeInfo, SlimeClient};
+use slime_tracker::client::{ClientStats, HandshakeInfo};
 use slime_tracker::{BoardType, ImuType, McuType};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -36,7 +37,7 @@ pub struct AppState {
 
 struct DeviceHandle {
     pub metadata: DeviceMetadata,
-    pub slime: Arc<SlimeClient>,
+    pub slime: Arc<LazySlime>,
     pub task: tokio::task::JoinHandle<Result<(), AppError>>,
     pub stop: watch::Sender<bool>,
     pub quat_rx: watch::Receiver<QuatXyzw>,
@@ -106,7 +107,10 @@ impl AppState {
         };
         // Each device gets its own UDP connection + handshake with its real
         // MAC address. SlimeVR-Server identifies trackers by source socket,
-        // so N devices = N independent trackers in the dashboard.
+        // so N devices = N independent trackers in the dashboard. The
+        // connection is lazy: it opens on the device's first pipeline event,
+        // so haptics-only endpoints (which never emit events) never appear
+        // to SlimeVR and never flap the connection watchdog.
         let info = HandshakeInfo {
             board: BoardType::Custom,
             imu: ImuType::Bno085,
@@ -115,11 +119,7 @@ impl AppState {
             firmware: concat!("everything-imu ", env!("CARGO_PKG_VERSION")).into(),
             mac_address: meta.id.mac,
         };
-        let slime = Arc::new(
-            SlimeClient::connect(self.slime_addr, &info)
-                .await
-                .map_err(|e| AppError::Slime(e.to_string()))?,
-        );
+        let slime = Arc::new(LazySlime::new(self.slime_addr, info));
         let (stop_tx, stop_rx) = watch::channel(false);
         // Always sensor_id 0 — each device is its own tracker connection.
         let sensor_id = 0u8;
@@ -323,7 +323,12 @@ impl AppState {
             last_reset_ms_unix: 0,
         };
         for h in devices.values() {
-            let s = h.slime.stats();
+            // Lazily-connected devices that never streamed have no client —
+            // they must not contribute (stale) stats to the aggregate.
+            let Some(slime) = h.slime.peek() else {
+                continue;
+            };
+            let s = slime.stats();
             agg.packets_sent += s.packets_sent;
             agg.last_send_ms_unix = agg.last_send_ms_unix.max(s.last_send_ms_unix);
             agg.last_handshake_ms_unix = agg.last_handshake_ms_unix.max(s.last_handshake_ms_unix);
@@ -429,7 +434,12 @@ impl AppState {
         // Broadcast reset to all active device connections (same as SlimeIMU v0.4.x).
         let devices = self.devices.read().await;
         for h in devices.values() {
-            if let Err(e) = h.slime.send_user_action(action.clone()).await {
+            // Only devices that actually stream have a live connection; a
+            // reset wouldn't mean anything to SlimeVR for the rest anyway.
+            let Some(slime) = h.slime.peek() else {
+                continue;
+            };
+            if let Err(e) = slime.send_user_action(action.clone()).await {
                 tracing::warn!(id = %h.metadata.id, error = %e, "reset broadcast failed");
             }
         }

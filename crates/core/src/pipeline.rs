@@ -2,6 +2,7 @@
 
 use crate::error::AppError;
 use crate::latency::{LatencySnapshot, LatencyTracker};
+use crate::lazy_slime::LazySlime;
 use crate::quat::QuatXyzw;
 use device_traits::{BiasStore, ChannelInfo, DeviceMetadata, ResetKind};
 use imu_fusion::{BasicVqf, Madgwick, Vqf, VqfParams};
@@ -335,7 +336,7 @@ pub struct BiasSnapshot {
 
 pub struct Pipeline {
     meta: DeviceMetadata,
-    slime: Arc<SlimeClient>,
+    slime: Arc<LazySlime>,
     bias_store: Arc<dyn BiasStore>,
     paused: Arc<std::sync::atomic::AtomicBool>,
     fusion: FilterImpl,
@@ -405,7 +406,7 @@ pub struct PipelineHandles {
 impl Pipeline {
     pub fn new(
         meta: DeviceMetadata,
-        slime: Arc<SlimeClient>,
+        slime: Arc<LazySlime>,
         bias_store: Arc<dyn BiasStore>,
         paused: Arc<std::sync::atomic::AtomicBool>,
         sensor_id: u8,
@@ -554,7 +555,7 @@ impl Pipeline {
         }
     }
 
-    async fn send_sensor_info(&self, mag_config: u16) -> Result<(), AppError> {
+    async fn send_sensor_info(&self, slime: &SlimeClient, mag_config: u16) -> Result<(), AppError> {
         use slime_tracker::client::SensorDescriptor;
         use slime_tracker::{ImuType, TrackerDataType, TrackerPosition};
 
@@ -567,21 +568,31 @@ impl Pipeline {
             position: TrackerPosition::None,
             data_type: TrackerDataType::Rotation,
         };
-        self.slime
+        slime
             .send_sensor_info(&desc)
             .await
             .map_err(|e| AppError::Slime(e.to_string()))
     }
 
     async fn handle_event(&mut self, evt: ChannelInfo) -> Result<(), AppError> {
-        let confirmed = self.slime.stats().handshake_confirmed;
+        // The first event opens the SlimeVR connection (lazy — see
+        // [`LazySlime`]). A transient connect failure drops this event and
+        // retries on the next one rather than killing the pipeline.
+        let slime = match self.slime.get().await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, "SlimeVR connect failed; dropping event");
+                return Ok(());
+            }
+        };
+        let confirmed = slime.stats().handshake_confirmed;
         if !confirmed {
             self.sensor_info_sent = false;
             self.last_sensor_mag_config = None;
         } else {
             let desired_mag_config = self.sensor_mag_config();
             if !self.sensor_info_sent || self.last_sensor_mag_config != Some(desired_mag_config) {
-                if let Err(e) = self.send_sensor_info(desired_mag_config).await {
+                if let Err(e) = self.send_sensor_info(&slime, desired_mag_config).await {
                     tracing::warn!(error = %e, "sensor_info send failed");
                 } else {
                     self.sensor_info_sent = true;
@@ -756,7 +767,7 @@ impl Pipeline {
                 );
                 if !self.paused.load(std::sync::atomic::Ordering::Acquire) {
                     let send_start = Instant::now();
-                    self.slime
+                    slime
                         .send_rotation_and_accel(self.sensor_id, slime_q, accel_tuple)
                         .await
                         .map_err(|e| AppError::Slime(e.to_string()))?;
@@ -774,7 +785,7 @@ impl Pipeline {
                                 ),
                                 None => (m[0], m[1], m[2]),
                             };
-                            self.slime
+                            slime
                                 .send_magnetometer(self.sensor_id, (mx, my, mz))
                                 .await
                                 .map_err(|e| AppError::Slime(e.to_string()))?;
@@ -795,7 +806,7 @@ impl Pipeline {
             ChannelInfo::Battery(b) => {
                 let _ = self.battery_tx.send(b.fraction);
                 if !self.paused.load(std::sync::atomic::Ordering::Acquire) {
-                    self.slime
+                    slime
                         .send_battery(0.0, b.fraction)
                         .await
                         .map_err(|e| AppError::Slime(e.to_string()))?;
@@ -807,7 +818,7 @@ impl Pipeline {
                     ResetKind::Full => ActionType::ResetFull,
                     ResetKind::Mounting => ActionType::ResetMounting,
                 };
-                self.slime
+                slime
                     .send_user_action(action)
                     .await
                     .map_err(|e| AppError::Slime(e.to_string()))?;
