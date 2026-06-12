@@ -28,7 +28,7 @@ pub struct AppState {
     /// accel / battery to SlimeVR-Server. Useful as an emergency stop
     /// without killing the bridge process.
     pub paused: Arc<AtomicBool>,
-    devices: RwLock<HashMap<DeviceId, DeviceHandle>>,
+    devices: Arc<RwLock<HashMap<DeviceId, DeviceHandle>>>,
     /// Broadcasts the metadata of each device the moment it is registered.
     /// The app layer subscribes and forwards a `DeviceDiscovered` event to
     /// the UI, so the device store stays current after first paint.
@@ -72,7 +72,7 @@ impl AppState {
             settings,
             bias_store,
             paused: Arc::new(AtomicBool::new(false)),
-            devices: RwLock::new(HashMap::new()),
+            devices: Arc::new(RwLock::new(HashMap::new())),
             device_events_tx,
         })
     }
@@ -97,6 +97,24 @@ impl AppState {
         events: mpsc::Receiver<ChannelInfo>,
         control_tx: mpsc::Sender<DeviceControl>,
     ) -> Result<(), AppError> {
+        // A re-announce with the same MAC is the same physical device coming
+        // back under a new serial (new IP or a recovered route) — replace the
+        // stale entry instead of accumulating ghosts that still receive rumble.
+        {
+            let mut devices = self.devices.write().await;
+            let stale: Vec<DeviceId> = devices
+                .iter()
+                .filter(|(did, h)| **did != meta.id && h.metadata.id.mac == meta.id.mac)
+                .map(|(did, _)| did.clone())
+                .collect();
+            for did in stale {
+                if let Some(h) = devices.remove(&did) {
+                    let _ = h.stop.send(true);
+                    h.task.abort();
+                    tracing::info!(old = %did, new = %meta.id, "replacing stale device with same MAC");
+                }
+            }
+        }
         let config = pipeline_config_from_settings(self.settings.as_ref(), &meta.id);
         let mag_status = if !meta.capabilities.has_magnetometer {
             0
@@ -133,7 +151,19 @@ impl AppState {
         );
         let id = meta.id.clone();
         let meta_event = meta.clone();
-        let task = tokio::spawn(pipeline.run(events, stop_rx));
+        let devices_for_reap = self.devices.clone();
+        let reap_id = meta.id.clone();
+        let task = tokio::spawn(async move {
+            let result = pipeline.run(events, stop_rx).await;
+            if matches!(result, Err(AppError::DeviceDisconnected)) {
+                // Route died (REMOVE msg or stale sweep): drop the registry
+                // entry so snapshots, stats, and the rumble path stop seeing
+                // a ghost.
+                devices_for_reap.write().await.remove(&reap_id);
+                tracing::info!(id = %reap_id, "device disconnected; removed from registry");
+            }
+            result
+        });
         self.devices.write().await.insert(
             id,
             DeviceHandle {
@@ -511,5 +541,82 @@ fn pipeline_config_from_settings(settings: &dyn SettingsStore, id: &DeviceId) ->
         rotation_offset_deg,
         gyro_scale,
         mag_calibration,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use device_traits::{
+        ChannelInfo, DeviceCapabilities, DeviceKind, InMemoryBiasStore, InMemorySettingsStore,
+    };
+
+    fn meta(mac: [u8; 6], serial: &str) -> DeviceMetadata {
+        DeviceMetadata {
+            id: DeviceId {
+                mac,
+                serial: serial.into(),
+            },
+            kind: DeviceKind::Phone,
+            firmware: None,
+            capabilities: DeviceCapabilities {
+                has_magnetometer: false,
+                has_battery: false,
+                has_rumble: true,
+                native_imu_rate_hz: 200,
+            },
+        }
+    }
+
+    async fn state() -> AppState {
+        AppState::new(
+            "127.0.0.1:9".parse().unwrap(),
+            Arc::new(InMemorySettingsStore::default()),
+            Arc::new(InMemoryBiasStore::default()),
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn disconnected_device_is_reaped_from_registry() {
+        let st = state().await;
+        let (ev_tx, ev_rx) = mpsc::channel(4);
+        let (ctl_tx, _ctl_rx) = mpsc::channel(4);
+        st.register_device(meta([1, 2, 3, 4, 5, 6], "a"), ev_rx, ctl_tx)
+            .await
+            .unwrap();
+        assert_eq!(st.device_metadata_snapshot().await.len(), 1);
+
+        ev_tx.send(ChannelInfo::Disconnected).await.unwrap();
+        drop(ev_tx);
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if st.device_metadata_snapshot().await.is_empty() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("device was never reaped from the registry");
+    }
+
+    #[tokio::test]
+    async fn reannounce_with_same_mac_replaces_stale_device() {
+        let st = state().await;
+        let (_tx1, rx1) = mpsc::channel(4);
+        let (ctl1, _c1) = mpsc::channel(4);
+        st.register_device(meta([9, 9, 9, 9, 9, 9], "old-serial"), rx1, ctl1)
+            .await
+            .unwrap();
+        let (_tx2, rx2) = mpsc::channel(4);
+        let (ctl2, _c2) = mpsc::channel(4);
+        st.register_device(meta([9, 9, 9, 9, 9, 9], "new-serial"), rx2, ctl2)
+            .await
+            .unwrap();
+        let snap = st.device_metadata_snapshot().await;
+        assert_eq!(snap.len(), 1, "same-MAC device must replace, not duplicate");
+        assert_eq!(snap[0].id.serial, "new-serial");
     }
 }
