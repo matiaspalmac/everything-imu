@@ -159,7 +159,7 @@ async fn handle_msg(
     out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
 ) {
     match msg {
-        RemoteMsg::Hello { name, .. } => {
+        RemoteMsg::Hello { name, ts, .. } => {
             tracing::debug!(hub = %name, ip = %peer.ip(), "remote hub hello");
             // Hellos arrive every few seconds even when no handle is
             // streaming — refresh the rumble target only if the hub already
@@ -167,7 +167,9 @@ async fn handle_msg(
             if routes.keys().any(|(rip, _)| *rip == peer.ip()) {
                 touch_hub_peer(hub_peers, peer);
             }
-            let _ = socket.send_to(&protocol::encode_hello_ack(), peer).await;
+            let _ = socket
+                .send_to(&protocol::encode_hello_ack_echo(ts), peer)
+                .await;
         }
         RemoteMsg::Announce(a) => {
             let shared_peer = touch_hub_peer(hub_peers, peer);

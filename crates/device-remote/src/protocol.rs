@@ -53,6 +53,8 @@ pub enum RemoteMsg {
     Hello {
         uuid: [u8; 16],
         name: String,
+        /// Sender's monotonic clock (µs) for RTT echo — newer phones only.
+        ts: Option<u64>,
     },
     Announce(Announce),
     Remove {
@@ -113,7 +115,13 @@ pub fn parse(buf: &[u8]) -> Option<RemoteMsg> {
                 return None;
             }
             let name = std::str::from_utf8(&p[17..17 + n]).ok()?.to_string();
-            Some(RemoteMsg::Hello { uuid, name })
+            let tail = &p[17 + n..];
+            let ts = if tail.len() >= 8 {
+                Some(u64::from_le_bytes(tail[..8].try_into().ok()?))
+            } else {
+                None
+            };
+            Some(RemoteMsg::Hello { uuid, name, ts })
         }
         MSG_ANNOUNCE => {
             if p.len() < 15 {
@@ -233,6 +241,16 @@ pub fn encode_hello_ack() -> Vec<u8> {
     buf
 }
 
+/// HELLO_ACK with the hello's timestamp echoed back, so the hub can compute
+/// round-trip time. No echo when the hello carried no timestamp (old phones).
+pub fn encode_hello_ack_echo(ts: Option<u64>) -> Vec<u8> {
+    let mut buf = encode_hello_ack();
+    if let Some(ts) = ts {
+        buf.extend_from_slice(&ts.to_le_bytes());
+    }
+    buf
+}
+
 pub fn encode_rumble(handle: u16, intensity: f32) -> Vec<u8> {
     let mut buf = Vec::with_capacity(12);
     buf.extend_from_slice(&MAGIC);
@@ -266,11 +284,42 @@ mod tests {
         b.extend_from_slice(&[0xAA; 16]);
         b.push(4);
         b.extend_from_slice(b"Pixe");
-        let Some(RemoteMsg::Hello { uuid, name }) = parse(&b) else {
+        let Some(RemoteMsg::Hello { uuid, name, ts }) = parse(&b) else {
             panic!("expected hello");
         };
         assert_eq!(uuid, [0xAA; 16]);
         assert_eq!(name, "Pixe");
+        assert_eq!(ts, None);
+    }
+
+    #[test]
+    fn hello_with_trailing_timestamp_parses_and_acks_echo() {
+        let mut b = hdr(MSG_HELLO);
+        b.extend_from_slice(&[0xAA; 16]);
+        b.push(2);
+        b.extend_from_slice(b"Px");
+        b.extend_from_slice(&777u64.to_le_bytes());
+        let Some(RemoteMsg::Hello { ts, .. }) = parse(&b) else {
+            panic!("hello with ts");
+        };
+        assert_eq!(ts, Some(777));
+
+        let ack = encode_hello_ack_echo(Some(777));
+        assert_eq!(
+            &ack[..7],
+            &[0x45, 0x49, 0x4D, 0x55, 0x01, MSG_HELLO_ACK, 0x01]
+        );
+        assert_eq!(&ack[7..15], &777u64.to_le_bytes());
+
+        // Legacy hello (no ts) still parses, ack carries no echo.
+        let mut b = hdr(MSG_HELLO);
+        b.extend_from_slice(&[0xAA; 16]);
+        b.push(2);
+        b.extend_from_slice(b"Px");
+        let Some(RemoteMsg::Hello { ts: None, .. }) = parse(&b) else {
+            panic!("legacy hello");
+        };
+        assert_eq!(encode_hello_ack_echo(None), encode_hello_ack());
     }
 
     #[test]
