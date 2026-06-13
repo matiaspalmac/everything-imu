@@ -19,7 +19,7 @@
     "cmdk": "^1.0.0",
     "i18next": "^26.2.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react-dom": "^19.2.7",
     "react-i18next": "^17.0.7",
     "react-router-dom": "^7.15.1",
     "three": ">=0.170.0",
