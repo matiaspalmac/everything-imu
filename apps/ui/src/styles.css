@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Display face — Space Grotesk, the one characterful typeface in the system.
+ * Self-hosted (no network fetch); used only for headings/section labels so the
+ * body stays on the fast system stack. */
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/600.css";
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
@@ -37,7 +43,9 @@
 
   --fg-primary: oklch(94% 0.003 var(--neutral-h));
   --fg-secondary: oklch(72% 0.005 var(--neutral-h));
-  --fg-muted: oklch(53% 0.006 var(--neutral-h));
+  /* 62% (was 53%) clears WCAG AA 4.5:1 on --bg-panel for the 10–11px
+   * metric/caption text that leans on this token across the app. */
+  --fg-muted: oklch(62% 0.006 var(--neutral-h));
   --fg-inverse: oklch(17.5% 0.006 var(--neutral-h));
   --fg-section-header: oklch(62% 0.006 var(--neutral-h));
 
@@ -67,6 +75,9 @@
 
   --info: oklch(70% 0.09 var(--info-h));
   --info-soft: color-mix(in oklch, var(--info) 14%, transparent);
+
+  /* type — display face for headings/labels; body stays on system stack */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 
   /* shape + space tokens */
   --radius-sm: 4px;
@@ -102,7 +113,9 @@
 
   --fg-primary: oklch(22% 0.006 var(--neutral-h));
   --fg-secondary: oklch(38% 0.006 var(--neutral-h));
-  --fg-muted: oklch(52% 0.006 var(--neutral-h));
+  /* 46% (was 52%) darkens muted on the pale surfaces to clear AA 4.5:1
+   * for 10–11px text; mirrors the dark-mode lift in the other direction. */
+  --fg-muted: oklch(46% 0.006 var(--neutral-h));
   --fg-inverse: oklch(96.5% 0.002 var(--neutral-h));
   --fg-section-header: oklch(44% 0.006 var(--neutral-h));
 
@@ -155,6 +168,15 @@ body {
   font-feature-settings: "ss01", "cv01", "tnum";
 }
 
+/* Headings carry the display face; body text stays on the system stack.
+ * Slight negative tracking suits Space Grotesk's wide default spacing. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
 /* tabular numerals + opt-in stretched mono for metrics labels */
 .metric-num {
   font-variant-numeric: tabular-nums;
@@ -163,7 +185,7 @@ body {
 }
 
 *:focus-visible {
-  outline: 1px solid var(--border-active);
+  outline: 2px solid var(--border-active);
   outline-offset: 2px;
 }
 
@@ -232,4 +254,26 @@ body {
   background: var(--surface-glass);
   backdrop-filter: blur(14px) saturate(1.15);
   -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
+
+/* ============================================================
+ * Reduced motion — honour the OS preference. Kills the infinite
+ * ambient loops (breath) outright and collapses one-shot affordance
+ * animations/transitions to a near-instant snap so meaning survives
+ * without movement. WCAG 2.3.3 / prefers-reduced-motion.
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .breath {
+    animation: none;
+    opacity: 1;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

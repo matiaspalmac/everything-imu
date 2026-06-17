@@ -122,7 +122,9 @@ export function DevicesPage() {
         </div>
         {selected.size > 0 && (
           <div className="flex items-center gap-2 text-[11px] text-[var(--fg-secondary)]">
-            <span>{selected.size} selected</span>
+            <span aria-live="polite" aria-atomic="true">
+              {selected.size} selected
+            </span>
             <BulkBtn
               onClick={() => void bulkReset("yaw")}
               icon={<Crosshair size={12} />}
@@ -311,7 +313,7 @@ function DeviceCard({
         <span className="metric-num text-[11px] text-[var(--fg-muted)]">
           {rateHz > 0 ? `${Math.round(rateHz)} Hz` : t("status.idle")}
         </span>
-        <div className="flex gap-1 opacity-0 transition-opacity group-hover/dev:opacity-100">
+        <div className="flex gap-1 opacity-0 transition-opacity group-hover/dev:opacity-100 group-focus-within/dev:opacity-100 [@media(hover:none)]:opacity-100">
           <InlineBtn
             title={t("actions.reset_yaw")}
             onClick={(e) => {
