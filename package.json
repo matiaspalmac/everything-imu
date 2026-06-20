@@ -34,7 +34,8 @@
   },
   "pnpm": {
     "overrides": {
-      "ws@<8.20.1": "^8.20.1"
+      "ws@<8.20.1": "^8.20.1",
+      "form-data@>=4.0.0 <4.0.6": "^4.0.6"
     }
   },
   "author": "Matias Palma <matiaspalma2594@gmail.com>"
