@@ -182,7 +182,7 @@ pub fn run() {
                 },
             );
 
-            tray::init_tray(app.handle())?;
+            tray::init_tray_or_warn(app.handle());
             tracker_emitter::spawn(app.handle());
             supervisor_boot::spawn(app.handle(), auto_start_synthetic);
             update_boot::spawn(app.handle());
