@@ -58,6 +58,9 @@ jobs:
             libsoup-3.0-dev \
             librsvg2-dev \
             libayatana-appindicator3-dev \
+            libayatana-appindicator3-1 \
+            libdbusmenu-glib4 \
+            libdbusmenu-gtk3-4 \
             libxdo-dev \
             libssl-dev \
             libudev-dev \
