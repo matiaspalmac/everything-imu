@@ -483,9 +483,25 @@ impl Vqf {
             &mut self.state.acc_lp_state,
         );
 
+        // Earth-frame gravity direction in the 6D (gyro-integrated) frame.
+        // The inclination correction and the motion-bias Kalman both act on
+        // the *direction* of gravity, so this must be a unit vector — the
+        // reference VQF normalizes here. Skipping it leaves the vector at its
+        // ~9.81 m/s² magnitude (input is m/s² per project convention) and
+        // scales the correction half-angle by g, so the half-angle ratio
+        // becomes g·sin θ/(1+g·cos θ) instead of tan(θ/2): pitch/roll
+        // tracking is over-corrected on every 6-axis device.
         let acc_e6 = quat_rotate(self.state.acc_quat, self.state.last_acc_lp);
-        let q_w_inner = ((acc_e6[2] + 1.0) / 2.0).max(0.0);
-        let q_w = q_w_inner.sqrt();
+        let acc_e6 = {
+            let n = (acc_e6[0] * acc_e6[0] + acc_e6[1] * acc_e6[1] + acc_e6[2] * acc_e6[2]).sqrt();
+            if n > EPS {
+                [acc_e6[0] / n, acc_e6[1] / n, acc_e6[2] / n]
+            } else {
+                [0.0, 0.0, 1.0]
+            }
+        };
+        // A unit vector keeps z in [-1, 1], so no `.max(0.0)` guard is needed.
+        let q_w = ((acc_e6[2] + 1.0) / 2.0).sqrt();
         let acc_corr = if q_w > EPS {
             [q_w, 0.5 * acc_e6[1] / q_w, -0.5 * acc_e6[0] / q_w, 0.0]
         } else {
@@ -493,10 +509,14 @@ impl Vqf {
         };
         self.state.acc_quat = quat_normalize(quat_multiply(acc_corr, self.state.acc_quat));
 
-        self.update_bias_kalman(acc_earth);
+        // Feed the SAME normalized 6D gravity direction to the motion-bias
+        // Kalman. Passing the un-normalized inertial-frame vector made the
+        // measurement residual (acc/acc_ts) ~g/acc_ts too large and pinned
+        // the bias estimate against its clip whenever the device tilted.
+        self.update_bias_kalman(acc_e6);
     }
 
-    fn update_bias_kalman(&mut self, acc_earth: [f64; 3]) {
+    fn update_bias_kalman(&mut self, acc_e6_norm: [f64; 3]) {
         if !self.params.motion_bias_est_enabled && !self.params.rest_bias_est_enabled {
             return;
         }
@@ -544,11 +564,11 @@ impl Vqf {
                 )
             } else if self.params.motion_bias_est_enabled {
                 let e = [
-                    -acc_earth[1] / acc_ts + bias_lp[0]
+                    -acc_e6_norm[1] / acc_ts + bias_lp[0]
                         - r_filt_arr[0] * bias[0]
                         - r_filt_arr[1] * bias[1]
                         - r_filt_arr[2] * bias[2],
-                    acc_earth[0] / acc_ts + bias_lp[1]
+                    acc_e6_norm[0] / acc_ts + bias_lp[1]
                         - r_filt_arr[3] * bias[0]
                         - r_filt_arr[4] * bias[1]
                         - r_filt_arr[5] * bias[2],

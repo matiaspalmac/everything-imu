@@ -7,7 +7,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
 
 const PACKET_LEN: usize = 17;
-const DEFAULT_BIND: &str = "127.0.0.1:9909";
+// The Wii homebrew forwarder runs on the console and connects over the LAN,
+// so the listener must accept non-loopback peers (matches the 3DS/Vita
+// forwarders). Binding 127.0.0.1 made the Wii path unreachable from real
+// hardware.
+const DEFAULT_BIND: &str = "0.0.0.0:9909";
 const DEFAULT_POLLING_RATE_MS: u8 = 10;
 
 #[derive(Clone)]

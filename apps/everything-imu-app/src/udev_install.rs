@@ -4,8 +4,7 @@
 //! and the kernel default-denies non-root user access to `/dev/hidraw*`.
 //! Without the rules below, `hidapi` only sees nothing and the bridge
 //! sits empty wondering why no controller ever shows up. The user can
-//! install them manually but a "Install rules" button is the same UX
-//! Steam Big Picture, slimevr-wrangler and SDL2 all expose.
+//! install them manually but an "Install rules" button is the friendlier UX.
 //!
 //! The Tauri command is a no-op on Windows / macOS so the UI can call
 //! it unconditionally and surface the platform check to the user.
@@ -50,10 +49,8 @@ pub enum InstallError {
 
 #[cfg(target_os = "linux")]
 pub fn install() -> Result<String, InstallError> {
-    // Stage the rules in /tmp so pkexec only needs to copy + reload —
-    // keeps the privileged shell invocation minimal and auditable.
-    let staged = std::path::PathBuf::from("/tmp/99-everything-imu.rules");
-    std::fs::write(&staged, RULES)?;
+    use std::io::Write;
+    use std::process::Stdio;
 
     if Command::new("which")
         .arg("pkexec")
@@ -64,14 +61,32 @@ pub fn install() -> Result<String, InstallError> {
         return Err(InstallError::NoPkexec);
     }
 
+    // Pipe the ruleset straight into the privileged shell over stdin and let
+    // the root shell write the destination itself. There is deliberately no
+    // intermediate staging file: a predictable path in a world-writable dir
+    // (e.g. /tmp) is a symlink/TOCTOU vector — a local attacker could swap the
+    // staged file for a symlink and have the root copy clobber an arbitrary
+    // path. The destination is a fixed root-owned constant, so nothing here is
+    // attacker-influenceable.
     let shell_cmd = format!(
-        "install -m 0644 {src} {dst} && udevadm control --reload-rules && udevadm trigger",
-        src = staged.display(),
+        "cat > {dst} && chmod 0644 {dst} && udevadm control --reload-rules && udevadm trigger",
         dst = TARGET_PATH,
     );
-    let out = Command::new("pkexec")
+    let mut child = Command::new("pkexec")
         .args(["sh", "-c", &shell_cmd])
-        .output()?;
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    {
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| std::io::Error::other("pkexec stdin unavailable"))?;
+        stdin.write_all(RULES.as_bytes())?;
+        // Dropping `stdin` here closes the pipe so `cat` sees EOF.
+    }
+    let out = child.wait_with_output()?;
     if !out.status.success() {
         return Err(InstallError::Pkexec {
             code: out.status.code().unwrap_or(-1),

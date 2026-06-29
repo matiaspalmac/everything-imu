@@ -7,9 +7,6 @@
 //! `<Steam install>/config/config.vdf`. This module reads the VDF,
 //! reports whether the blacklist is incomplete for Joy-Con + Pro, and
 //! writes the patched config back when the user accepts.
-//!
-//! Logic adapted from slimevr-wrangler (MIT/Apache-2.0). Author-permitted
-//! reuse; see CONTRIBUTING.md for the upstream attribution policy.
 
 #![allow(clippy::result_large_err)]
 // keyvalues-parser 0.2 marks the convenience `Vdf::parse` constructor

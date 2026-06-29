@@ -49,7 +49,10 @@ impl ImuOffsets {
                 gyro: 16,
                 accel: 22,
                 battery: Some(53),
-                buttons_2: Some(9),
+                // PS / Mute live in buttons[2] = payload byte 9 = buf[10]
+                // (report ID at buf[0]). buf[9] is buttons[1] (L1/R1/…), so
+                // reading 9 here decoded a shoulder press as the PS button.
+                buttons_2: Some(10),
             }),
             (ControllerKind::DualSense | ControllerKind::DualSenseEdge, 78) => Some(Self {
                 gyro: 18,
@@ -407,9 +410,9 @@ mod tests {
     #[test]
     fn ps_button_bit_decode() {
         let mut buf = [0u8; 64];
-        buf[9] = 0x01;
+        buf[10] = 0x01;
         assert_eq!(parse_ps_button(ControllerKind::DualSense, &buf), Some(true));
-        buf[9] = 0x00;
+        buf[10] = 0x00;
         assert_eq!(
             parse_ps_button(ControllerKind::DualSense, &buf),
             Some(false)

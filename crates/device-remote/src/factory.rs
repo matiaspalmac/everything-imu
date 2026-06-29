@@ -139,9 +139,18 @@ impl DeviceFactory for RemoteFactory {
                     hub_peers.retain(|ip, _| routes.keys().any(|(rip, _)| rip == ip));
                 }
                 recv = socket.recv_from(&mut buf) => {
-                    let (n, peer) = recv.map_err(|e| {
-                        DeviceError::Hid(format!("remote recv failed: {e}"))
-                    })?;
+                    let (n, peer) = match recv {
+                        Ok(v) => v,
+                        Err(e) => {
+                            // A transient recv error must not tear down the
+                            // whole hub. On Windows a datagram to an
+                            // unreachable peer surfaces later as WSAECONNRESET
+                            // on recv_from; propagating it killed every remote
+                            // device at once. Log and keep serving.
+                            tracing::debug!(error = %e, "remote recv error; continuing");
+                            continue;
+                        }
+                    };
                     let Some(msg) = protocol::parse(&buf[..n]) else { continue };
                     handle_msg(msg, peer, &socket, &mut routes, &mut hub_peers, &out).await;
                 }
