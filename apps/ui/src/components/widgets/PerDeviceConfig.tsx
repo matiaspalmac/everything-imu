@@ -49,6 +49,15 @@ export function PerDeviceConfig({
   /// does not echo straight back to the backend.
   const gyroScaleTimer = useRef<number | null>(null);
   const gyroScaleInitial = useRef(true);
+  // Switching the detail page swaps `mac` without remounting this component.
+  // Re-arm the initial-run suppression during render (the React-recommended
+  // way to reset state on a prop change) so the next loaded gyro scale does
+  // not echo back to (or get persisted onto) the newly selected tracker.
+  const gyroScaleMac = useRef(mac);
+  if (gyroScaleMac.current !== mac) {
+    gyroScaleMac.current = mac;
+    gyroScaleInitial.current = true;
+  }
   useEffect(() => {
     const scale = settings?.gyro_scale;
     if (scale == null) return;

@@ -41,7 +41,9 @@ impl SteamControllerDevice {
             capabilities: DeviceCapabilities {
                 has_magnetometer: false,
                 has_battery: matches!(transport, SteamControllerTransport::UsbDongle),
-                has_rumble: true,
+                // Haptic feature report is not implemented yet; advertise the
+                // capability only once set_rumble actually drives the hardware.
+                has_rumble: false,
                 native_imu_rate_hz: 100,
             },
         };
@@ -134,8 +136,12 @@ fn reader_loop(
 ) {
     let mut buf = [0u8; 128];
     loop {
-        if shutdown.has_changed().unwrap_or(false) && *shutdown.borrow_and_update() {
-            break;
+        match shutdown.has_changed() {
+            // Explicit shutdown signal.
+            Ok(true) if *shutdown.borrow_and_update() => break,
+            // Sender dropped: treat as a shutdown request so the thread ends.
+            Err(_) => break,
+            _ => {}
         }
         let n = {
             let guard = hid.lock().unwrap();
@@ -143,7 +149,7 @@ fn reader_loop(
                 Ok(n) => n,
                 Err(e) => {
                     tracing::debug!(error = %e, "steam ctrl read error");
-                    return;
+                    break;
                 }
             }
         };

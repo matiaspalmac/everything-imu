@@ -17,7 +17,7 @@ impl SqliteBiasStore {
 
 impl BiasStore for SqliteBiasStore {
     fn load_bias(&self, id: &DeviceId) -> Option<[f64; 3]> {
-        let conn = self.db.conn.lock().unwrap();
+        let conn = self.db.conn.lock().unwrap_or_else(|e| e.into_inner());
         // optional() distinguishes "no row" from a real SQLite error; the
         // latter is worth logging instead of silently treating as None.
         let row = conn
@@ -55,7 +55,7 @@ impl BiasStore for SqliteBiasStore {
             );
             return;
         }
-        let conn = self.db.conn.lock().unwrap();
+        let conn = self.db.conn.lock().unwrap_or_else(|e| e.into_inner());
         if let Err(e) = conn.execute(
             "INSERT INTO bias_seeds (mac, serial, bias_x, bias_y, bias_z) VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(mac) DO UPDATE SET

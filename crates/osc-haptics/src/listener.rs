@@ -34,6 +34,11 @@ const WATCHDOG_IDLE: Duration = Duration::from_secs(2);
 /// Coarsest tick — bounds how late a pulse expiry or watchdog can fire.
 const MAX_TICK: Duration = Duration::from_millis(250);
 
+/// Upper bound on distinct OSC addresses tracked for discovery. Untrusted UDP
+/// could otherwise grow `seen_addrs` without limit; past this we stop tracking
+/// new addresses.
+const MAX_SEEN_ADDRS: usize = 4096;
+
 /// Where the bridge sends resolved rumble commands.
 ///
 /// Implemented by the application (`AppState`) so this crate does not depend
@@ -125,7 +130,9 @@ async fn serve(
     sniffer: Option<&SnifferHandle>,
 ) -> ServeExit {
     let mut state = LoopState::new();
-    let mut buf = [0u8; 2048];
+    // Sized well above a typical OSC datagram so oversized bundles aren't
+    // silently truncated; see the `len == buf.len()` check below.
+    let mut buf = [0u8; 8192];
     // Rules are immutable for the lifetime of a single serve() — any change
     // returns ServeExit::Rebind and re-enters this function. Snapshot once
     // here instead of cloning the Vec on every received packet (VRChat
@@ -150,7 +157,11 @@ async fn serve(
             recv = socket.recv_from(&mut buf) => {
                 match recv {
                     Ok((len, _addr)) => {
+                        if len == buf.len() {
+                            tracing::debug!(len, "haptic bridge: datagram filled recv buffer; may be truncated");
+                        }
                         state.last_packet = Instant::now();
+                        state.idle_silenced = false;
                         if let Ok((_, packet)) = rosc::decoder::decode_udp(&buf[..len]) {
                             handle_packet(&packet, &rules, &mut state, sink, discovery_tx, sniffer).await;
                         }
@@ -177,6 +188,9 @@ struct LoopState {
     /// Distinct OSC addresses already forwarded to discovery.
     seen_addrs: std::collections::HashSet<String>,
     last_packet: Instant,
+    /// Set once the idle watchdog has silenced everything, so `next_wake`
+    /// stops short-cycling at ~1 kHz until the next packet arrives.
+    idle_silenced: bool,
 }
 
 impl LoopState {
@@ -186,6 +200,7 @@ impl LoopState {
             pulse_until: HashMap::new(),
             seen_addrs: std::collections::HashSet::new(),
             last_packet: Instant::now(),
+            idle_silenced: false,
         }
     }
 
@@ -196,8 +211,11 @@ impl LoopState {
         for end in self.pulse_until.values() {
             wake = wake.min(end.saturating_duration_since(now));
         }
-        let watchdog = (self.last_packet + WATCHDOG_IDLE).saturating_duration_since(now);
-        wake.min(watchdog).max(Duration::from_millis(1))
+        if !self.idle_silenced {
+            let watchdog = (self.last_packet + WATCHDOG_IDLE).saturating_duration_since(now);
+            wake = wake.min(watchdog);
+        }
+        wake.max(Duration::from_millis(1))
     }
 
     /// Send `intensity` to `mac` if rate-limiting and the epsilon filter allow
@@ -237,8 +255,9 @@ impl LoopState {
             self.send(mac, 0.0, true, sink, now).await;
         }
 
-        if now.duration_since(self.last_packet) >= WATCHDOG_IDLE {
+        if !self.idle_silenced && now.duration_since(self.last_packet) >= WATCHDOG_IDLE {
             self.silence_all(sink).await;
+            self.idle_silenced = true;
         }
     }
 
@@ -269,7 +288,11 @@ async fn handle_packet(
     match packet {
         OscPacket::Message(msg) => {
             if let Some(tx) = discovery_tx {
-                if state.seen_addrs.insert(msg.addr.clone()) {
+                // Cap discovery tracking so untrusted UDP can't grow this set
+                // without bound.
+                if state.seen_addrs.len() < MAX_SEEN_ADDRS
+                    && state.seen_addrs.insert(msg.addr.clone())
+                {
                     let _ = tx.try_send(msg.addr.clone());
                 }
             }

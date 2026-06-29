@@ -6,6 +6,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, RwLock};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TrySendError;
 use tokio::time::{Duration, Instant};
 
 const DEFAULT_BIND: &str = "0.0.0.0:9320";
@@ -125,7 +126,10 @@ impl DeviceFactory for RemoteFactory {
         let mut routes: HashMap<(IpAddr, u16), Route> = HashMap::new();
         let mut hub_peers: HashMap<IpAddr, Arc<RwLock<SocketAddr>>> = HashMap::new();
         let mut sweep = tokio::time::interval(SWEEP_EVERY);
-        let mut buf = [0u8; 2048];
+        // Sized for the protocol's real max datagram: the IMU sample count is
+        // u8, so a full batch is ~6 + 5 + 255*45 ≈ 11.5 KB. Round to 16 KB so
+        // valid full-length datagrams are never truncated and dropped.
+        let mut buf = [0u8; 16384];
         loop {
             tokio::select! {
                 _ = sweep.tick() => {
@@ -217,7 +221,7 @@ async fn handle_msg(
                     route.loss.record(seq, &key);
                 }
             }
-            route_event(routes, hub_peers, peer, handle, RemoteEvent::Imu(samples)).await;
+            route_event(routes, hub_peers, peer, handle, RemoteEvent::Imu(samples));
         }
         RemoteMsg::Battery {
             handle,
@@ -230,16 +234,15 @@ async fn handle_msg(
                 peer,
                 handle,
                 RemoteEvent::Battery(BatteryState { fraction, charging }),
-            )
-            .await;
+            );
         }
         RemoteMsg::Button { handle, reset } => {
-            route_event(routes, hub_peers, peer, handle, RemoteEvent::Reset(reset)).await;
+            route_event(routes, hub_peers, peer, handle, RemoteEvent::Reset(reset));
         }
     }
 }
 
-async fn route_event(
+fn route_event(
     routes: &mut HashMap<(IpAddr, u16), Route>,
     hub_peers: &mut HashMap<IpAddr, Arc<RwLock<SocketAddr>>>,
     peer: SocketAddr,
@@ -250,8 +253,16 @@ async fn route_event(
     if let Some(route) = routes.get_mut(&key) {
         route.touch();
         touch_hub_peer(hub_peers, peer);
-        if route.tx.send(event).await.is_err() {
-            routes.remove(&key);
+        // Real-time path: never await the per-route channel from the shared
+        // recv loop, or one slow/un-started consumer stalls the whole hub.
+        match route.tx.try_send(event) {
+            Ok(()) => {}
+            Err(TrySendError::Full(_)) => {
+                // Consumer is behind; drop this sample rather than block.
+            }
+            Err(TrySendError::Closed(_)) => {
+                routes.remove(&key);
+            }
         }
     }
 }

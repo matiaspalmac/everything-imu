@@ -50,7 +50,7 @@ export function TrackerDetailPage() {
   const macBytes = useMemo<[number, number, number, number, number, number] | null>(() => {
     if (snap) return snap.mac;
     if (dev) return dev.mac;
-    if (macKey.length === 12) {
+    if (/^[0-9a-fA-F]{12}$/.test(macKey)) {
       const out: number[] = [];
       for (let i = 0; i < 12; i += 2) {
         out.push(Number.parseInt(macKey.slice(i, i + 2), 16));

@@ -26,10 +26,13 @@ impl VitaPacket {
             return None;
         }
         let rd = |o: usize| f32::from_le_bytes([buf[o], buf[o + 1], buf[o + 2], buf[o + 3]]);
-        Some(Self {
-            accel_g: [rd(0), rd(4), rd(8)],
-            gyro_rad: [rd(12), rd(16), rd(20)],
-        })
+        let accel_g = [rd(0), rd(4), rd(8)];
+        let gyro_rad = [rd(12), rd(16), rd(20)];
+        // Reject NaN/Inf so garbage datagrams cannot poison downstream fusion.
+        if !accel_g.iter().chain(gyro_rad.iter()).all(|v| v.is_finite()) {
+            return None;
+        }
+        Some(Self { accel_g, gyro_rad })
     }
 }
 

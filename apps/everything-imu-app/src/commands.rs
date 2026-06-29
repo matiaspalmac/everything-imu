@@ -1238,7 +1238,9 @@ pub async fn udp_haptic_test(
         .into_iter()
         .find(|t| t.mac == mac)
         .ok_or(IpcError::NotFound)?;
-    crate::udp_haptic::send(&target, intensity, duration_ms)
+    tokio::task::spawn_blocking(move || crate::udp_haptic::send(&target, intensity, duration_ms))
+        .await
+        .map_err(|e| IpcError::Internal(e.to_string()))?
         .map_err(|e| IpcError::Internal(e.to_string()))
 }
 

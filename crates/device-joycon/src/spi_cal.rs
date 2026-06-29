@@ -162,7 +162,7 @@ fn is_zeros_or_ff(bytes: &[u8]) -> bool {
 }
 
 fn plausible_offset(values: [i16; 3], abs_max: i16) -> bool {
-    values.iter().all(|&v| v.abs() <= abs_max)
+    values.iter().all(|&v| v.unsigned_abs() <= abs_max as u16)
 }
 
 #[cfg(test)]

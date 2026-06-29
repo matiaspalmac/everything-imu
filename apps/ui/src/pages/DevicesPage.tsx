@@ -85,26 +85,32 @@ export function DevicesPage() {
 
   async function bulkReset(kind: "yaw" | "full") {
     const targets = filtered.filter((d) => selected.has(macKeyFn(d.mac)));
-    await Promise.all(targets.map((d) => api.requestReset(d.mac, kind)));
+    const results = await Promise.allSettled(targets.map((d) => api.requestReset(d.mac, kind)));
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - ok;
     pushToast({
-      level: "info",
+      level: failed > 0 ? "warn" : "info",
       message:
         kind === "yaw"
-          ? t("shortcuts.broadcast_yaw_done_plural", { count: targets.length })
-          : t("shortcuts.broadcast_full_done_plural", { count: targets.length }),
+          ? t("shortcuts.broadcast_yaw_done_plural", { count: ok })
+          : t("shortcuts.broadcast_full_done_plural", { count: ok }),
       ttlMs: 2000,
     });
   }
 
   async function bulkHide() {
     const macs = filtered.filter((d) => selected.has(macKeyFn(d.mac)));
-    await Promise.all(macs.map((d) => api.setTrackerHidden(d.mac, true)));
-    pushToast({
-      level: "info",
-      message: t("toast.trackers_hidden_count", { count: macs.length }),
-      ttlMs: 2000,
-    });
-    setSelected(new Set());
+    try {
+      const results = await Promise.allSettled(macs.map((d) => api.setTrackerHidden(d.mac, true)));
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      pushToast({
+        level: ok < macs.length ? "warn" : "info",
+        message: t("toast.trackers_hidden_count", { count: ok }),
+        ttlMs: 2000,
+      });
+    } finally {
+      setSelected(new Set());
+    }
   }
 
   return (

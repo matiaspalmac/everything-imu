@@ -781,17 +781,18 @@ impl Device for JoyCon2Device {
         if let Some(stop) = self.stop_tx.take() {
             let _ = stop.send(true);
         }
-        if let Some(task) = self.task.take() {
+        if let Some(mut task) = self.task.take() {
             // Bound the wait so a notification stream stuck inside the BLE
             // stack cannot wedge `stop()` indefinitely. The watch signal is
             // already sent; if the task ignores it, abort outright.
-            match tokio::time::timeout(Duration::from_secs(2), task).await {
+            match tokio::time::timeout(Duration::from_secs(2), &mut task).await {
                 Ok(_) => {}
                 Err(_) => {
                     tracing::warn!(
                         id = %self.metadata.id,
                         "jc2 task did not exit within 2s; aborting"
                     );
+                    task.abort();
                 }
             }
         }

@@ -267,6 +267,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
             commands::udp_haptic_upsert,
             commands::udp_haptic_remove,
             commands::udp_haptic_test,
+            commands::doctor,
         ])
         .events(tauri_specta::collect_events![
             events::TrackerUpdate,

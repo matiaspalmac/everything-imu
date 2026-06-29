@@ -2,8 +2,8 @@
 //!
 //! Invoked from the headless CLI via `--psmove-raw`. Dumps the raw report hex
 //! plus the IMU triplets decoded at the *current* parser offsets, in several
-//! interpretations (big-endian, big-endian minus the `0x8000` ZCM1 shift, and
-//! little-endian), so the true byte layout, axis order, and scale can be
+//! interpretations (little-endian, little-endian minus the `0x8000` ZCM1 shift,
+//! and big-endian), so the true byte layout, axis order, and scale can be
 //! eyeballed against a known still + rotate motion before the parser is trusted
 //! (plan items B1/B2/B4).
 //!

@@ -23,6 +23,7 @@ pub enum ButtonState {
 
 pub struct ResetButtonDetector {
     pressed_since: Option<Instant>,
+    capture_was_pressed: bool,
     long_threshold: Duration,
     debounce: Duration,
     last_emit: Option<Instant>,
@@ -36,6 +37,7 @@ impl ResetButtonDetector {
     pub fn with_thresholds(long_threshold: Duration, debounce: Duration) -> Self {
         Self {
             pressed_since: None,
+            capture_was_pressed: false,
             long_threshold,
             debounce,
             last_emit: None,
@@ -53,7 +55,11 @@ impl ResetButtonDetector {
                 home_pressed,
                 capture_pressed,
             } => {
-                if capture_pressed && self.pressed_since.is_none() {
+                // Capture button: emit Yaw only on the press edge so a held
+                // capture button fires exactly once, mirroring CaptureOnly.
+                let capture_edge = capture_pressed && !self.capture_was_pressed;
+                self.capture_was_pressed = capture_pressed;
+                if capture_edge {
                     if in_debounce {
                         return None;
                     }

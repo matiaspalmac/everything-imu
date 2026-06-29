@@ -21,7 +21,7 @@ pub async fn run_synthetic_loop(
     mut stop: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), DeviceError> {
     let rate_hz = rate_hz.max(1) as u64;
-    let mut interval = tokio::time::interval(Duration::from_millis(1000 / rate_hz));
+    let mut interval = tokio::time::interval(Duration::from_micros(1_000_000 / rate_hz));
     let mut synth = ImuSynth::new();
     let mut t_us: u64 = 0;
     let dt_us: u64 = 1_000_000 / rate_hz;

@@ -197,6 +197,7 @@ impl SlimeClient {
             socket.clone(),
             seq.clone(),
             info_arc,
+            server_supports_bundle.clone(),
             handshake_confirmed.clone(),
             last_handshake_ms_unix.clone(),
             packets_sent.clone(),
@@ -575,6 +576,7 @@ async fn handshake_watchdog(
     socket: Arc<UdpSocket>,
     seq: Arc<AtomicU64>,
     info: Arc<HandshakeInfo>,
+    server_supports_bundle: Arc<AtomicBool>,
     handshake_confirmed: Arc<AtomicBool>,
     last_handshake_ms_unix: Arc<AtomicU64>,
     packets_sent: Arc<AtomicU64>,
@@ -596,6 +598,9 @@ async fn handshake_watchdog(
             #[cfg(feature = "client")]
             tracing::warn!("SlimeVR connection timeout. Handshake reset.");
             handshake_confirmed.store(false, Ordering::Release);
+            // Re-arm the two-send fallback: the next FEATURE_FLAGS reply must
+            // re-advertise PROTOCOL_BUNDLE_SUPPORT before we resume bundling.
+            server_supports_bundle.store(false, Ordering::Release);
             // Only count the true→false transition; without this guard the
             // counter would tick once every 500 ms while disconnected,
             // which would make the UI look like the server is flapping

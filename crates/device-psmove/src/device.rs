@@ -152,6 +152,18 @@ impl Device for PsMoveDevice {
         if let Some(j) = self.output_join.take() {
             let _ = j.join();
         }
+        // Extinguish the sphere LED and stop rumble before dropping the handle;
+        // otherwise the hardware holds the last colour/motor state until its own
+        // ~5 s auto-off timer fires.
+        if let Some(io) = self.io.as_ref() {
+            let _ = write_output(
+                io,
+                OutputState {
+                    rgb: [0, 0, 0],
+                    rumble: 0,
+                },
+            );
+        }
         self.io = None;
         Ok(())
     }

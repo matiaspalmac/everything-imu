@@ -83,9 +83,9 @@ async fn ensure_connected(peripheral: &Peripheral) -> Result<(), DeviceError> {
     Ok(())
 }
 
-/// Request a short BLE connection interval so the ~200 Hz notification stream is
-/// not throttled to the host's slow default. Non-fatal: unsupported stacks
-/// (Windows 10, BlueZ) keep the default rate.
+/// Request a short BLE connection interval so the notification stream (52 Hz ODR,
+/// possibly batched per notification) is not throttled to the host's slow default.
+/// Non-fatal: unsupported stacks (Windows 10, BlueZ) keep the default rate.
 async fn request_fast_connection_interval(peripheral: &Peripheral) {
     if let Err(e) = peripheral
         .request_connection_parameters(ConnectionParameterPreset::ThroughputOptimized)

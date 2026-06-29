@@ -31,12 +31,15 @@ export function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    api.getSettings().then((res) => {
-      if (res.status === "ok") {
-        replace(res.data);
-        setServerAddrDraft(res.data.slime_server_addr);
-      }
-    });
+    api
+      .getSettings()
+      .then((res) => {
+        if (res.status === "ok") {
+          replace(res.data);
+          setServerAddrDraft(res.data.slime_server_addr);
+        }
+      })
+      .catch((e) => setMsg(String(e)));
     void refreshAutostart();
   }, [replace, refreshAutostart]);
 
@@ -411,29 +414,47 @@ function UpdaterPanel() {
 
   async function toggleAutoCheck(next: boolean) {
     setLocal({ auto_update_on_startup: next });
-    await api.setSetting("auto_update_on_startup", next ? "1" : "0");
+    try {
+      await api.setSetting("auto_update_on_startup", next ? "1" : "0");
+    } catch (e) {
+      setErr(String(e));
+    }
   }
   async function toggleAutoInstall(next: boolean) {
     setLocal({ auto_install_on_startup: next });
-    await api.setSetting("auto_install_on_startup", next ? "1" : "0");
+    try {
+      await api.setSetting("auto_install_on_startup", next ? "1" : "0");
+    } catch (e) {
+      setErr(String(e));
+    }
   }
 
   async function check() {
     setBusy("check");
     setErr(null);
-    const res = await api.checkForUpdate();
-    setBusy(null);
-    if (res.status === "ok") setInfo(res.data);
-    else setErr("message" in res.error ? res.error.message : res.error.type);
+    try {
+      const res = await api.checkForUpdate();
+      if (res.status === "ok") setInfo(res.data);
+      else setErr("message" in res.error ? res.error.message : res.error.type);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function apply() {
     setBusy("apply");
     setErr(null);
-    const res = await api.applyUpdate();
-    setBusy(null);
-    if (res.status === "ok") setInfo({ ...res.data, update_available: false });
-    else setErr("message" in res.error ? res.error.message : res.error.type);
+    try {
+      const res = await api.applyUpdate();
+      if (res.status === "ok") setInfo({ ...res.data, update_available: false });
+      else setErr("message" in res.error ? res.error.message : res.error.type);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -509,10 +530,15 @@ function UdevPanel() {
   async function install() {
     setBusy(true);
     setMsg(null);
-    const res = await api.installUdevRules();
-    setBusy(false);
-    if (res.status === "ok") setMsg(res.data);
-    else setMsg("message" in res.error ? res.error.message : res.error.type);
+    try {
+      const res = await api.installUdevRules();
+      if (res.status === "ok") setMsg(res.data);
+      else setMsg("message" in res.error ? res.error.message : res.error.type);
+    } catch (e) {
+      setMsg(String(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

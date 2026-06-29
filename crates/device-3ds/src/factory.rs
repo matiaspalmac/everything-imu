@@ -1,10 +1,22 @@
 use crate::device::{metadata_for_key, ThreeDsDevice, ThreeDsPacket};
 use device_traits::{Device, DeviceError, DeviceFactory, DeviceMetadata};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 
 const DEFAULT_BIND: &str = "0.0.0.0:9305";
+
+/// Drop a per-console route after this much silence so abandoned or spoofed
+/// source IPs cannot grow the routing map without bound. Active consoles send
+/// at ~100 Hz, well inside this window.
+const ROUTE_IDLE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// A live route to a registered device, plus the last time it saw a packet.
+struct RouteEntry {
+    tx: mpsc::Sender<ThreeDsPacket>,
+    last_seen: Instant,
+}
 
 /// Listens for 3DS homebrew IMU packets over UDP and registers one device per
 /// sender IP. Stateless on the wire — packets carry no id, so the source IP is
@@ -45,7 +57,7 @@ impl DeviceFactory for ThreeDsFactory {
             .map_err(|e| DeviceError::Hid(format!("3ds bind {} failed: {e}", self.bind_addr)))?;
         tracing::info!(addr = %self.bind_addr, "3ds forwarded UDP listener online");
 
-        let mut routing: HashMap<String, mpsc::Sender<ThreeDsPacket>> = HashMap::new();
+        let mut routing: HashMap<String, RouteEntry> = HashMap::new();
         let mut buf = [0u8; 64];
         loop {
             let (n, peer) = socket
@@ -57,11 +69,22 @@ impl DeviceFactory for ThreeDsFactory {
                 continue;
             };
             let key = peer.ip().to_string();
+            let now = Instant::now();
+
+            // Evict routes that have gone silent. Dropping the sender makes the
+            // idle device observe a closed channel and emit Disconnected.
+            routing.retain(|_, entry| now.duration_since(entry.last_seen) < ROUTE_IDLE_TIMEOUT);
 
             // Reuse a live route, or register a fresh device for a new console.
-            if let Some(tx) = routing.get(&key) {
-                if tx.send(packet).await.is_err() {
-                    routing.remove(&key);
+            // Use try_send so a stalled device cannot block the shared listener:
+            // a full channel drops the sample, a closed channel drops the route.
+            if let Some(entry) = routing.get_mut(&key) {
+                entry.last_seen = now;
+                match entry.tx.try_send(packet) {
+                    Ok(()) | Err(mpsc::error::TrySendError::Full(_)) => {}
+                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                        routing.remove(&key);
+                    }
                 }
                 continue;
             }
@@ -71,8 +94,14 @@ impl DeviceFactory for ThreeDsFactory {
             if out.send((meta, Box::new(dev))).await.is_err() {
                 return Ok(());
             }
-            let _ = pkt_tx.send(packet).await;
-            routing.insert(key, pkt_tx);
+            let _ = pkt_tx.try_send(packet);
+            routing.insert(
+                key,
+                RouteEntry {
+                    tx: pkt_tx,
+                    last_seen: now,
+                },
+            );
         }
     }
 }

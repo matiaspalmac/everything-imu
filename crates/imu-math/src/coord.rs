@@ -71,7 +71,7 @@ pub fn quat_to_euler_zxy_deg(q: UnitQuaternion<f32>) -> Vector3<f32> {
     let qy = q.j;
     let qz = q.k;
 
-    let pitch = (2.0 * (qw * qy - qz * qx)).asin();
+    let pitch = (2.0 * (qw * qy - qz * qx)).clamp(-1.0, 1.0).asin();
 
     if pitch.abs() >= core::f32::consts::FRAC_PI_2 {
         let yaw = qy.atan2(qw);

@@ -26,8 +26,9 @@ pub enum AuthError {
 pub struct TokenBundle {
     pub access_token: String,
     pub refresh_token: String,
-    /// Wall-clock instant at which `access_token` will expire. We refresh at
-    /// 80 % of `expires_in` to keep a safety margin.
+    /// Wall-clock instant at which we should refresh `access_token`. This is the
+    /// 80 %-of-`expires_in` threshold (a safety margin before the hard expiry),
+    /// not the token's hard expiry time.
     pub expires_at: Instant,
 }
 

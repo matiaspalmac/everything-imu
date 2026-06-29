@@ -120,14 +120,26 @@ pub fn decode_stream_value(value: &str) -> Result<StreamFrame, ApiError> {
         if s.is_empty() {
             None
         } else {
-            s.parse::<f32>().ok()
+            match s.parse::<f32>() {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    tracing::warn!(value = s, error = %e, "stream column not a valid f32");
+                    None
+                }
+            }
         }
     };
     let opt_f64 = |s: &str| -> Option<f64> {
         if s.is_empty() {
             None
         } else {
-            s.parse::<f64>().ok()
+            match s.parse::<f64>() {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    tracing::warn!(value = s, error = %e, "stream column not a valid f64");
+                    None
+                }
+            }
         }
     };
     let opt_string = |s: &str| -> Option<String> {

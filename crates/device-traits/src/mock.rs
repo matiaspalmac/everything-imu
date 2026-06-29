@@ -22,6 +22,9 @@ pub struct MockDevice {
     pub script: Arc<Mutex<Vec<ChannelInfo>>>,
     /// Handle for the emitter task, populated by `start` and joined by `stop`.
     task: Option<JoinHandle<()>>,
+    /// Set in `start`, cleared in `stop`. Tracked independently of the emitter
+    /// task so a restart after the script drains still errors per contract.
+    started: bool,
 }
 
 impl MockDevice {
@@ -56,6 +59,7 @@ impl MockDevice {
             },
             script: Arc::new(Mutex::new(Vec::new())),
             task: None,
+            started: false,
         }
     }
 
@@ -75,7 +79,7 @@ impl Device for MockDevice {
         // Honour the documented `Device::start` contract: a second start
         // without an intervening stop must error rather than silently
         // double-spawning the emitter.
-        if self.task.as_ref().is_some_and(|h| !h.is_finished()) {
+        if self.started {
             return Err(DeviceError::Hid("MockDevice already started".into()));
         }
         let (tx, rx) = mpsc::channel(64);
@@ -89,6 +93,7 @@ impl Device for MockDevice {
             }
         });
         self.task = Some(handle);
+        self.started = true;
         Ok(rx)
     }
 
@@ -97,6 +102,7 @@ impl Device for MockDevice {
             h.abort();
             let _ = h.await;
         }
+        self.started = false;
         Ok(())
     }
 

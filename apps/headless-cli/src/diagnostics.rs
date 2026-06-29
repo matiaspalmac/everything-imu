@@ -227,12 +227,34 @@ pub async fn run_hopx_probe(spec: &str, repeats: u8) -> anyhow::Result<()> {
 
 /// One-shot scan: print every paired/nearby controller hidapi or BLE can see.
 pub async fn run_list_devices() -> anyhow::Result<()> {
-    let nintendo = JoyconFactory::list_paired()?;
-    let jc2_nearby = JoyconFactory::list_nearby_jc2(1200).await?;
-    let sony_pads = DualSenseFactory::list_paired()?;
-    let sony_moves = PsMoveFactory::list_paired()?;
-    let steam_decks = SteamDeckFactory::list_paired()?;
-    let steam_ctrls = SteamControllerFactory::list_paired()?;
+    // Keep each enumerator independent: a failure in one transport (notably
+    // the BLE JC2 scan) must not abort the whole listing — warn and move on.
+    let nintendo = JoyconFactory::list_paired().unwrap_or_else(|e| {
+        eprintln!("[warn] Nintendo HID scan unavailable: {e}");
+        Vec::new()
+    });
+    let jc2_nearby = JoyconFactory::list_nearby_jc2(1200)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("[warn] BLE scan unavailable: {e}");
+            Vec::new()
+        });
+    let sony_pads = DualSenseFactory::list_paired().unwrap_or_else(|e| {
+        eprintln!("[warn] Sony pad scan unavailable: {e}");
+        Vec::new()
+    });
+    let sony_moves = PsMoveFactory::list_paired().unwrap_or_else(|e| {
+        eprintln!("[warn] PS Move scan unavailable: {e}");
+        Vec::new()
+    });
+    let steam_decks = SteamDeckFactory::list_paired().unwrap_or_else(|e| {
+        eprintln!("[warn] Steam Deck scan unavailable: {e}");
+        Vec::new()
+    });
+    let steam_ctrls = SteamControllerFactory::list_paired().unwrap_or_else(|e| {
+        eprintln!("[warn] Steam Controller scan unavailable: {e}");
+        Vec::new()
+    });
     if nintendo.is_empty()
         && jc2_nearby.is_empty()
         && sony_pads.is_empty()
