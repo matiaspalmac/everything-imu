@@ -1159,6 +1159,25 @@ mod tests {
     }
 
     #[test]
+    fn manufacturer_data_real_hardware_jc2_left() {
+        // Real over-the-air advert captured 2026-06-29 from a Joy-Con 2 (L) on
+        // Linux/BlueZ (MAC 3C:A9:AB:44:5A:56, via btmon + bluetoothctl). The
+        // value is the 24 manufacturer bytes after company id 0x0553; the
+        // embedded PID 0x2067 sits at offset 5 (05 67 20). Locks the parser to
+        // a genuine frame so a regression cannot silently make the controller
+        // undiscoverable again.
+        let mut m = HashMap::new();
+        m.insert(
+            NINTENDO_MFR_ID,
+            vec![
+                0x01, 0x00, 0x03, 0x7E, 0x05, 0x67, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ],
+        );
+        assert_eq!(kind_from_manufacturer_data(&m), Some(JoyCon2Kind::Left));
+    }
+
+    #[test]
     fn manufacturer_data_accepts_unknown_byte4_as_joycon() {
         // No recognizable PID and a byte-4 value outside the guessed set: the
         // advert is still a valid Switch 2 device and must not be dropped.
