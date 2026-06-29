@@ -924,10 +924,27 @@ async fn handle_central_event(
     out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
 ) -> Result<(), DeviceError> {
     match event {
-        CentralEvent::DeviceDiscovered(id)
-        | CentralEvent::DeviceUpdated(id)
-        | CentralEvent::ManufacturerDataAdvertisement { id, .. } => {
-            try_emit_peripheral(adapter, &id, known, rediscover_after, out).await?;
+        // The advertisement event carries the manufacturer block directly. On
+        // BlueZ `peripheral.properties()` can come back without it (the data
+        // arrives in a scan response that gets filtered out of the cached
+        // properties), which left the controller undiscoverable on Linux even
+        // though the advert event clearly named it. Prefer the event payload.
+        CentralEvent::ManufacturerDataAdvertisement {
+            id,
+            manufacturer_data,
+        } => {
+            try_emit_peripheral(
+                adapter,
+                &id,
+                Some(manufacturer_data),
+                known,
+                rediscover_after,
+                out,
+            )
+            .await?;
+        }
+        CentralEvent::DeviceDiscovered(id) | CentralEvent::DeviceUpdated(id) => {
+            try_emit_peripheral(adapter, &id, None, known, rediscover_after, out).await?;
         }
         CentralEvent::DeviceDisconnected(id) => {
             // Drop the cooldown entry so the controller is re-emitted as soon
@@ -946,6 +963,7 @@ async fn handle_central_event(
 async fn try_emit_peripheral(
     adapter: &Adapter,
     id: &PeripheralId,
+    adv_mfr: Option<HashMap<u16, Vec<u8>>>,
     known: &mut HashMap<String, tokio::time::Instant>,
     rediscover_after: Duration,
     out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
@@ -961,7 +979,13 @@ async fn try_emit_peripheral(
     else {
         return Ok(());
     };
-    let Some(kind) = kind_from_manufacturer_data(&props.manufacturer_data) else {
+    // Resolve the kind from the advertisement payload first (reliable on
+    // BlueZ), falling back to the peripheral's cached properties.
+    let Some(kind) = adv_mfr
+        .as_ref()
+        .and_then(kind_from_manufacturer_data)
+        .or_else(|| kind_from_manufacturer_data(&props.manufacturer_data))
+    else {
         return Ok(());
     };
     let addr = props.address.to_string();
@@ -1007,6 +1031,11 @@ pub async fn scan_nearby(timeout: std::time::Duration) -> Result<Vec<NearbyJoyCo
 
     let mut seen = HashSet::new();
     let mut out = Vec::new();
+    // Discovery diagnostics: on Linux the usual "JC2 never appears" cause is
+    // BlueZ not surfacing the Nintendo manufacturer block, so make the scan
+    // self-explain at debug level (run with RUST_LOG=device_joycon=debug).
+    let mut total_seen = 0usize;
+    let mut nintendo_seen = 0usize;
     for adapter in &adapters {
         let peripherals = adapter
             .peripherals()
@@ -1019,6 +1048,10 @@ pub async fn scan_nearby(timeout: std::time::Duration) -> Result<Vec<NearbyJoyCo
             else {
                 continue;
             };
+            total_seen += 1;
+            if props.manufacturer_data.contains_key(&NINTENDO_MFR_ID) {
+                nintendo_seen += 1;
+            }
             let Some(kind) = kind_from_manufacturer_data(&props.manufacturer_data) else {
                 continue;
             };
@@ -1037,6 +1070,12 @@ pub async fn scan_nearby(timeout: std::time::Duration) -> Result<Vec<NearbyJoyCo
             });
         }
     }
+    tracing::debug!(
+        ble_peripherals = total_seen,
+        with_nintendo_mfr = nintendo_seen,
+        matched = out.len(),
+        "jc2 one-shot scan summary"
+    );
     Ok(out)
 }
 
