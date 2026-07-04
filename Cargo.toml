@@ -58,7 +58,7 @@ futures-util = "0.3"
 uuid = "1.11"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-nalgebra = "0.34"
+nalgebra = "0.35"
 deku = { version = "0.20", default-features = false, features = ["alloc"] }
 proptest = "1.5"
 approx = "0.5"
