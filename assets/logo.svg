@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="512" viewBox="0 0 1600 512">
+  <title>everything-imu</title>
   <rect width="1600" height="512" rx="96" fill="#171619"/>
   <g fill="none" stroke="#FF4F0A" stroke-width="33">
     <circle cx="260" cy="256" r="160"/>
