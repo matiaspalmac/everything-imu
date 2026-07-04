@@ -4,13 +4,12 @@
 //! controller acts as a keyboard + mouse in non-Steam contexts. To stream raw
 //! HID input reports we must repeatedly send three feature reports.
 //!
-//! SDL feeds the watchdog every ~800 ms; we use 500 ms for safety margin.
+//! The watchdog must be fed well under ~1 s; we use 500 ms for safety margin.
 
 use std::time::Duration;
 
-/// Feature-report IDs lifted from Valve's `controller_constants.h` (republished
-/// in `SDL_hidapi_steam.c`). These are sent as feature reports (HID set_report
-/// op) on the gamepad interface.
+/// Steam Controller/Deck feature-report IDs. These are sent as feature reports
+/// (HID set_report op) on the gamepad interface.
 pub const ID_CLEAR_DIGITAL_MAPPINGS: u8 = 0x81;
 pub const ID_LOAD_DEFAULT_SETTINGS: u8 = 0x8E;
 pub const ID_SET_DIGITAL_MAPPINGS: u8 = 0x80;

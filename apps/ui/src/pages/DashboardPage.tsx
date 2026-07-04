@@ -267,9 +267,13 @@ function GroupBlock({
   // (a new tracker discovered while hovering): drop the stale ordering and
   // let server-derived order take over. Tracking via ref avoids a re-render
   // round-trip and the "set state on prop change" effect smell.
-  const prevLenRef = useRef(items.length);
-  if (prevLenRef.current !== items.length) {
-    prevLenRef.current = items.length;
+  const itemKeysSig = items
+    .map((s) => macKeyFn(s.mac))
+    .sort()
+    .join(",");
+  const prevKeysRef = useRef(itemKeysSig);
+  if (prevKeysRef.current !== itemKeysSig) {
+    prevKeysRef.current = itemKeysSig;
     if (localOrder !== null) setLocalOrder(null);
   }
 

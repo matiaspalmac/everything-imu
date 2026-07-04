@@ -1,10 +1,16 @@
 use crate::device::{metadata_for_key, VitaDevice, VitaPacket};
 use device_traits::{Device, DeviceError, DeviceFactory, DeviceMetadata};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 
 const DEFAULT_BIND: &str = "0.0.0.0:9306";
+
+/// Evict a routing entry after this long without packets, so a Vita that never
+/// reconnects does not leak a slot forever. Dropping the sender makes the
+/// device's reader see `recv()` return `None` and emit `Disconnected`.
+const ROUTE_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Listens for Vita homebrew IMU packets over UDP and registers one device per
 /// sender IP (one Vita = one tracker). Same shape as the 3DS forwarder, on its
@@ -45,21 +51,35 @@ impl DeviceFactory for VitaFactory {
             .map_err(|e| DeviceError::Hid(format!("vita bind {} failed: {e}", self.bind_addr)))?;
         tracing::info!(addr = %self.bind_addr, "vita forwarded UDP listener online");
 
-        let mut routing: HashMap<String, mpsc::Sender<VitaPacket>> = HashMap::new();
+        let mut routing: HashMap<String, (mpsc::Sender<VitaPacket>, Instant)> = HashMap::new();
         let mut buf = [0u8; 64];
         loop {
-            let (n, peer) = socket
-                .recv_from(&mut buf)
-                .await
-                .map_err(|e| DeviceError::Hid(format!("vita recv failed: {e}")))?;
+            let (n, peer) = match socket.recv_from(&mut buf).await {
+                Ok(v) => v,
+                Err(e) => {
+                    // Transient errors must not tear down the listener.
+                    tracing::warn!("vita recv failed: {e}");
+                    continue;
+                }
+            };
+            let now = Instant::now();
+            // Reap routes idle past the timeout; dropping the sender signals stop.
+            routing.retain(|_, (_, last)| now.duration_since(*last) < ROUTE_IDLE_TIMEOUT);
+
             let Some(packet) = VitaPacket::parse(&buf[..n]) else {
                 continue;
             };
             let key = peer.ip().to_string();
 
-            if let Some(tx) = routing.get(&key) {
-                if tx.send(packet).await.is_err() {
-                    routing.remove(&key);
+            if let Some((tx, last)) = routing.get_mut(&key) {
+                *last = now;
+                // Drop-oldest, non-blocking: a slow/dead consumer must not stall
+                // the shared listener for the other trackers.
+                match tx.try_send(packet) {
+                    Ok(()) | Err(mpsc::error::TrySendError::Full(_)) => {}
+                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                        routing.remove(&key);
+                    }
                 }
                 continue;
             }
@@ -69,8 +89,8 @@ impl DeviceFactory for VitaFactory {
             if out.send((meta, Box::new(dev))).await.is_err() {
                 return Ok(());
             }
-            let _ = pkt_tx.send(packet).await;
-            routing.insert(key, pkt_tx);
+            let _ = pkt_tx.try_send(packet);
+            routing.insert(key, (pkt_tx, now));
         }
     }
 }

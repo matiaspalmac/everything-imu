@@ -33,7 +33,19 @@
     "active": true,
     "targets": ["appimage", "deb", "nsis"],
     "icon": ["icons/icon.png", "icons/icon.ico"],
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": true,
+    "linux": {
+      "deb": {
+        "depends": ["libayatana-appindicator3-1"]
+      },
+      "appimage": {
+        "files": {
+          "/usr/lib/libayatana-appindicator3.so.1": "/usr/lib/x86_64-linux-gnu/libayatana-appindicator3.so.1",
+          "/usr/lib/libdbusmenu-glib.so.4": "/usr/lib/x86_64-linux-gnu/libdbusmenu-glib.so.4",
+          "/usr/lib/libdbusmenu-gtk3.so.4": "/usr/lib/x86_64-linux-gnu/libdbusmenu-gtk3.so.4"
+        }
+      }
+    }
   },
   "plugins": {
     "updater": {

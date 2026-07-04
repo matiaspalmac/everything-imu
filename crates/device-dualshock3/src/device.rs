@@ -8,7 +8,7 @@ use hidapi::{HidApi, HidDevice};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 static HID_API: OnceLock<Arc<Mutex<HidApi>>> = OnceLock::new();
@@ -25,6 +25,11 @@ pub(crate) fn hid_api_singleton() -> Result<Arc<Mutex<HidApi>>, hidapi::HidError
 /// Feature-report handshake that makes the DS3 begin streaming input reports.
 /// USB form: SET_FEATURE report `0xF4` = `42 0C 00 00`.
 const ENABLE_FEATURE: [u8; 5] = [0xF4, 0x42, 0x0C, 0x00, 0x00];
+
+/// Consecutive read failures tolerated before the pad is treated as gone.
+/// Bounds recovery so a transient glitch does not permanently kill a still-
+/// connected pad, while a removed device still converges to `Disconnected`.
+const MAX_CONSECUTIVE_READ_ERRORS: u32 = 10;
 
 pub struct DualShock3Device {
     metadata: DeviceMetadata,
@@ -83,10 +88,15 @@ impl Device for DualShock3Device {
                 let _ = device.set_blocking_mode(true);
                 let start = Instant::now();
                 let mut buf = [0u8; 64];
+                let mut consecutive_errors: u32 = 0;
                 while !shutdown.load(Ordering::Relaxed) {
                     match device.read_timeout(&mut buf, 50) {
-                        Ok(0) => continue,
+                        Ok(0) => {
+                            consecutive_errors = 0;
+                            continue;
+                        }
                         Ok(n) => {
+                            consecutive_errors = 0;
                             if let Some(m) = parse_input_report(&buf[..n]) {
                                 let imu = imu_from_motion(m, start, Instant::now());
                                 if tx
@@ -98,9 +108,18 @@ impl Device for DualShock3Device {
                             }
                         }
                         Err(e) => {
-                            tracing::warn!(error = %e, "ds3 hid read error → gone");
-                            let _ = tx.blocking_send(ChannelInfo::Disconnected);
-                            return;
+                            consecutive_errors += 1;
+                            if consecutive_errors >= MAX_CONSECUTIVE_READ_ERRORS {
+                                tracing::warn!(error = %e, "ds3 hid read error → gone");
+                                let _ = tx.blocking_send(ChannelInfo::Disconnected);
+                                return;
+                            }
+                            tracing::debug!(
+                                error = %e,
+                                attempt = consecutive_errors,
+                                "ds3 transient hid read error; retrying"
+                            );
+                            thread::sleep(Duration::from_millis(50));
                         }
                     }
                 }

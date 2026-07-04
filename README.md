@@ -113,6 +113,18 @@ page:
 - **Linux (Debian/Ubuntu)**: `everything-imu_<version>_amd64.deb`
 - **Linux (any)**: `everything-imu_<version>_amd64.AppImage`
 
+### Linux notes
+
+- The app runs fine without a system tray. On distros that don't ship
+  `libayatana-appindicator3` the tray icon is skipped instead of crashing the
+  app; the `.deb` pulls the library in automatically and the AppImage bundles
+  it, so the tray works out of the box on most setups.
+- The AppImage needs FUSE 2. If it won't start on a FUSE 3-only or immutable
+  distro, run it with `./everything-imu_<version>_amd64.AppImage --appimage-extract-and-run`.
+- On NVIDIA + Wayland the WebView renderer is switched to a compatible path
+  automatically. To force the default renderer, export
+  `WEBKIT_DISABLE_DMABUF_RENDERER=0` before launching.
+
 Or build from source — see [Building from source](#building-from-source) below.
 
 ## HAPTICS

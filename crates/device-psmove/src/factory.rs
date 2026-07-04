@@ -111,24 +111,34 @@ impl PsMoveFactory {
                     Some(k) => k,
                     None => continue,
                 };
-                let device = {
-                    let guard = api.lock().unwrap();
-                    match guard.open_path(&path) {
-                        Ok(d) => d,
-                        Err(e) => {
-                            tracing::warn!(?path, error = %e, "failed to open psmove");
-                            known.remove(&key);
-                            continue;
-                        }
+                // Open + factory-calibration read are blocking hidapi calls; run
+                // them on the blocking pool so the async enumerate task is never
+                // parked on HID I/O. Factory IMU calibration (feature 0x10) is
+                // USB-only; over BT it fails fast and we fall back to identity
+                // (VQF warm-up covers the residual bias). See
+                // `crate::pairing::read_factory_calibration`.
+                let api_for_open = api.clone();
+                let path_for_open = path.clone();
+                let opened = tokio::task::spawn_blocking(move || {
+                    let device = {
+                        let guard = api_for_open.lock().unwrap();
+                        guard.open_path(&path_for_open).map_err(|e| e.to_string())?
+                    };
+                    let cal = crate::pairing::read_factory_calibration(&device, kind)
+                        .unwrap_or_else(|_| crate::calibration::ImuCalibration::identity());
+                    Ok::<_, String>((device, cal))
+                })
+                .await
+                .map_err(|e| DeviceError::Hid(e.to_string()))?;
+                let (device, cal) = match opened {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!(?path, error = %e, "failed to open psmove");
+                        known.remove(&key);
+                        continue;
                     }
                 };
-
-                // Factory IMU calibration (feature 0x10) is USB-only; over BT it
-                // fails fast and we fall back to identity (VQF warm-up covers the
-                // residual bias). See `crate::pairing::read_factory_calibration`.
-                let cal = crate::pairing::read_factory_calibration(&device, kind)
-                    .unwrap_or_else(|_| crate::calibration::ImuCalibration::identity());
-                let mac = mac_from_serial(&serial);
+                let mac = mac_from_serial(&serial, &key);
                 let mut dev = PsMoveDevice::new(device, kind, serial, mac);
                 dev.set_calibration(cal);
                 let meta = dev.metadata().clone();
@@ -222,7 +232,7 @@ impl PsMoveFactory {
                 None => continue,
             };
             let serial = i.serial_number().unwrap_or("").to_string();
-            let mac = mac_from_serial(&serial);
+            let mac = mac_from_serial(&serial, &format!("{:?}#{}", i.path(), i.interface_number()));
             out.push(PairedPsMove {
                 kind,
                 pid: pid_value,
@@ -236,12 +246,15 @@ impl PsMoveFactory {
     }
 }
 
-/// Deterministic locally-administered MAC derived from the PSMove
-/// controller's HID serial. FNV-1a keeps the output stable across
+/// Deterministic locally-administered MAC derived from the PS Move
+/// controller's HID serial — or, when the serial is empty, from a stable
+/// per-device fallback (HID path + interface) so distinct controllers never
+/// collapse onto the same address. FNV-1a keeps the output stable across
 /// app restarts and Rust toolchain versions — the per-device settings
 /// store keys off MAC.
-fn mac_from_serial(serial: &str) -> [u8; 6] {
-    let h = fnv1a_64(serial.as_bytes()).to_le_bytes();
+fn mac_from_serial(serial: &str, fallback: &str) -> [u8; 6] {
+    let seed = if serial.is_empty() { fallback } else { serial };
+    let h = fnv1a_64(seed.as_bytes()).to_le_bytes();
     [0x02, h[0], h[1], h[2], h[3], h[4]]
 }
 

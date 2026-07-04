@@ -253,25 +253,25 @@ impl AppState {
     }
 
     pub async fn set_led_mask(&self, mac: [u8; 6], mask: u8) -> bool {
-        let devices = self.devices.read().await;
-        let Some(h) = devices.values().find(|h| h.metadata.id.mac == mac) else {
-            return false;
+        let tx = {
+            let devices = self.devices.read().await;
+            let Some(h) = devices.values().find(|h| h.metadata.id.mac == mac) else {
+                return false;
+            };
+            h.control_tx.clone()
         };
-        h.control_tx
-            .send(DeviceControl::SetLedMask(mask))
-            .await
-            .is_ok()
+        tx.send(DeviceControl::SetLedMask(mask)).await.is_ok()
     }
 
     pub async fn set_rumble(&self, mac: [u8; 6], intensity: f32) -> bool {
-        let devices = self.devices.read().await;
-        let Some(h) = devices.values().find(|h| h.metadata.id.mac == mac) else {
-            return false;
+        let tx = {
+            let devices = self.devices.read().await;
+            let Some(h) = devices.values().find(|h| h.metadata.id.mac == mac) else {
+                return false;
+            };
+            h.control_tx.clone()
         };
-        h.control_tx
-            .send(DeviceControl::SetRumble(intensity))
-            .await
-            .is_ok()
+        tx.send(DeviceControl::SetRumble(intensity)).await.is_ok()
     }
 
     /// Begin a magnetometer hard-iron calibration session for one device.
@@ -374,8 +374,13 @@ impl AppState {
     }
 
     pub async fn shutdown(&self) {
-        let mut devices = self.devices.write().await;
-        for (id, h) in devices.drain() {
+        // Drain into an owned Vec and release the write guard before awaiting the
+        // task joins, so the registry lock isn't held across the timeouts.
+        let handles: Vec<_> = {
+            let mut devices = self.devices.write().await;
+            devices.drain().collect()
+        };
+        for (id, h) in handles {
             let _ = h.stop.send(true);
             // Bound the wait: a hung pipeline (stuck in UDP send, locked
             // driver thread) must not block global app shutdown.
@@ -462,15 +467,20 @@ impl AppState {
             device_traits::ResetKind::Mounting => slime_tracker::ActionType::ResetMounting,
         };
         // Broadcast reset to all active device connections (same as SlimeIMU v0.4.x).
-        let devices = self.devices.read().await;
-        for h in devices.values() {
-            // Only devices that actually stream have a live connection; a
-            // reset wouldn't mean anything to SlimeVR for the rest anyway.
-            let Some(slime) = h.slime.peek() else {
-                continue;
-            };
+        // Collect live connections under the lock, then send outside it so the
+        // read guard isn't held across the per-device UDP awaits.
+        let targets: Vec<_> = {
+            let devices = self.devices.read().await;
+            devices
+                .values()
+                // Only devices that actually stream have a live connection; a
+                // reset wouldn't mean anything to SlimeVR for the rest anyway.
+                .filter_map(|h| h.slime.peek().cloned().map(|s| (h.metadata.id.clone(), s)))
+                .collect()
+        };
+        for (id, slime) in targets {
             if let Err(e) = slime.send_user_action(action.clone()).await {
-                tracing::warn!(id = %h.metadata.id, error = %e, "reset broadcast failed");
+                tracing::warn!(id = %id, error = %e, "reset broadcast failed");
             }
         }
         Ok(())

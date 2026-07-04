@@ -17,6 +17,28 @@ use tauri::{AppHandle as TauriAppHandle, Manager};
 
 pub struct TrayHandle(pub TrayIcon);
 
+/// Initialize the tray, degrading gracefully when the platform tray
+/// backend is missing. On Linux the tray is backed by
+/// libappindicator/ayatana; when that shared library is absent the
+/// underlying builder *panics* instead of returning an error, which
+/// would abort the whole process during startup. Minimal and immutable
+/// distros frequently don't ship the library, so catch both the panic
+/// and the ordinary error path and keep running without a tray icon.
+pub fn init_tray_or_warn(app: &TauriAppHandle) {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| init_tray(app))) {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            tracing::warn!(error = %e, "system tray init failed; continuing without tray");
+        }
+        Err(_) => {
+            tracing::warn!(
+                "system tray backend unavailable (appindicator library missing); \
+                 continuing without tray"
+            );
+        }
+    }
+}
+
 pub fn init_tray(app: &TauriAppHandle) -> tauri::Result<()> {
     let show = MenuItemBuilder::with_id("show", "Show window").build(app)?;
     let dashboard = MenuItemBuilder::with_id("nav-dashboard", "Open Dashboard").build(app)?;

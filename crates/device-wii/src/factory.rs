@@ -7,7 +7,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
 
 const PACKET_LEN: usize = 17;
-const DEFAULT_BIND: &str = "127.0.0.1:9909";
+// The Wii homebrew forwarder runs on the console and connects over the LAN,
+// so the listener must accept non-loopback peers (matches the 3DS/Vita
+// forwarders). Binding 127.0.0.1 made the Wii path unreachable from real
+// hardware.
+const DEFAULT_BIND: &str = "0.0.0.0:9909";
 const DEFAULT_POLLING_RATE_MS: u8 = 10;
 
 #[derive(Clone)]
@@ -82,7 +86,47 @@ async fn handle_client(
         rumble.entry(base_ip.clone()).or_insert([0, 0, 0, 0]);
     }
 
+    // Track the routing keys created on this connection so every exit path
+    // (clean EOF, read/write error, or a closed out-channel) tears down the
+    // routing and rumble entries. Dropping the per-device senders lets each
+    // WiiDevice reader observe recv() returning None and emit Disconnected,
+    // instead of leaking the map entry and the reader task.
+    let mut created_keys: Vec<String> = Vec::new();
+    let result = client_loop(
+        &mut stream,
+        &base_ip,
+        &out,
+        &routing,
+        &rumble_state,
+        &mut created_keys,
+    )
+    .await;
+
+    {
+        let mut map = routing.write().await;
+        for key in &created_keys {
+            map.remove(key);
+        }
+    }
+    rumble_state.write().await.remove(&base_ip);
+
+    result
+}
+
+async fn client_loop(
+    stream: &mut TcpStream,
+    base_ip: &str,
+    out: &mpsc::Sender<(device_traits::DeviceMetadata, Box<dyn Device>)>,
+    routing: &Arc<RwLock<HashMap<String, mpsc::Sender<WiiPacket>>>>,
+    rumble_state: &Arc<RwLock<HashMap<String, [u8; 4]>>>,
+    created_keys: &mut Vec<String>,
+) -> Result<(), DeviceError> {
     let mut read_buf = vec![0u8; PACKET_LEN * 32];
+    // Persistent reassembly buffer: TCP is a byte stream, so a single read can
+    // split a 17-byte packet or coalesce several. Keep the trailing partial
+    // packet across reads and drain only complete packets, instead of dropping
+    // the connection whenever a read does not land on the 17-byte grid.
+    let mut leftover: Vec<u8> = Vec::with_capacity(PACKET_LEN * 32);
     loop {
         let n = stream
             .read(&mut read_buf)
@@ -91,22 +135,10 @@ async fn handle_client(
         if n == 0 {
             break;
         }
-        if n % PACKET_LEN != 0 {
-            // Stream is out of sync with the 17-byte packet grid. Resyncing
-            // in-place is unreliable because we cannot tell which byte
-            // started the next packet. Close the connection so the companion
-            // reconnects cleanly rather than feeding garbage to the parser
-            // and emitting bogus IMU samples downstream.
-            tracing::warn!(
-                peer = %base_ip,
-                bytes = n,
-                packet_len = PACKET_LEN,
-                "wii stream out of sync; closing connection so companion can reconnect"
-            );
-            return Ok(());
-        }
+        leftover.extend_from_slice(&read_buf[..n]);
 
-        for chunk in read_buf[..n].chunks_exact(PACKET_LEN) {
+        let complete = leftover.len() - (leftover.len() % PACKET_LEN);
+        for chunk in leftover[..complete].chunks_exact(PACKET_LEN) {
             let Some((id, packet)) = parse_packet(chunk) else {
                 continue;
             };
@@ -121,6 +153,7 @@ async fn handle_client(
                         let mut map = routing.write().await;
                         map.insert(key.clone(), pkt_tx.clone());
                     }
+                    created_keys.push(key.clone());
                     let meta = metadata_for_key(&key);
                     let dev =
                         WiiDevice::new(meta.clone(), pkt_rx, key.clone(), rumble_state.clone());
@@ -135,7 +168,8 @@ async fn handle_client(
                 routing.write().await.remove(&key);
             }
         }
-        write_response(&mut stream, &base_ip, &rumble_state).await?;
+        leftover.drain(..complete);
+        write_response(stream, base_ip, rumble_state).await?;
     }
     Ok(())
 }
@@ -169,6 +203,12 @@ fn parse_packet(buf: &[u8]) -> Option<(u8, WiiPacket)> {
     }
     let id = buf[0];
     if id == u8::MAX {
+        return None;
+    }
+    // A Wii console drives at most four controllers, and the rumble model is a
+    // 4-slot array per IP. Reject ids outside that range so one connection
+    // cannot spawn an unbounded number of synthetic devices.
+    if id >= 4 {
         return None;
     }
     let read_i16 = |o: usize| i16::from_le_bytes([buf[o], buf[o + 1]]);

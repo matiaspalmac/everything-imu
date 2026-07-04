@@ -72,6 +72,7 @@ export function HapticsPage() {
     }, 400);
     return () => {
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
+      if (savedTimer.current) window.clearTimeout(savedTimer.current);
     };
   }, [config, pushToast, t]);
 
@@ -137,7 +138,9 @@ export function HapticsPage() {
               type="number"
               aria-label={t("haptics.listen_port")}
               value={config.listen_port}
-              onChange={(e) => patch({ listen_port: Number(e.target.value) || 0 })}
+              onChange={(e) =>
+                patch({ listen_port: Math.min(65535, Math.max(1, Number(e.target.value) || 0)) })
+              }
               className="w-24 rounded-[var(--radius-sm)] border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2 py-1 font-mono text-[var(--fg-primary)]"
             />
           </label>

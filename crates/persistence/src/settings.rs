@@ -29,11 +29,17 @@ impl SqliteSettingsStore {
 impl SettingsStore for SqliteSettingsStore {
     fn get_rotation_offset_deg(&self, id: &DeviceId) -> f32 {
         let key = Self::key_for(id);
-        self.db
-            .get_setting(&key)
-            .ok()
-            .flatten()
-            .and_then(|v| v.parse::<f32>().ok())
+        // Log genuine SQLite errors before falling back to the default so a
+        // real failure is observable rather than silently swallowed; a
+        // missing row is a legitimate None.
+        let raw = match self.db.get_setting(&key) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(error = %e, key = %key, "failed to read rotation offset");
+                None
+            }
+        };
+        raw.and_then(|v| v.parse::<f32>().ok())
             // Filter NaN/inf even on the read path: if a poisoned value
             // ever lands in the DB (external write, older code, manual
             // edit), surface a clean 0.0 instead of propagating NaN into
@@ -57,7 +63,13 @@ impl SettingsStore for SqliteSettingsStore {
     }
 
     fn get(&self, key: &str) -> Option<String> {
-        self.db.get_setting(key).ok().flatten()
+        match self.db.get_setting(key) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(error = %e, key = %key, "failed to read setting");
+                None
+            }
+        }
     }
 
     fn set(&self, key: &str, value: &str) {

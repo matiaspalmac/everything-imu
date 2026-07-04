@@ -53,15 +53,24 @@ export function EventBridge() {
   // oxlint-disable-next-line react-doctor/no-cascading-set-state, react-doctor/effect-needs-cleanup -- snapshots are 3 independent stores; cleanup happens via Promise-of-unsubscribe pattern at end
   useEffect(() => {
     // First-paint snapshots.
-    api.listDevices().then((res) => {
-      if (res.status === "ok") setAllDevices(res.data);
-    });
-    api.getConnectionStatus().then((res) => {
-      if (res.status === "ok") setStatus(res.data);
-    });
-    api.getLogBuffer().then((res) => {
-      if (res.status === "ok") pushLogBatch(res.data);
-    });
+    api
+      .listDevices()
+      .then((res) => {
+        if (res.status === "ok") setAllDevices(res.data);
+      })
+      .catch(() => {});
+    api
+      .getConnectionStatus()
+      .then((res) => {
+        if (res.status === "ok") setStatus(res.data);
+      })
+      .catch(() => {});
+    api
+      .getLogBuffer()
+      .then((res) => {
+        if (res.status === "ok") pushLogBatch(res.data);
+      })
+      .catch(() => {});
 
     const subs: Promise<() => void>[] = [
       events.trackerUpdate.listen((e) => {
@@ -177,7 +186,7 @@ export function EventBridge() {
 
     return () => {
       for (const p of subs) {
-        p.then((u) => u());
+        p.then((u) => u()).catch(() => {});
       }
     };
   }, [

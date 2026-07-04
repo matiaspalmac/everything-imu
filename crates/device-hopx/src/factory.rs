@@ -136,6 +136,12 @@ pub async fn scan_nearby(timeout: Duration) -> Result<Vec<NearbyHopx>, DeviceErr
     }
     tokio::time::sleep(timeout).await;
 
+    // One-shot scan: stop the radio before collecting results so we don't leave
+    // scanning running after this function returns (covers all exit paths below).
+    for adapter in &adapters {
+        let _ = adapter.stop_scan().await;
+    }
+
     let mut seen = HashMap::new();
     let mut out = Vec::new();
     for adapter in &adapters {

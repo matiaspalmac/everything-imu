@@ -24,13 +24,16 @@ export const usePerDeviceSettingsStore = create<State>((set, get) => ({
     const s = get();
     if (s.perMac[k] || s.inflight.has(k)) return s.perMac[k] ?? null;
     s.inflight.add(k);
-    const res = await api.getPerDeviceSettings(mac);
-    s.inflight.delete(k);
-    if (res.status === "ok") {
-      set((cur) => ({ perMac: { ...cur.perMac, [k]: res.data } }));
-      return res.data;
+    try {
+      const res = await api.getPerDeviceSettings(mac);
+      if (res.status === "ok") {
+        set((cur) => ({ perMac: { ...cur.perMac, [k]: res.data } }));
+        return res.data;
+      }
+      return null;
+    } finally {
+      s.inflight.delete(k);
     }
-    return null;
   },
   async refresh(mac) {
     const k = macKey(mac);

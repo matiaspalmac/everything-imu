@@ -14,6 +14,16 @@ yanked = "deny"
 # not actionable from here; only flag unmaintained crates we depend on
 # directly.
 unmaintained = "workspace"
+# quick-xml XML-parser DoS advisories reach us only through
+# plist -> tauri-utils, i.e. tauri's Apple Info.plist bundling path. This
+# workspace ships Windows + Linux only (no macOS target), so that parser is
+# never exercised at runtime, and plist "^1" pins quick-xml to 0.39 — the
+# fixed 0.41 needs a tauri/plist bump we can't force from here. Revisit and
+# drop these once tauri's dependency tree carries quick-xml >= 0.41.
+ignore = [
+  "RUSTSEC-2026-0194", # quick-xml: quadratic duplicate-attribute check
+  "RUSTSEC-2026-0195", # quick-xml: unbounded namespace-decl allocation
+]
 
 [licenses]
 version = 2

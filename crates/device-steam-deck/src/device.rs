@@ -91,8 +91,15 @@ impl Device for SteamDeckDevice {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        if let Err(e) = Self::send_lizard_disable(&wd_hid) {
-                            tracing::warn!(error = %e, "lizard watchdog feed failed");
+                        let feed_hid = wd_hid.clone();
+                        let res = tokio::task::spawn_blocking(move || {
+                            Self::send_lizard_disable(&feed_hid)
+                        })
+                        .await;
+                        match res {
+                            Ok(Err(e)) => tracing::warn!(error = %e, "lizard watchdog feed failed"),
+                            Err(e) => tracing::warn!(error = %e, "lizard watchdog feed task failed"),
+                            Ok(Ok(())) => {}
                         }
                     }
                     changed = wd_rx.changed() => {
@@ -171,7 +178,7 @@ fn reader_loop(
                 Ok(n) => n,
                 Err(e) => {
                     tracing::debug!(error = %e, "deck read error");
-                    return;
+                    break;
                 }
             }
         };

@@ -20,9 +20,13 @@ pub mod updater;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Workaround for Linux NVIDIA + WebKitGTK bug causing blank/crashing windows.
-    // Disabling DMA-BUF forces fallback rendering, fixing the issue transparently for users.
+    // Disabling DMA-BUF forces fallback rendering, fixing the issue transparently
+    // for users. Only set it when the user hasn't already chosen a value, so a
+    // power user can opt back into DMA-BUF rendering by exporting the variable.
     #[cfg(target_os = "linux")]
-    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
 
     let specta_builder = build_specta();
 
@@ -182,7 +186,7 @@ pub fn run() {
                 },
             );
 
-            tray::init_tray(app.handle())?;
+            tray::init_tray_or_warn(app.handle());
             tracker_emitter::spawn(app.handle());
             supervisor_boot::spawn(app.handle(), auto_start_synthetic);
             update_boot::spawn(app.handle());
@@ -263,6 +267,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
             commands::udp_haptic_upsert,
             commands::udp_haptic_remove,
             commands::udp_haptic_test,
+            commands::doctor,
         ])
         .events(tauri_specta::collect_events![
             events::TrackerUpdate,

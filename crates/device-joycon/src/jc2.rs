@@ -781,17 +781,18 @@ impl Device for JoyCon2Device {
         if let Some(stop) = self.stop_tx.take() {
             let _ = stop.send(true);
         }
-        if let Some(task) = self.task.take() {
+        if let Some(mut task) = self.task.take() {
             // Bound the wait so a notification stream stuck inside the BLE
             // stack cannot wedge `stop()` indefinitely. The watch signal is
             // already sent; if the task ignores it, abort outright.
-            match tokio::time::timeout(Duration::from_secs(2), task).await {
+            match tokio::time::timeout(Duration::from_secs(2), &mut task).await {
                 Ok(_) => {}
                 Err(_) => {
                     tracing::warn!(
                         id = %self.metadata.id,
                         "jc2 task did not exit within 2s; aborting"
                     );
+                    task.abort();
                 }
             }
         }
@@ -923,10 +924,27 @@ async fn handle_central_event(
     out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
 ) -> Result<(), DeviceError> {
     match event {
-        CentralEvent::DeviceDiscovered(id)
-        | CentralEvent::DeviceUpdated(id)
-        | CentralEvent::ManufacturerDataAdvertisement { id, .. } => {
-            try_emit_peripheral(adapter, &id, known, rediscover_after, out).await?;
+        // The advertisement event carries the manufacturer block directly. On
+        // BlueZ `peripheral.properties()` can come back without it (the data
+        // arrives in a scan response that gets filtered out of the cached
+        // properties), which left the controller undiscoverable on Linux even
+        // though the advert event clearly named it. Prefer the event payload.
+        CentralEvent::ManufacturerDataAdvertisement {
+            id,
+            manufacturer_data,
+        } => {
+            try_emit_peripheral(
+                adapter,
+                &id,
+                Some(manufacturer_data),
+                known,
+                rediscover_after,
+                out,
+            )
+            .await?;
+        }
+        CentralEvent::DeviceDiscovered(id) | CentralEvent::DeviceUpdated(id) => {
+            try_emit_peripheral(adapter, &id, None, known, rediscover_after, out).await?;
         }
         CentralEvent::DeviceDisconnected(id) => {
             // Drop the cooldown entry so the controller is re-emitted as soon
@@ -945,6 +963,7 @@ async fn handle_central_event(
 async fn try_emit_peripheral(
     adapter: &Adapter,
     id: &PeripheralId,
+    adv_mfr: Option<HashMap<u16, Vec<u8>>>,
     known: &mut HashMap<String, tokio::time::Instant>,
     rediscover_after: Duration,
     out: &mpsc::Sender<(DeviceMetadata, Box<dyn Device>)>,
@@ -960,7 +979,13 @@ async fn try_emit_peripheral(
     else {
         return Ok(());
     };
-    let Some(kind) = kind_from_manufacturer_data(&props.manufacturer_data) else {
+    // Resolve the kind from the advertisement payload first (reliable on
+    // BlueZ), falling back to the peripheral's cached properties.
+    let Some(kind) = adv_mfr
+        .as_ref()
+        .and_then(kind_from_manufacturer_data)
+        .or_else(|| kind_from_manufacturer_data(&props.manufacturer_data))
+    else {
         return Ok(());
     };
     let addr = props.address.to_string();
@@ -1006,6 +1031,11 @@ pub async fn scan_nearby(timeout: std::time::Duration) -> Result<Vec<NearbyJoyCo
 
     let mut seen = HashSet::new();
     let mut out = Vec::new();
+    // Discovery diagnostics: on Linux the usual "JC2 never appears" cause is
+    // BlueZ not surfacing the Nintendo manufacturer block, so make the scan
+    // self-explain at debug level (run with RUST_LOG=device_joycon=debug).
+    let mut total_seen = 0usize;
+    let mut nintendo_seen = 0usize;
     for adapter in &adapters {
         let peripherals = adapter
             .peripherals()
@@ -1018,6 +1048,10 @@ pub async fn scan_nearby(timeout: std::time::Duration) -> Result<Vec<NearbyJoyCo
             else {
                 continue;
             };
+            total_seen += 1;
+            if props.manufacturer_data.contains_key(&NINTENDO_MFR_ID) {
+                nintendo_seen += 1;
+            }
             let Some(kind) = kind_from_manufacturer_data(&props.manufacturer_data) else {
                 continue;
             };
@@ -1036,6 +1070,12 @@ pub async fn scan_nearby(timeout: std::time::Duration) -> Result<Vec<NearbyJoyCo
             });
         }
     }
+    tracing::debug!(
+        ble_peripherals = total_seen,
+        with_nintendo_mfr = nintendo_seen,
+        matched = out.len(),
+        "jc2 one-shot scan summary"
+    );
     Ok(out)
 }
 
@@ -1114,6 +1154,25 @@ mod tests {
         m.insert(
             NINTENDO_MFR_ID,
             vec![0x01, 0x00, 0x03, 0x7E, 0x05, 0x00, 0x67, 0x20],
+        );
+        assert_eq!(kind_from_manufacturer_data(&m), Some(JoyCon2Kind::Left));
+    }
+
+    #[test]
+    fn manufacturer_data_real_hardware_jc2_left() {
+        // Real over-the-air advert captured 2026-06-29 from a Joy-Con 2 (L) on
+        // Linux/BlueZ (MAC 3C:A9:AB:44:5A:56, via btmon + bluetoothctl). The
+        // value is the 24 manufacturer bytes after company id 0x0553; the
+        // embedded PID 0x2067 sits at offset 5 (05 67 20). Locks the parser to
+        // a genuine frame so a regression cannot silently make the controller
+        // undiscoverable again.
+        let mut m = HashMap::new();
+        m.insert(
+            NINTENDO_MFR_ID,
+            vec![
+                0x01, 0x00, 0x03, 0x7E, 0x05, 0x67, 0x20, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ],
         );
         assert_eq!(kind_from_manufacturer_data(&m), Some(JoyCon2Kind::Left));
     }

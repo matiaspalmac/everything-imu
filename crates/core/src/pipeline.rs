@@ -354,6 +354,7 @@ pub struct Pipeline {
     rate_counter: VecDeque<Instant>,
     sensor_info_sent: bool,
     last_sensor_mag_config: Option<u16>,
+    feature_flags_sent: bool,
     mag_cal_cmd_rx: watch::Receiver<MagCalCommand>,
     mag_cal_progress_tx: watch::Sender<MagCalProgress>,
     mag_cal_result_tx: watch::Sender<Option<MagCalibration>>,
@@ -492,6 +493,7 @@ impl Pipeline {
             rate_counter: VecDeque::with_capacity(256),
             sensor_info_sent: false,
             last_sensor_mag_config: None,
+            feature_flags_sent: false,
             mag_cal_cmd_rx,
             mag_cal_progress_tx,
             mag_cal_result_tx,
@@ -589,6 +591,7 @@ impl Pipeline {
         if !confirmed {
             self.sensor_info_sent = false;
             self.last_sensor_mag_config = None;
+            self.feature_flags_sent = false;
         } else {
             let desired_mag_config = self.sensor_mag_config();
             if !self.sensor_info_sent || self.last_sensor_mag_config != Some(desired_mag_config) {
@@ -598,6 +601,26 @@ impl Pipeline {
                     self.sensor_info_sent = true;
                     self.last_sensor_mag_config = Some(desired_mag_config);
                     tracing::debug!("sensor_info sent after handshake confirmed");
+                }
+            }
+            // Advertise our FEATURE_FLAGS once per confirmed handshake so the
+            // server reciprocates with its own reply. That reply carries
+            // PROTOCOL_BUNDLE_SUPPORT, which flips the hot path from two-send
+            // (rotation packet 17 + accel packet 4) to a single BUNDLE datagram.
+            // The server only sends its flags in response to ours — without this
+            // it never advertises bundle support and we stay on the two-send
+            // fallback forever.
+            if self.sensor_info_sent && !self.feature_flags_sent {
+                // All-zero firmware flags: we implement none of REMOTE_COMMAND,
+                // B64_WIFI_SCANNING, or SENSOR_CONFIG. The packet's presence, not
+                // its bits, is what elicits the server's FEATURE_FLAGS reply.
+                if let Err(e) = slime.send_feature_flags(vec![0u8]).await {
+                    tracing::warn!(error = %e, "feature_flags send failed");
+                } else {
+                    self.feature_flags_sent = true;
+                    tracing::debug!(
+                        "feature_flags advertised; awaiting server bundle-support reply"
+                    );
                 }
             }
         }

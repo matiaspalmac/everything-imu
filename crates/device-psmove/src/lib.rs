@@ -1,11 +1,11 @@
 //! PlayStation Move motion controller driver — ZCM1 (PS3) + ZCM2 (PS4 refresh).
 //!
-//! Wire reference: psmoveapi `psmove.c` and the PS Dev Wiki entries for
-//! the Move. Both ZCM1 and ZCM2 expose a 49-byte HID input report 0x01.
+//! Wire reference: `docs/reference/psmove_protocol.md` (and the PS Dev Wiki
+//! Move entries). Both ZCM1 and ZCM2 expose a 49-byte HID input report 0x01.
 //! ZCM1 has a 3-axis magnetometer; ZCM2 dropped the mag and bumped the
 //! gyro full-scale range. Each report packs *two* IMU frames (sub-rate
-//! doubling), so we emit two `ImuSample`s per parse. Big-endian
-//! throughout — distinct from the DualSense / DS4 little-endian path.
+//! doubling), so we emit two `ImuSample`s per parse. Accel/gyro fields are
+//! little-endian u16 (matching `report.rs`), like the DualSense / DS4 path.
 //!
 //! Output reports are supported for sphere LED color + rumble (report 0x06).
 #![allow(dead_code)]
