@@ -46,7 +46,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - run: git config --global core.autocrlf false
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Linux Tauri deps
         if: matrix.os == 'ubuntu-latest'
