@@ -69,8 +69,7 @@ pub fn install() -> Result<String, InstallError> {
     // path. The destination is a fixed root-owned constant, so nothing here is
     // attacker-influenceable.
     let shell_cmd = format!(
-        "cat > {dst} && chmod 0644 {dst} && udevadm control --reload-rules && udevadm trigger",
-        dst = TARGET_PATH,
+        "cat > {TARGET_PATH} && chmod 0644 {TARGET_PATH} && udevadm control --reload-rules && udevadm trigger",
     );
     let mut child = Command::new("pkexec")
         .args(["sh", "-c", &shell_cmd])
