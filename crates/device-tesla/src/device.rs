@@ -259,7 +259,7 @@ async fn stream_once(
     let subscribe_payload =
         serde_json::to_string(&subscribe).map_err(|e| format!("subscribe encode: {e}"))?;
     socket
-        .send(Message::Text(subscribe_payload))
+        .send(Message::Text(subscribe_payload.into()))
         .await
         .map_err(|e| format!("subscribe send: {e}"))?;
 
