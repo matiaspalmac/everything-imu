@@ -17,14 +17,47 @@ use tauri::{AppHandle as TauriAppHandle, Manager};
 
 pub struct TrayHandle(pub TrayIcon);
 
-/// Initialize the tray, degrading gracefully when the platform tray
-/// backend is missing. On Linux the tray is backed by
-/// libappindicator/ayatana; when that shared library is absent the
-/// underlying builder *panics* instead of returning an error, which
-/// would abort the whole process during startup. Minimal and immutable
-/// distros frequently don't ship the library, so catch both the panic
-/// and the ordinary error path and keep running without a tray icon.
+/// Probe for the Linux tray backend (libayatana-appindicator /
+/// libappindicator). When neither shared object is present, `TrayIconBuilder`
+/// *panics* rather than erroring, which under the release profile's
+/// `panic = "abort"` would abort the whole process (the `catch_unwind` in
+/// `init_tray_or_warn` only catches in unwind builds). Skip the tray if none
+/// are found so the panic path is never reached on a library-less distro.
+#[cfg(target_os = "linux")]
+fn tray_backend_available() -> bool {
+    const CANDIDATES: &[&str] = &["libayatana-appindicator3.so.1", "libappindicator3.so.1"];
+    const DIRS: &[&str] = &[
+        "/usr/lib",
+        "/usr/lib64",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib/aarch64-linux-gnu",
+        "/lib",
+        "/lib64",
+    ];
+    DIRS.iter()
+        .flat_map(|d| {
+            CANDIDATES
+                .iter()
+                .map(move |c| std::path::Path::new(d).join(c))
+        })
+        .any(|p| p.exists())
+}
+
+/// Initialize the tray, degrading gracefully when the platform tray backend
+/// is missing. On Linux the tray is backed by libappindicator/ayatana; when
+/// that shared library is absent the underlying builder *panics* instead of
+/// returning an error, which would abort the whole process during startup.
+/// Minimal and immutable distros frequently don't ship the library, so probe
+/// for it first (see `tray_backend_available`) and also catch both the panic
+/// and the ordinary error path, keeping the app running without a tray icon.
 pub fn init_tray_or_warn(app: &TauriAppHandle) {
+    #[cfg(target_os = "linux")]
+    if !tray_backend_available() {
+        tracing::warn!(
+            "system tray backend (appindicator library) not found; continuing without tray"
+        );
+        return;
+    }
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| init_tray(app))) {
         Ok(Ok(())) => {}
         Ok(Err(e)) => {
@@ -61,10 +94,10 @@ pub fn init_tray(app: &TauriAppHandle) -> tauri::Result<()> {
             &quit,
         ])
         .build()?;
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .expect("default window icon");
+    let Some(icon) = app.default_window_icon().cloned() else {
+        tracing::warn!("no default window icon available; skipping tray icon");
+        return Ok(());
+    };
     let tray = TrayIconBuilder::with_id("main")
         .icon(icon)
         .tooltip("everything-imu — 0 devices")
