@@ -64,13 +64,12 @@ impl DualSenseDevice {
         }
     }
 
-    fn write_output(&self, state: OutputState) -> Result<(), DeviceError> {
-        let io = self
-            .io
-            .clone()
-            .ok_or_else(|| DeviceError::Hid("dualsense not started".into()))?;
-        let kind = self.kind;
-        let last_len = self.last_report_len.load(Ordering::Relaxed);
+    async fn write_output(
+        io: Arc<Mutex<HidDevice>>,
+        kind: ControllerKind,
+        last_len: usize,
+        state: OutputState,
+    ) -> Result<(), DeviceError> {
         if last_len == 0 {
             // No input report observed yet → transport unknown. Skip rather than
             // guess and ship a USB-shaped report to a BT-attached pad (or vice
@@ -83,12 +82,19 @@ impl DualSenseDevice {
         if report.is_empty() {
             return Ok(());
         }
-        let dev = io
-            .lock()
-            .map_err(|_| DeviceError::Hid("dualsense io lock poisoned".into()))?;
-        dev.write(&report)
-            .map_err(|e| DeviceError::Hid(format!("dualsense write output failed: {e}")))?;
-        Ok(())
+        // The reader thread holds the HID mutex across its 50 ms blocking read,
+        // so acquiring it here can park for up to that long. Do the lock+write
+        // on a blocking pool thread instead of the async executor.
+        tokio::task::spawn_blocking(move || {
+            let dev = io
+                .lock()
+                .map_err(|_| DeviceError::Hid("dualsense io lock poisoned".into()))?;
+            dev.write(&report)
+                .map_err(|e| DeviceError::Hid(format!("dualsense write output failed: {e}")))?;
+            Ok::<(), DeviceError>(())
+        })
+        .await
+        .map_err(|e| DeviceError::Hid(format!("dualsense write task join failed: {e}")))?
     }
 }
 
@@ -147,12 +153,22 @@ impl Device for DualSenseDevice {
     async fn set_led_mask(&mut self, mask: u8) -> Result<(), DeviceError> {
         self.output_state.led_mask_4bit = mask & 0x0F;
         self.output_state.led_mask_5bit = map_led_mask_to_dualsense(mask);
-        self.write_output(self.output_state)
+        let io = self
+            .io
+            .clone()
+            .ok_or_else(|| DeviceError::Hid("dualsense not started".into()))?;
+        let last_len = self.last_report_len.load(Ordering::Relaxed);
+        Self::write_output(io, self.kind, last_len, self.output_state).await
     }
 
     async fn set_rumble(&mut self, intensity: f32) -> Result<(), DeviceError> {
         self.output_state.rumble = device_traits::rumble::to_u8(intensity);
-        self.write_output(self.output_state)
+        let io = self
+            .io
+            .clone()
+            .ok_or_else(|| DeviceError::Hid("dualsense not started".into()))?;
+        let last_len = self.last_report_len.load(Ordering::Relaxed);
+        Self::write_output(io, self.kind, last_len, self.output_state).await
     }
 }
 
@@ -272,9 +288,11 @@ fn fill_ds5_payload(payload: &mut [u8], state: OutputState) {
     payload[2] = motor; // weak / high-frequency motor
     payload[3] = motor; // strong / low-frequency motor
     payload[38] = 0;
-    payload[39] = 1;
-    // Player-indicator LEDs (the five under the touchpad).
-    payload[40] = state.led_mask_5bit & 0x1F;
+    // Player-indicator LEDs (the five under the touchpad) live at output
+    // struct offset 43 (lightbar_setup 41, led_brightness 42, player_leds 43,
+    // then RGB 44..46). The previous byte 40 landed in reserved space, so the
+    // player-count LEDs never lit.
+    payload[43] = state.led_mask_5bit & 0x1F;
     // RGB lightbar (DS5 output report bytes 45..47 = payload 44..46). Drive it
     // from the same mask the player LEDs use so the colour and the count agree,
     // matching the DualShock 4 lightbar behaviour.
@@ -372,7 +390,8 @@ mod tests {
         assert_eq!(report[1], 0x02);
         assert_eq!(report[4], 0x80);
         assert_eq!(report[5], 0x80);
-        assert_eq!(report[42], 0b00100);
+        // player_leds at payload[43] → report[45] for the BT report (2-byte header).
+        assert_eq!(report[45], 0b00100);
         let crc = crc32_with_seed(0xA2, &report[..74]);
         assert_eq!(&report[74..78], &crc.to_le_bytes());
     }
