@@ -65,13 +65,19 @@ impl Device for ThreeDsDevice {
             // Gravity auto-scale: the 3DS accel LSB/g is unpublished and varies
             // per console revision, so derive the m/s²-per-raw factor from the
             // resting gravity magnitude over the first N samples instead of
-            // hardcoding a constant. Mirrors the known-working forwarder.
-            let mut grav_accum: i64 = 0;
+            // hardcoding a constant. Averaging the full vector magnitude
+            // sqrt(ax²+ay²+az²) makes the estimate orientation-independent, so
+            // the console no longer has to rest on any particular axis at boot.
+            let mut grav_accum: f64 = 0.0;
             let mut grav_count: u32 = 0;
             let mut division: f32 = 0.0;
             while let Some(pkt) = packet_rx.recv().await {
                 if grav_count < GRAVITY_SAMPLES {
-                    grav_accum += (pkt.accel[1] as i64).abs();
+                    let mag = ((pkt.accel[0] as f64).powi(2)
+                        + (pkt.accel[1] as f64).powi(2)
+                        + (pkt.accel[2] as f64).powi(2))
+                    .sqrt();
+                    grav_accum += mag;
                     grav_count += 1;
                     let mean = (grav_accum as f32 / grav_count as f32).max(1.0);
                     division = G / mean;
