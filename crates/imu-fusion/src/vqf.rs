@@ -272,7 +272,7 @@ pub(crate) fn quat_rotate(q: [f64; 4], v: [f64; 3]) -> [f64; 3] {
 #[inline]
 pub(crate) fn quat_normalize(q: [f64; 4]) -> [f64; 4] {
     let n = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt();
-    if n < EPS {
+    if !n.is_finite() || n < EPS {
         return [1.0, 0.0, 0.0, 0.0];
     }
     [q[0] / n, q[1] / n, q[2] / n, q[3] / n]
