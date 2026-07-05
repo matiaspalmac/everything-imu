@@ -6,7 +6,7 @@
     <a href="https://github.com/matiaspalmac/everything-imu/actions/workflows/ci.yml"><img src="https://github.com/matiaspalmac/everything-imu/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
     <img src="https://img.shields.io/badge/status-stable-brightgreen.svg" alt="Status: stable">
-    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-lightgrey.svg" alt="Platform">
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg" alt="Platform">
     <a href="https://github.com/matiaspalmac/everything-imu/releases/latest"><img src="https://img.shields.io/github/v/release/matiaspalmac/everything-imu?include_prereleases&label=release" alt="Latest release"></a>
   </p>
 </div>
