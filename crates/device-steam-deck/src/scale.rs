@@ -8,7 +8,7 @@ const ACCEL_FULL_SCALE_G: f32 = 2.0;
 
 /// Convert a raw int16 gyro sample to rad/s.
 ///
-/// Scale per SDL `SDL_hidapi_steamdeck.c`:
+/// Scale for the Steam Deck BMI260 (±2000 dps full scale):
 ///   `gyro_rad_s = (raw / 32768) * (2000 * π / 180)`
 #[inline]
 pub fn gyro_rad_s(raw: i16) -> f32 {
