@@ -23,8 +23,10 @@ jobs:
       prerelease: ${{ steps.meta.outputs.prerelease }}
     steps:
       - id: meta
+        env:
+          RAW_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          TAG="$RAW_TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           # Only alpha + rc count as prerelease for GitHub's "Latest" badge;
           # beta tags must stay non-prerelease so the updater endpoint at
@@ -36,9 +38,16 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
+  gate:
+    name: CI gate
+    needs: prepare
+    # Run the full CI (fmt / clippy / test / UI / supply-chain) on the tagged
+    # ref before building, so a tag push cannot ship past a red pipeline.
+    uses: ./.github/workflows/ci.yml
+
   build:
     name: Build ${{ matrix.os }}
-    needs: prepare
+    needs: [prepare, gate]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -89,6 +98,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          # Compile Sentry in for shipped builds so the opt-in crash-reporting
+          # toggle is live (it still needs the DSN env var at runtime).
+          args: "--features crash-reporting"
           tagName: ${{ needs.prepare.outputs.tag }}
           releaseName: "everything-imu ${{ needs.prepare.outputs.tag }}"
           releaseBody: "See the auto-generated release notes below and CHANGELOG.md in the repository for the full history."
