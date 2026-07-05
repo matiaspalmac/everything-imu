@@ -160,8 +160,10 @@ pub enum BoardType {
     Beetle32C3,
     #[deku(id = "12")]
     ESP32C3DevKitM1,
+    // Neutral name for the SlimeVR board id 13 (a third-party Android phone
+    // tracker); the deku id is retained verbatim for wire compatibility.
     #[deku(id = "13")]
-    OwoTrack,
+    ThirdPartyAndroid,
     #[deku(id = "14")]
     Wrangler,
     #[deku(id = "15")]
@@ -239,12 +241,14 @@ pub enum McuType {
     Esp8266,
     #[deku(id = "2")]
     Esp32,
+    // Neutral names for SlimeVR MCU ids 3 and 5 (third-party phone trackers);
+    // deku ids retained verbatim for wire compatibility.
     #[deku(id = "3")]
-    OwoTrackAndroid,
+    ThirdPartyAndroid,
     #[deku(id = "4")]
     Wrangler,
     #[deku(id = "5")]
-    OwoTrackIos,
+    ThirdPartyIos,
     #[deku(id = "6")]
     Esp32C3,
     #[deku(id = "7")]
