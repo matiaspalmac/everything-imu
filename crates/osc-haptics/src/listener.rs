@@ -81,7 +81,10 @@ pub async fn run_bridge_with_sniffer(
             continue;
         }
 
-        let socket = match UdpSocket::bind(("0.0.0.0", config.listen_port)).await {
+        // Bind loopback only: OSC haptics come from a locally-running VRChat.
+        // Binding all interfaces would let any LAN host drive the physical
+        // rumble motors.
+        let socket = match UdpSocket::bind(("127.0.0.1", config.listen_port)).await {
             Ok(s) => s,
             Err(e) => {
                 tracing::warn!(port = config.listen_port, error = %e,
