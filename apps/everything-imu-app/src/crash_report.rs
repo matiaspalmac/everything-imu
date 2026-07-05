@@ -30,6 +30,20 @@ pub fn init_if_opted_in(enabled: bool) {
     // Sentry's guard must outlive the process; leaking it is the
     // idiomatic "init once at boot" pattern from the SDK README.
     Box::leak(Box::new(guard));
+
+    // The release profile is `panic = "abort"`, under which the process dies
+    // immediately after the panic hook runs — the transport never gets a
+    // chance to send the queued crash event. Wrap the existing hook (Sentry's
+    // panic integration, which captures the event) and flush synchronously
+    // before the abort so the report actually leaves the machine.
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        prev_hook(info);
+        if let Some(client) = sentry::Hub::current().client() {
+            client.flush(Some(std::time::Duration::from_secs(2)));
+        }
+    }));
+
     tracing::info!("crash reporting enabled");
 }
 
