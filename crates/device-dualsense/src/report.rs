@@ -3,7 +3,7 @@
 //! Three known input report shapes are recognized:
 //! - DualSense USB report 0x01 (64 bytes; buf[0]=report ID, gyro at buf[16], accel at buf[22]).
 //! - DualSense BT report 0x31 (78 bytes; buf[0]=0x31, buf[1]=tag, payload shifted +1 vs USB → gyro at buf[18], accel at buf[24]). Trailing 4-byte CRC32 ignored on input.
-//! - DualShock 4 USB report 0x01 (64 bytes; gyro at buf[14], accel at buf[20]).
+//! - DualShock 4 USB report 0x01 (64 bytes; gyro at buf[13], accel at buf[19]).
 //!
 //! Offsets follow pydualsense / hid-playstation canonical layout: hidapi returns
 //! the report ID at buf[0] for numbered reports, so payload-relative offsets must
@@ -58,11 +58,16 @@ impl ImuOffsets {
                 gyro: 18,
                 accel: 24,
                 battery: Some(54),
-                buttons_2: Some(10),
+                // buttons[2] sits 6 payload bytes before gyro in the DualSense
+                // common report (buttons[2] struct offset 9, gyro struct offset
+                // 15). USB anchors gyro 16 → buttons_2 10; the BT report is +2
+                // (validated gyro 18/accel 24), so buttons_2 = 18 - 6 = 12.
+                // (The previous 10 applied no BT shift and decoded a d-pad byte.)
+                buttons_2: Some(12),
             }),
             (ControllerKind::DualShock4, 64) => Some(Self {
-                gyro: 14,
-                accel: 20,
+                gyro: 13,
+                accel: 19,
                 battery: Some(30),
                 buttons_2: Some(7),
             }),
@@ -71,8 +76,8 @@ impl ImuOffsets {
             // is ignored on input. Reference: hid-playstation.c. Validation
             // pending (no DS4 hardware this session).
             (ControllerKind::DualShock4, 78) => Some(Self {
-                gyro: 16,
-                accel: 22,
+                gyro: 15,
+                accel: 21,
                 battery: Some(32),
                 buttons_2: Some(9),
             }),
@@ -374,8 +379,8 @@ mod tests {
         // DualShock 4 Bluetooth report 0x11 (78 bytes): IMU shifted +2 vs USB.
         let mut buf = [0u8; 78];
         buf[0] = 0x11;
-        buf[16..18].copy_from_slice(&100i16.to_le_bytes()); // gyro x @ 16
-        buf[22..24].copy_from_slice(&8192i16.to_le_bytes()); // accel y @ 22
+        buf[15..17].copy_from_slice(&100i16.to_le_bytes()); // gyro x @ 15 (USB 13 +2)
+        buf[21..23].copy_from_slice(&8192i16.to_le_bytes()); // accel y @ 21 (USB 19 +2)
         let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
         assert!(parse_report(ControllerKind::DualShock4, &buf, None, &tx));
         match rx.try_recv().expect("imu event") {
@@ -391,7 +396,7 @@ mod tests {
     #[test]
     fn ds4_reports_no_hw_timestamp() {
         let mut buf = [0u8; 64];
-        buf[14..16].copy_from_slice(&100i16.to_le_bytes());
+        buf[13..15].copy_from_slice(&100i16.to_le_bytes());
         let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
         assert!(parse_report(ControllerKind::DualShock4, &buf, None, &tx));
         match rx.try_recv().expect("imu event") {
@@ -417,9 +422,9 @@ mod tests {
             parse_ps_button(ControllerKind::DualSense, &buf),
             Some(false)
         );
-        // BT shape (78-byte report 0x31): byte at offset 10.
+        // BT shape (78-byte report 0x31): buttons[2] at offset 12 (gyro 18 - 6).
         let mut buf_bt = [0u8; 78];
-        buf_bt[10] = 0x01;
+        buf_bt[12] = 0x01;
         assert_eq!(
             parse_ps_button(ControllerKind::DualSense, &buf_bt),
             Some(true),
@@ -429,7 +434,7 @@ mod tests {
     #[test]
     fn ds4_usb_offsets() {
         let mut buf = [0u8; 64];
-        buf[14..16].copy_from_slice(&100i16.to_le_bytes());
+        buf[13..15].copy_from_slice(&100i16.to_le_bytes());
         let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
         assert!(parse_report(ControllerKind::DualShock4, &buf, None, &tx));
         match rx.try_recv().expect("imu event") {
