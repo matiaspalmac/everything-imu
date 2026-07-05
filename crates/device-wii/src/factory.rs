@@ -137,9 +137,8 @@ async fn client_loop(
         }
         leftover.extend_from_slice(&read_buf[..n]);
 
-        let complete = leftover.len() - (leftover.len() % PACKET_LEN);
-        for chunk in leftover[..complete].chunks_exact(PACKET_LEN) {
-            let Some((id, packet)) = parse_packet(chunk) else {
+        for chunk in take_complete_packets(&mut leftover) {
+            let Some((id, packet)) = parse_packet(&chunk) else {
                 continue;
             };
             let key = format!("{base_ip}:{id}");
@@ -168,7 +167,6 @@ async fn client_loop(
                 routing.write().await.remove(&key);
             }
         }
-        leftover.drain(..complete);
         write_response(stream, base_ip, rumble_state).await?;
     }
     Ok(())
@@ -195,6 +193,25 @@ async fn write_response(
         .await
         .map_err(|e| DeviceError::Hid(format!("wii response write failed: {e}")))?;
     Ok(())
+}
+
+/// Drain every complete `PACKET_LEN`-byte frame from the front of `leftover`,
+/// leaving any trailing partial packet buffered for the next read. TCP is a
+/// byte stream with no message framing, so a single read may split one packet
+/// or coalesce several; keeping the remainder avoids dropping the connection
+/// whenever a read does not land on the 17-byte grid.
+fn take_complete_packets(leftover: &mut Vec<u8>) -> Vec<[u8; PACKET_LEN]> {
+    let complete = leftover.len() - (leftover.len() % PACKET_LEN);
+    let frames: Vec<[u8; PACKET_LEN]> = leftover[..complete]
+        .chunks_exact(PACKET_LEN)
+        .map(|c| {
+            let mut a = [0u8; PACKET_LEN];
+            a.copy_from_slice(c);
+            a
+        })
+        .collect();
+    leftover.drain(..complete);
+    frames
 }
 
 fn parse_packet(buf: &[u8]) -> Option<(u8, WiiPacket)> {
@@ -241,5 +258,38 @@ mod tests {
         assert!(pkt.nunchuk_connected);
         assert_eq!(pkt.battery_level, 100);
         assert!(pkt.button_up);
+    }
+
+    #[test]
+    fn take_complete_packets_reassembles_split_and_coalesced_reads() {
+        let mut p0 = [0u8; PACKET_LEN];
+        p0[0] = 0;
+        let mut p1 = [0u8; PACKET_LEN];
+        p1[0] = 1;
+
+        let mut leftover: Vec<u8> = Vec::new();
+
+        // A read that delivers only part of a packet drains nothing and keeps
+        // the partial bytes.
+        leftover.extend_from_slice(&p0[..8]);
+        assert!(take_complete_packets(&mut leftover).is_empty());
+        assert_eq!(leftover.len(), 8);
+
+        // The next read completes p0 and coalesces all of p1 → both drain.
+        leftover.extend_from_slice(&p0[8..]);
+        leftover.extend_from_slice(&p1);
+        let frames = take_complete_packets(&mut leftover);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0][0], 0);
+        assert_eq!(frames[1][0], 1);
+        assert!(leftover.is_empty());
+
+        // One-and-a-half packets in a single read → one drains, the trailing
+        // partial packet stays buffered for next time.
+        leftover.extend_from_slice(&p0);
+        leftover.extend_from_slice(&p1[..8]);
+        let frames = take_complete_packets(&mut leftover);
+        assert_eq!(frames.len(), 1);
+        assert_eq!(leftover.len(), 8);
     }
 }
