@@ -1,7 +1,6 @@
-//! `ValveInReport_t` parser for the Steam Deck gamepad input report.
+//! Parser for the Steam Deck gamepad HID state input report.
 //!
-//! Layout reverse-engineered from SDL `SDL_hidapi_steamdeck.c` + Valve's
-//! `controller_structs.h`:
+//! Layout reverse-engineered from the device's own feature/state reports:
 //!
 //! ```text
 //! offset  size  field
