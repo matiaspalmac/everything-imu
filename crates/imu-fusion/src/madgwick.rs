@@ -45,7 +45,7 @@ impl Madgwick {
         let mut q4 = self.quat[3];
 
         let mut norm = (ax * ax + ay * ay + az * az).sqrt();
-        if norm == 0.0 {
+        if !norm.is_finite() || norm == 0.0 {
             return;
         }
         norm = 1.0 / norm;
@@ -125,7 +125,7 @@ impl Madgwick {
         let mut q4 = self.quat[3];
 
         let mut norm = (ax * ax + ay * ay + az * az).sqrt();
-        if norm == 0.0 {
+        if !norm.is_finite() || norm == 0.0 {
             return;
         }
         norm = 1.0 / norm;
@@ -134,7 +134,7 @@ impl Madgwick {
         let az = az * norm;
 
         let mut norm = (mx * mx + my * my + mz * mz).sqrt();
-        if norm == 0.0 {
+        if !norm.is_finite() || norm == 0.0 {
             return;
         }
         norm = 1.0 / norm;
