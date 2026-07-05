@@ -9,6 +9,11 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::time::{Duration, Instant};
 
+// Trust boundary: the remote-hub UDP ingest is unauthenticated. Any host that
+// can reach this port may register (HELLO/ANNOUNCE), feed samples for, or
+// remove (REMOVE) a tracker. It is intended for a trusted LAN only; do not
+// expose the port to untrusted networks. The HELLO uuid is currently
+// informational and not used to gate registration.
 const DEFAULT_BIND: &str = "0.0.0.0:9320";
 const STALE_AFTER: Duration = Duration::from_secs(15);
 const SWEEP_EVERY: Duration = Duration::from_secs(5);
