@@ -32,7 +32,7 @@ impl HidReaderHandle {
     pub fn shutdown(&mut self) {
         self.shutdown.store(true, Ordering::Relaxed);
         if let Some(j) = self.join.take() {
-            // Detach: read_timeout 50 ms guarantees prompt exit.
+            // Detach: read_timeout 10 ms guarantees prompt exit.
             drop(j);
         }
     }
@@ -73,7 +73,10 @@ where
                             return;
                         }
                     };
-                    dev.read_timeout(&mut buf, 50)
+                    // Short timeout so the reader holds the shared HID mutex for
+                    // at most ~10 ms per cycle, bounding how long a concurrent
+                    // LED/rumble write can be starved waiting for the lock.
+                    dev.read_timeout(&mut buf, 10)
                 };
                 match read_res {
                     Ok(0) => continue,
