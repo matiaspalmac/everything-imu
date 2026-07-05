@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { type ActivityEntry, useActivityStore } from "../../stores/useActivityStore";
 
 const LEVEL_DOT: Record<ActivityEntry["level"], string> = {
@@ -8,11 +9,12 @@ const LEVEL_DOT: Record<ActivityEntry["level"], string> = {
 };
 
 export function ActivityFeed({ limit = 12 }: { limit?: number }) {
+  const { t } = useTranslation();
   const entries = useActivityStore((s) => s.entries).slice(0, limit);
   if (entries.length === 0) {
     return (
       <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border-subtle)] p-4 text-center text-xs text-[var(--fg-muted)]">
-        No activity yet.
+        {t("pages.activity_empty")}
       </div>
     );
   }
