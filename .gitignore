@@ -67,3 +67,8 @@ keystore.properties
 # release asset, uploaded to GitHub release not committed
 IMUHaptics.unitypackage
 *.unitypackage
+
+# Private audit working docs — kept under docs/ (gitignored), never committed
+/AUDIT-STATUS.md
+/DECISIONS.md
+/AUDIT-FINAL-REPORT.md
