@@ -16,6 +16,23 @@ fn jsl_remap_zero_is_zero() {
 }
 
 #[test]
+fn jsl_to_vqf_body_pins_axis_mapping() {
+    // Locks the remap: out.x = in.x, out.y = -in.z, out.z = in.y.
+    assert_eq!(
+        jsl_to_vqf_body(Vector3::new(1.0, 0.0, 0.0)),
+        [1.0_f64, 0.0, 0.0]
+    );
+    assert_eq!(
+        jsl_to_vqf_body(Vector3::new(0.0, 1.0, 0.0)),
+        [0.0_f64, 0.0, 1.0]
+    );
+    assert_eq!(
+        jsl_to_vqf_body(Vector3::new(0.0, 0.0, 1.0)),
+        [0.0_f64, -1.0, 0.0]
+    );
+}
+
+#[test]
 fn world_remap_identity_zup_to_yup() {
     let q_zup = UnitQuaternion::<f64>::identity();
     let q_yup = vqf_zup_world_to_slimevr_yup(q_zup);

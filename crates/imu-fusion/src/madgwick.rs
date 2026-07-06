@@ -7,8 +7,9 @@ pub struct Madgwick {
 }
 
 impl Madgwick {
+    /// Uses the tuned default gain beta = 0.1; beta = 1.0 over-weights the accel correction and yields jumpy orientation.
     pub fn new(sample_period: f32) -> Self {
-        Self::with_beta(sample_period, 1.0)
+        Self::with_beta(sample_period, 0.1)
     }
 
     pub fn with_beta(sample_period: f32, beta: f32) -> Self {
@@ -236,8 +237,8 @@ mod tests {
     }
 
     #[test]
-    fn default_beta_is_one() {
+    fn default_beta_is_tuned() {
         let m = Madgwick::new(1.0 / 200.0);
-        assert_eq!(m.beta, 1.0);
+        assert_eq!(m.beta, 0.1);
     }
 }
