@@ -4,6 +4,13 @@
 //! rest-detection, and mag-rejection feature flags disabled. For 6-axis devices
 //! (Joy-Con 1, Joy-Con 2, DualSense, DualShock 4, PS Move ZCM2) where yaw drift
 //! is structural and there is no magnetometer to reject disturbances against.
+//!
+//! BasicVqf is a 6-axis (magnetometer-less) orientation filter. It is retained as a
+//! user-selectable fusion algorithm in the desktop app and kept in this shared crate
+//! for cross-target parity. The mobile JNI fusion path instead runs the full
+//! [`crate::vqf::Vqf`], which subsumes the 6-axis case (motion-bias estimation is
+//! auto-disabled when no magnetometer is present), so BasicVqf is intentionally not
+//! instantiated on mobile.
 
 use crate::vqf::{Vqf, VqfParams};
 

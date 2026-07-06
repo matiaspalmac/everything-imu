@@ -136,7 +136,14 @@ pub fn rotation_from_to(from: Vector3<f32>, to: Vector3<f32>) -> UnitQuaternion<
 
 /// JSL right-handed Y-up body frame → VQF right-handed Z-up body frame.
 /// Matrix: |1 0 0; 0 0 -1; 0 1 0|, det = +1, equivalent to +90° rotation about X.
+/// Axis mapping: out.x = in.x, out.y = -in.z, out.z = in.y.
 /// Cast f32 inputs to f64 since VQF state is f64.
+///
+/// Source-frame assumption: the upright-portrait Android sensor frame is treated as
+/// the JSL identity pose, and this remap is applied uniformly to remote phone/watch
+/// samples that arrive in the raw Android sensor frame. A landscape or watch mount
+/// that does not match this basis will need a user recenter — this is a documented
+/// known assumption, not a bug.
 #[inline]
 pub fn jsl_to_vqf_body(v: Vector3<f32>) -> [f64; 3] {
     [v.x as f64, -v.z as f64, v.y as f64]
