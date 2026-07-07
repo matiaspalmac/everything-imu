@@ -1,4 +1,4 @@
-# Devices Matrix — everything-imu
+# Devices Matrix: everything-imu
 
 Hardware reference for every controller everything-imu can bridge. Each section
 covers the IMU part, transport, sample rate, calibration source, axis
@@ -16,8 +16,8 @@ convention, on-device reset gestures, and known quirks.
 | NSO GameCube 2          |           BLE only | ICM-42670-P + AK09919                    | BLE                  |   62 Hz |  ✓  |    ✓    |   ✓    |
 | DualSense               |        `054C:0CE6` | BMI270                                   | USB · BT             |  250 Hz |  ✗  |    ✓    |   ✓    |
 | DualSense Edge          |        `054C:0DF2` | BMI270                                   | USB · BT             |  250 Hz |  ✗  |    ✓    |   ✓    |
-| DualShock 4 v1          |        `054C:05C4` | BMI055                                   | USB                  |  250 Hz |  ✗  |    ✓    |   ✓    |
-| DualShock 4 v2          |        `054C:09CC` | BMI055                                   | USB                  |  250 Hz |  ✗  |    ✓    |   ✓    |
+| DualShock 4 v1          |        `054C:05C4` | BMI055                                   | USB · BT             |  250 Hz |  ✗  |    ✓    |   ✓    |
+| DualShock 4 v2          |        `054C:09CC` | BMI055                                   | USB · BT             |  250 Hz |  ✗  |    ✓    |   ✓    |
 | PS Move ZCM1            |        `054C:03D5` | MPU-6050 + AK8975                        | USB · BT             |  175 Hz |  ✓  |    ✓    |   ✓    |
 | PS Move ZCM2            |        `054C:0C5E` | MPU-6500                                 | USB · BT             |  175 Hz |  ✗  |    ✓    |   ✓    |
 | Wii Remote              |      TCP forwarder | ADXL345 + IDG-600 / ADXL330²             | TCP `127.0.0.1:9909` |  100 Hz |  ✗  |    ✓    |   ✓    |
@@ -25,21 +25,33 @@ convention, on-device reset gestures, and known quirks.
 | PS Vita                 |      UDP forwarder | 3-axis accel + 3-axis gyro (`sceMotion`) | UDP `:9306`          |  100 Hz |  ✗  |    ✗    |   ✗    |
 | DualShock 3             |        `054C:0268` | Kionix accel + 1-axis gyro³              | USB                  | ~100 Hz |  ✗  |    ✗    |   ✗    |
 | HOPX / Triki            | BLE (name `Triki`) | LSM6DS (nRF52810)                        | BLE                  |   52 Hz |  ✗  |    ✗    |   ✗    |
+| Steam Deck              |        `28DE:1205` | Bosch BMI260                             | USB (integrated)     |  250 Hz |  ✗  |    ✗    |   ◐⁷    |
+| Steam Controller        |   `28DE:1102/1142` | InvenSense MPU-6500                      | USB (wired + dongle) |  100 Hz |  ✗  |   ◐⁵    |   ✗    |
+| Tesla (vehicle)         |          Fleet API | synthesised from heading + speed⁶        | HTTPS/WSS Fleet API  |  ~10 Hz |  ✗  |    ✗    |   ✗    |
 | Remote hub (phone)      |      UDP forwarder | phone IMU + forwarded BLE controllers⁴   | UDP `:9320`          |  varies |  ✓  |    ✓    |   ✓    |
 
-¹ Genuine Nintendo. Clones ship with ICM-20600 — auto-detected via SPI ID, fall
+¹ Genuine Nintendo. Clones ship with ICM-20600, auto-detected via SPI ID, fall
 back to longer VQF warm-up.
 ² Wii Remote IMUs vary by revision; values forwarded by the companion process.
 ³ DualShock 3 has only a **single-axis (yaw) gyroscope** + 3-axis accel, no
-mag — experimental/not-recommended tracker (accel-dominant, unconstrained yaw
+mag. Experimental/not-recommended tracker (accel-dominant, unconstrained yaw
 drift). See `docs/reference/dualshock3_protocol.md`.
 ⁴ The everything-imu mobile app can act as a remote hub: it streams the
 phone's own IMU as a tracker and forwards BLE controllers paired to the
 phone (Joy-Con 2 / Pro Controller 2 / HOPX) as additional trackers. Each
 forwarded device registers individually with its own kind, battery, and
 rumble backchannel.
+⁵ Steam Controller battery is reported only through the wireless dongle
+(`1142`); the wired unit (`1102`) has no battery telemetry. Rumble is not
+wired up yet, so the capability is advertised as off.
+⁶ Tesla is a novelty tracker: it has no IMU. The driver derives gyro + accel
+from the vehicle's live heading and speed over the Fleet API. Rate is capped
+by the streaming feed (~10 Hz).
+⁷ The Steam Deck has rumble hardware, but the driver's rumble write is still a
+stub (Valve's `ID_TRIGGER_RUMBLE_CMD` feature report is not wired yet), so no
+haptics reach the device.
 
-Charging Grip (`057E:200E`) enumerates as USB but is not directly driven — it
+Charging Grip (`057E:200E`) enumerates as USB but is not directly driven. It
 proxies its docked Joy-Cons. Connect them via Bluetooth instead.
 
 ---
@@ -102,7 +114,7 @@ Body frame is `(x, z, -y)` of the raw IMU output (gravity = +Z when face-up).
 
 ### Quirks
 
-- After bonding via OS, the controller may go to sleep — first input report can
+- After bonding via OS, the controller may go to sleep. The first input report can
   take ~1.5 s. The driver re-issues `0x40` IMU-enable on first timeout.
 - Pro Controller's USB mode requires a `0x80 0x02` handshake before HID; the
   driver handles this on init.
@@ -124,7 +136,7 @@ Body frame is `(x, z, -y)` of the raw IMU output (gravity = +Z when face-up).
 ### Transport
 
 - **BLE only.** Joy-Con 2 does **not** advertise classic Bluetooth.
-- Connect via `btleplug` directly to the advertising peripheral — no Windows
+- Connect via `btleplug` directly to the advertising peripheral; no Windows
   pairing dialog needed.
 - **Reconnect cooldown**: rapid reconnects (within ~30 s) lock the radio for
   several minutes. Always honour the chip's backoff.
@@ -188,13 +200,13 @@ Header: `CMD | 0x91 | 0x01 | SUBCMD | 0x00 | LEN | 0x00 | 0x00 | DATA…`
 | `0x0A`     | Vibration / sound                                                      |
 | `0x0B`     | Battery query                                                          |
 | **`0x0C`** | Feature select (enable IMU/mag)                                        |
-| ⚠ `0x15`   | **DO NOT USE** — pairing persistence write, _can brick the controller_ |
+| ⚠ `0x15`   | **DO NOT USE**: pairing persistence write, _can brick the controller_  |
 
 Canonical IMU enable sequence (validated against real hardware):
 
-1. `0C 91 01 02 00 04 00 00 <mask> 00 00 00` — set feature mask
+1. `0C 91 01 02 00 04 00 00 <mask> 00 00 00` (set feature mask)
 2. wait **500 ms**
-3. `0C 91 01 04 00 04 00 00 <mask> 00 00 00` — activate features
+3. `0C 91 01 04 00 04 00 00 <mask> 00 00 00` (activate features)
 
 Masks: `0x04` IMU, `0x80` mag, `0xFF` all.
 
@@ -240,7 +252,7 @@ is persisted to SQLite per MAC.
 
 ### Quirks
 
-- The peripheral disappears from BLE scan after pairing — restart the adapter
+- The peripheral disappears from BLE scan after pairing; restart the adapter
   if not seen within 30 s.
 - Switching variants (e.g. Joy-Con 2 → Pro Controller 2) over the same MAC is
   not supported in a single session.
@@ -250,7 +262,8 @@ is persisted to SQLite per MAC.
 ## DualSense / DualSense Edge
 
 **Crate**: `crates/device-dualsense/`
-**Status**: hardware-validated (standard DualSense via USB).
+**Status**: hardware-validated (standard DualSense via USB and Bluetooth). The
+BT IMU + PS-button offsets were confirmed from a hardware hex dump.
 
 ### Hardware
 
@@ -260,14 +273,19 @@ is persisted to SQLite per MAC.
 
 ### Transport
 
-| Mode | Library    |                                        Rate |
-| ---- | ---------- | ------------------------------------------: |
-| USB  | `hidapi`   | 250 Hz (standard), 1000 Hz reported by Edge |
-| BT   | `btleplug` |                                      250 Hz |
+| Mode | Library  |                                        Rate |
+| ---- | -------- | ------------------------------------------: |
+| USB  | `hidapi` | 250 Hz (standard), 1000 Hz reported by Edge |
+| BT   | `hidapi` |                                      250 Hz |
+
+Bluetooth is HID over Bluetooth Classic, so both transports come through
+`hidapi` (no `btleplug` / BLE path). The driver tells USB from BT by input
+report length: 64-byte report `0x01` is USB, a report of 78 bytes or more is
+the BT report `0x31`.
 
 ### Calibration
 
-Read via **feature report `0x05`** — gyro + accel offsets and scales. Applied
+Read via **feature report `0x05`**: gyro + accel offsets and scales. Applied
 before the sample reaches fusion.
 
 ### Reports
@@ -282,16 +300,21 @@ before the sample reaches fusion.
 
 ### Quirks
 
-- DualSense Edge is detected as a distinct kind but uses the same protocol —
-  USB-only at present.
-- BT requires the CRC32 trailer on output reports; missing it → silent reject.
+- DualSense Edge is detected as a distinct kind but uses the same USB and BT
+  report layout as the standard DualSense.
+- Over Bluetooth the payload shifts +1 byte versus USB (report `0x31` carries a
+  single sequence-tag byte before the common report), so the IMU sits at gyro
+  17 / accel 23 and the PS / Mute buttons byte at 11. These offsets are
+  hardware-confirmed on a DualSense over Bluetooth.
+- BT output reports (`0x31`) need the trailing CRC32; without it the controller
+  silently rejects rumble / LED writes.
 
 ---
 
 ## DualShock 4 (PS4)
 
 **Crate**: `crates/device-dualsense/` (shared module)
-**Status**: hardware-validated (v2 via USB).
+**Status**: hardware-validated (v2 via USB and Bluetooth on Windows).
 
 ### Hardware
 
@@ -301,8 +324,15 @@ before the sample reaches fusion.
 
 ### Transport
 
-- **USB only** in this bridge. BT works at the OS layer but the bridge does
-  not currently negotiate the Bluetooth input mode (queued).
+- **USB and Bluetooth**, both through `hidapi` (Bluetooth is HID over
+  Bluetooth Classic, same as DualSense).
+- USB input report `0x01`: IMU at gyro 13 / accel 19.
+- BT input report `0x11`: IMU shifted +2 versus USB (gyro 15 / accel 21). On
+  Windows this report is delivered padded past its nominal 78 bytes (observed
+  128 via hidapi), so the parser matches any length of 78 or more instead of an
+  exact size. An earlier exact-length match read all-zero IMU on real hardware.
+- BT output rumble uses report `0x11` with a trailing CRC32, mirroring the
+  DualSense BT output path.
 
 ### Calibration
 
@@ -310,8 +340,10 @@ Same feature-report `0x05` scheme as DualSense.
 
 ### Quirks
 
-- v1 (`05C4`) and v2 (`09CC`) hardware revisions share the protocol — both
+- v1 (`05C4`) and v2 (`09CC`) hardware revisions share the protocol; both
   enumerate as `DualShock4` in the device kind enum.
+- No hardware sensor timestamp is decoded, so the pipeline falls back to the
+  delivery-rate estimate for the fusion timestep.
 
 ---
 
@@ -346,7 +378,7 @@ Same feature-report `0x05` scheme as DualSense.
 ### Quirks
 
 - ZCM2's `has_magnetometer` flag is auto-set to false; the UI hides the mag
-  toggle. Don't try to enable it — there's no sensor there.
+  toggle. Don't try to enable it; there's no sensor there.
 - The PS button on the controller cycles tracker LED colors but is not wired
   to a reset action.
 
@@ -374,7 +406,7 @@ No HID / BLE code path; this crate is a passive packet receiver + back-channel.
 ### Quirks
 
 - The IMU is accelerometer-only on the bare Wii Remote (no gyro). Fusion falls
-  back to gravity-only orientation — yaw will drift unconstrained without
+  back to gravity-only orientation, so yaw will drift unconstrained without
   a MotionPlus or external reference.
 - A future iteration will read MotionPlus gyro data from the extension slot
   (already exposed in the 17-byte packet's extension bytes).
@@ -422,12 +454,12 @@ through the Nordic UART Service - the host never talks to the sensor directly.
 **Crate**: `crates/device-3ds/`
 **Status**: implemented (forwarder + parser + tests); axis remap + accel scale
 pending live-console validation. Protocol recovered from a known-working
-forwarder — see `docs/reference/3ds_protocol.md`.
+forwarder. See `docs/reference/3ds_protocol.md`.
 
 ### Hardware
 
 Full 6-axis: 3-axis ST accelerometer + 3-axis InvenSense gyroscope. No mag, no
-battery/rumble on the wire. Good tracker hardware — quality tier comparable to
+battery/rumble on the wire. Good tracker hardware, quality tier comparable to
 Joy-Con 1.
 
 ### Transport
@@ -445,7 +477,7 @@ streams raw IMU over **UDP** to the bridge (Wii-style companion model, but UDP).
 ### Scale
 
 - Gyro: `rad/s = raw * 0.00125`.
-- Accel: gravity auto-scale — `division = 9.80665 / mean(|ay|)` over the first
+- Accel: gravity auto-scale, `division = 9.80665 / mean(|ay|)` over the first
   100 samples, then `m/s² = raw * division`. No magic LSB/g constant.
 
 ### Axis convention (provisional)
@@ -457,7 +489,7 @@ from the working forwarder; confirm on hardware before treating as canonical.
 
 - No buttons in the packet → no on-device reset gesture (UI/software recenter
   only) until the homebrew is extended.
-- Old 3DS Wi-Fi is 2.4 GHz b/g — UDP loss tolerated (VQF coasts).
+- Old 3DS Wi-Fi is 2.4 GHz b/g, UDP loss tolerated (VQF coasts).
 
 ---
 
@@ -469,7 +501,7 @@ live-Vita validation. See `docs/reference/vita_protocol.md`.
 
 ### Hardware
 
-Full 6-axis via `sceMotion` (3-axis accel + 3-axis gyro), no mag. Good tracker —
+Full 6-axis via `sceMotion` (3-axis accel + 3-axis gyro), no mag. Good tracker,
 JC1 tier. Not host-drivable, so a VitaSDK homebrew streams over UDP.
 
 ### Transport
@@ -481,7 +513,7 @@ JC1 tier. Not host-drivable, so a VitaSDK homebrew streams over UDP.
 | Rate     | ~100 Hz                                                  |
 | Identity | sender IP                                                |
 
-The Vita SDK returns calibrated floats, so the wire carries SI `f32` values —
+The Vita SDK returns calibrated floats, so the wire carries SI `f32` values:
 `accel_m_s2 = accel_g * 9.80665`, gyro passed through. No raw-count scaling.
 
 ### Notes
@@ -494,7 +526,7 @@ The Vita SDK returns calibrated floats, so the wire carries SI `f32` values —
 ## DualShock 3 / SIXAXIS (PS3)
 
 **Crate**: `crates/device-dualshock3/`
-**Status**: implemented — **experimental**. USB only. Single-axis gyro means
+**Status**: implemented, **experimental**. USB only. Single-axis gyro means
 this is a tilt-dominant tracker; ship behind a UI warning. Scales + axis
 convention are estimates pending hardware. See `docs/reference/dualshock3_protocol.md`.
 
@@ -502,7 +534,7 @@ convention are estimates pending hardware. See `docs/reference/dualshock3_protoc
 
 3-axis Kionix accelerometer + **single-axis (yaw) gyroscope**, no magnetometer.
 Hardware-limited: with one gyro axis there is no drift-free yaw reference and no
-rate damping for pitch/roll. **Experimental / not recommended** — same fusion
+rate damping for pitch/roll. **Experimental / not recommended**: same fusion
 tier as a bare Wii Remote (accel-gravity orientation, unconstrained yaw drift).
 
 ### Transport / enable
@@ -516,10 +548,109 @@ and `0x2F` in the 49-byte report. Treat scales as estimates pending hardware.
 
 The field consensus ("insane drift") and the Linux `hid-sony` driver (accel-only,
 gyro inaccurate + revision-dependent) both confirm the hardware ceiling. The
-driver only populates the yaw gyro axis (X/Y are zero — no sensor there). Ship
+driver only populates the yaw gyro axis (X/Y are zero, no sensor there). Ship
 behind a clear UI warning; do not advertise as a serious tracker. Windows often
-needs a filter/libusb driver to expose the raw HID interface — document, don't
+needs a filter/libusb driver to expose the raw HID interface; document, don't
 solve here.
+
+---
+
+## Steam Deck
+
+**Crate**: `crates/device-steam-deck/`
+**Status**: implemented (driver + parser + tests); pending live-hardware
+validation.
+
+### Hardware
+
+Bosch BMI260, 6-axis (accel + gyro), no magnetometer. Valve Jupiter (LCD) or
+Galileo (OLED) chassis. Exposed on the same Valve HID interface as the original
+Steam Controller: VID `0x28DE`, PID `0x1205`.
+
+### Transport
+
+- USB (integrated), `hidapi`.
+- **Lizard mode**: by default the in-kernel `hid-steam` driver puts the gamepad
+  surface into "lizard mode" (buttons emulate a keyboard, right trackpad emulates
+  a mouse). To get raw HID reports with IMU data the driver clears the digital
+  mappings, loads default settings, sets empty digital mappings, and repeats that
+  under every 800 ms, otherwise the kernel re-enables lizard mode and the IMU
+  stream stops.
+
+### Scale
+
+- Gyro: ±2000 dps, `int16`.
+- Accel: ±2 g, `int16`.
+- Native rate: ~250 Hz (4 ms interval).
+
+### Notes
+
+- No battery telemetry on the wire.
+- Rumble hardware is present, but the driver's rumble write is a stub for now
+  (Valve's `ID_TRIGGER_RUMBLE_CMD` feature report is not wired), so no haptics
+  reach the Deck yet.
+
+---
+
+## Steam Controller
+
+**Crate**: `crates/device-steam-controller/`
+**Status**: implemented (driver + parser + tests); pending live-hardware
+validation.
+
+### Hardware
+
+InvenSense MPU-6500, 6-axis (accel + gyro), no magnetometer. Discontinued 2019.
+
+### Transport
+
+- USB only. VID `0x28DE`; PID `0x1102` wired, `0x1142` wireless dongle (the
+  dongle multiplexes up to 4 controllers).
+- BLE is out of scope for now: the BLE transport uses a custom 18-byte
+  segmentation that is not a stock GATT characteristic and needs its own pass.
+- **Enable the IMU stream**: the stock firmware ships the IMU disabled. The
+  driver sends feature report `ID_SET_SETTINGS_VALUES` carrying
+  `SETTING_IMU_MODE = SEND_RAW_ACCEL | SEND_RAW_GYRO`.
+
+### Scale
+
+Per SDL `SDL_hidapi_steam.c`:
+
+- Gyro: `(raw / 32768) * (2000 * π / 180)` (±2000 dps).
+- Accel: `(raw / 32768) * 2 * 9.80665` (±2 g).
+- Native rate: ~100 Hz.
+
+### Notes
+
+- Battery is reported only through the wireless dongle; the wired unit has none.
+- Rumble is not implemented yet, so the rumble capability is advertised as off.
+
+---
+
+## Tesla (vehicle)
+
+**Crate**: `crates/device-tesla/`
+**Status**: experimental novelty. No IMU on the vehicle; the driver synthesises
+motion from the vehicle's live heading and speed. Needs a real car plus Fleet
+API credentials to run for real; a recorded-drive replay
+(`synthetic::SyntheticTesla`) drives the rest of the stack without a vehicle.
+
+### Hardware
+
+None. `imu::ImuSynth` turns heading + speed deltas from the Fleet API streaming
+feed into gyro + accel samples so the vehicle shows up as a tracker.
+
+### Transport
+
+- OAuth2 refresh against `auth.tesla.com/oauth2/v3/token`.
+- REST for vehicle listing / data, plus the streaming endpoint
+  `wss://streaming.vn.teslamotors.com/streaming/`.
+- The streaming feed caps out around 10 Hz, so the driver reports a 10 Hz rate
+  and sizes the fusion timestep to match.
+
+### Notes
+
+- No magnetometer, battery, or rumble.
 
 ---
 
@@ -530,7 +661,7 @@ Minimum surface to land a new driver:
 1. Implement the `device-traits::Device` trait in a new `crates/device-<name>/`
    crate. Required: `metadata()`, `caps()`, `start()`, `stop()`.
 2. Emit `ChannelInfo::ImuSamples` with raw IMU triples in **m/s²** (accel) and
-   **rad/s** (gyro). Wire byte-exactness matters — keep raw bytes intact until
+   **rad/s** (gyro). Wire byte-exactness matters: keep raw bytes intact until
    the fusion stage.
 3. Add a factory in `crates/core/src/supervisor.rs` so the bridge knows when to
    spawn the driver.
