@@ -54,28 +54,31 @@ impl ImuOffsets {
                 // reading 9 here decoded a shoulder press as the PS button.
                 buttons_2: Some(10),
             }),
-            (ControllerKind::DualSense | ControllerKind::DualSenseEdge, 78) => Some(Self {
-                gyro: 18,
-                accel: 24,
-                battery: Some(54),
-                // buttons[2] sits 6 payload bytes before gyro in the DualSense
-                // common report (buttons[2] struct offset 9, gyro struct offset
-                // 15). USB anchors gyro 16 → buttons_2 10; the BT report is +2
-                // (validated gyro 18/accel 24), so buttons_2 = 18 - 6 = 12.
-                // (The previous 10 applied no BT shift and decoded a d-pad byte.)
-                buttons_2: Some(12),
-            }),
+            (ControllerKind::DualSense | ControllerKind::DualSenseEdge, _) if len >= 78 => {
+                Some(Self {
+                    gyro: 18,
+                    accel: 24,
+                    battery: Some(54),
+                    // buttons[2] sits 6 payload bytes before gyro in the DualSense
+                    // common report (buttons[2] struct offset 9, gyro struct offset
+                    // 15). USB anchors gyro 16 → buttons_2 10; the BT report is +2
+                    // (validated gyro 18/accel 24), so buttons_2 = 18 - 6 = 12.
+                    // (The previous 10 applied no BT shift and decoded a d-pad byte.)
+                    buttons_2: Some(12),
+                })
+            }
             (ControllerKind::DualShock4, 64) => Some(Self {
                 gyro: 13,
                 accel: 19,
                 battery: Some(30),
                 buttons_2: Some(7),
             }),
-            // DualShock 4 Bluetooth report 0x11 (78 bytes): [0]=0x11, [1..3]=BT
-            // header, then the USB 0x01 payload shifted +2. Trailing 4-byte CRC32
-            // is ignored on input. Reference: hid-playstation.c. Validation
-            // pending (no DS4 hardware this session).
-            (ControllerKind::DualShock4, 78) => Some(Self {
+            // DualShock 4 Bluetooth report 0x11: [0]=0x11, [1..3]=BT header, then
+            // the USB 0x01 payload shifted +2. The logical report is 78 bytes, but
+            // Windows delivers it padded (observed 128 via hidapi), so match any
+            // length >= 78 instead of an exact size — otherwise the IMU offsets are
+            // never reached and every frame reads zero. Reference: hid-playstation.c.
+            (ControllerKind::DualShock4, _) if len >= 78 => Some(Self {
                 gyro: 15,
                 accel: 21,
                 battery: Some(32),
@@ -389,6 +392,33 @@ mod tests {
                 // DS4 has no usable HW timestamp in this driver → fallback path.
                 assert_eq!(s[0].timestamp_us, 0);
             }
+            _ => panic!("expected ImuSamples"),
+        }
+    }
+
+    #[test]
+    fn ds4_bt_padded_report_parses_imu() {
+        // Windows delivers the DS4 BT 0x11 report padded past 78 bytes (observed
+        // 128 via hidapi). The IMU offsets must still resolve or every frame is
+        // zero — the exact-length match this replaces regressed to all-zero IMU
+        // on real hardware.
+        let o = ImuOffsets::for_report(ControllerKind::DualShock4, 128)
+            .expect("padded DS4 BT report must resolve offsets");
+        assert_eq!((o.gyro, o.accel), (15, 21));
+        assert_eq!(
+            (ImuOffsets::for_report(ControllerKind::DualSense, 128).map(|o| (o.gyro, o.accel))),
+            Some((18, 24)),
+            "DualSense BT is padded on Windows too",
+        );
+
+        let mut buf = [0u8; 128];
+        buf[0] = 0x11;
+        buf[15..17].copy_from_slice(&100i16.to_le_bytes());
+        buf[21..23].copy_from_slice(&8192i16.to_le_bytes());
+        let (tx, mut rx) = mpsc::channel::<ChannelInfo>(8);
+        assert!(parse_report(ControllerKind::DualShock4, &buf, None, &tx));
+        match rx.try_recv().expect("imu event") {
+            ChannelInfo::ImuSamples(s) => assert!(s[0].gyro[0] > 0.0),
             _ => panic!("expected ImuSamples"),
         }
     }
