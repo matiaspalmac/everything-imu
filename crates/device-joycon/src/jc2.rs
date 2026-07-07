@@ -359,10 +359,20 @@ async fn ensure_connected(peripheral: &Peripheral) -> Result<(), DeviceError> {
             .await
             .map_err(|e| DeviceError::Hid(format!("jc2 connect failed: {e}")))?;
     }
-    peripheral
+    if let Err(e) = peripheral
         .discover_services_with_timeout(Duration::from_secs(20))
         .await
-        .map_err(|e| DeviceError::Hid(format!("jc2 discover_services failed: {e}")))?;
+    {
+        // BlueZ leaves the link half-open when service discovery times out, so
+        // every later attempt hits "In Progress" / another timeout and the
+        // controller never comes up on Linux. Drop the connection here so the
+        // next attempt reconnects from a clean disconnected state. (WinRT
+        // resolves services on the first try, so this is a Linux-shaped path.)
+        let _ = peripheral.disconnect().await;
+        return Err(DeviceError::Hid(format!(
+            "jc2 discover_services failed: {e}"
+        )));
+    }
     Ok(())
 }
 
@@ -482,6 +492,36 @@ fn find_char(peripheral: &Peripheral, uuid: Uuid) -> Option<Characteristic> {
         .characteristics()
         .into_iter()
         .find(|c| c.uuid == uuid)
+}
+
+/// Resolve the input + command characteristics, retrying to ride out BlueZ's
+/// asynchronous GATT resolution. On Linux `discover_services` can return before
+/// the custom Joy-Con 2 characteristics are cached, so `characteristics()`
+/// comes back short and bring-up fails with "characteristic not found". Poll
+/// for both, re-running service discovery between tries, for a few seconds
+/// before giving up. WinRT resolves the whole table on the first pass, so this
+/// loop returns immediately there.
+async fn find_required_chars(
+    peripheral: &Peripheral,
+) -> Result<(Characteristic, Characteristic), DeviceError> {
+    for attempt in 0..20u32 {
+        if let (Some(input), Some(write)) = (
+            find_char(peripheral, INPUT_COMMON_UUID),
+            find_char(peripheral, WRITE_COMMAND_UUID),
+        ) {
+            if attempt > 0 {
+                tracing::debug!(attempt, "jc2 characteristics resolved after retry");
+            }
+            return Ok((input, write));
+        }
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let _ = peripheral
+            .discover_services_with_timeout(Duration::from_secs(10))
+            .await;
+    }
+    Err(DeviceError::Hid(
+        "jc2 input/command characteristics not found (GATT did not fully resolve)".into(),
+    ))
 }
 
 async fn enable_imu_and_mag(
@@ -681,10 +721,16 @@ impl Device for JoyCon2Device {
 
         ensure_connected(&self.peripheral).await?;
         request_fast_connection_interval(&self.peripheral).await;
-        let input_char = find_char(&self.peripheral, INPUT_COMMON_UUID)
-            .ok_or_else(|| DeviceError::Hid("jc2 input characteristic not found".into()))?;
-        let write_char = find_char(&self.peripheral, WRITE_COMMAND_UUID)
-            .ok_or_else(|| DeviceError::Hid("jc2 command characteristic not found".into()))?;
+        let (input_char, write_char) = match find_required_chars(&self.peripheral).await {
+            Ok(pair) => pair,
+            Err(e) => {
+                // Bring-up failed after a live connection: drop the link so the
+                // next attempt reconnects clean instead of retrying against a
+                // half-resolved GATT session (which wedges on Linux/BlueZ).
+                let _ = self.peripheral.disconnect().await;
+                return Err(e);
+            }
+        };
         self.write_char = Some(write_char.clone());
         if let Some(kind_from_flash) = resolve_kind_via_flash(&self.peripheral, &write_char).await {
             if kind_from_flash != self.kind {
