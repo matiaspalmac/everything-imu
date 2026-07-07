@@ -82,7 +82,7 @@ only.
 | DualShock 3 (PS3)           | USB                              |     ~100 Hz |  ✗  | experimental¹      |
 | Steam Deck                  | USB (integrated)                 |      250 Hz |  ✗  | needs hardware     |
 | Steam Controller            | USB (wired + dongle)             |      100 Hz |  ✗  | needs hardware     |
-| Tesla (vehicle)             | Fleet API                        |     ~10 Hz |  ✗  | experimental       |
+| Tesla (vehicle)             | Fleet API                        |      ~10 Hz |  ✗  | experimental       |
 
 ¹ DualShock 3 has only a single-axis (yaw) gyroscope and no magnetometer. It is
 a tilt-dominant, drift-prone tracker included for completeness. Not recommended.

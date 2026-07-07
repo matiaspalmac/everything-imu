@@ -25,7 +25,7 @@ convention, on-device reset gestures, and known quirks.
 | PS Vita                 |      UDP forwarder | 3-axis accel + 3-axis gyro (`sceMotion`) | UDP `:9306`          |  100 Hz |  ✗  |    ✗    |   ✗    |
 | DualShock 3             |        `054C:0268` | Kionix accel + 1-axis gyro³              | USB                  | ~100 Hz |  ✗  |    ✗    |   ✗    |
 | HOPX / Triki            | BLE (name `Triki`) | LSM6DS (nRF52810)                        | BLE                  |   52 Hz |  ✗  |    ✗    |   ✗    |
-| Steam Deck              |        `28DE:1205` | Bosch BMI260                             | USB (integrated)     |  250 Hz |  ✗  |    ✗    |   ◐⁷    |
+| Steam Deck              |        `28DE:1205` | Bosch BMI260                             | USB (integrated)     |  250 Hz |  ✗  |    ✗    |   ◐⁷   |
 | Steam Controller        |   `28DE:1102/1142` | InvenSense MPU-6500                      | USB (wired + dongle) |  100 Hz |  ✗  |   ◐⁵    |   ✗    |
 | Tesla (vehicle)         |          Fleet API | synthesised from heading + speed⁶        | HTTPS/WSS Fleet API  |  ~10 Hz |  ✗  |    ✗    |   ✗    |
 | Remote hub (phone)      |      UDP forwarder | phone IMU + forwarded BLE controllers⁴   | UDP `:9320`          |  varies |  ✓  |    ✓    |   ✓    |
@@ -192,15 +192,15 @@ Effective IMU rate ≈ **62 Hz** (16 ms packet interval).
 
 Header: `CMD | 0x91 | 0x01 | SUBCMD | 0x00 | LEN | 0x00 | 0x00 | DATA…`
 
-| CMD        | Purpose                                                                |
-| ---------- | ---------------------------------------------------------------------- |
-| `0x02`     | Flash read/write (factory cal)                                         |
-| `0x03`     | Init (input report select)                                             |
-| `0x09`     | Player LED                                                             |
-| `0x0A`     | Vibration / sound                                                      |
-| `0x0B`     | Battery query                                                          |
-| **`0x0C`** | Feature select (enable IMU/mag)                                        |
-| ⚠ `0x15`   | **DO NOT USE**: pairing persistence write, _can brick the controller_  |
+| CMD        | Purpose                                                               |
+| ---------- | --------------------------------------------------------------------- |
+| `0x02`     | Flash read/write (factory cal)                                        |
+| `0x03`     | Init (input report select)                                            |
+| `0x09`     | Player LED                                                            |
+| `0x0A`     | Vibration / sound                                                     |
+| `0x0B`     | Battery query                                                         |
+| **`0x0C`** | Feature select (enable IMU/mag)                                       |
+| ⚠ `0x15`   | **DO NOT USE**: pairing persistence write, _can brick the controller_ |
 
 Canonical IMU enable sequence (validated against real hardware):
 
