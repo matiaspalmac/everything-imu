@@ -214,17 +214,17 @@ or version does not match is dropped.
 
 ## Message types
 
-| ID     | Name        | Direction        | Purpose                                       |
-| ------ | ----------- | ---------------- | --------------------------------------------- |
-| `0x01` | HELLO       | phone → desktop  | Announce the hub (uuid + name, optional clock)|
-| `0x02` | HELLO_ACK   | desktop → phone  | Ack the hub, echo the clock for RTT           |
-| `0x03` | ANNOUNCE    | phone → desktop  | Register one forwarded device (a `handle`)    |
-| `0x04` | REMOVE      | phone → desktop  | Drop a forwarded device                       |
-| `0x05` | IMU         | phone → desktop  | Sample burst for a handle                     |
-| `0x06` | BATTERY     | phone → desktop  | Battery fraction + charging for a handle       |
-| `0x07` | BUTTON      | phone → desktop  | Reset request (yaw / full) for a handle       |
-| `0x08` | RUMBLE      | desktop → phone  | Rumble intensity for a handle                 |
-| `0x09` | IMU2        | phone → desktop  | Like IMU, plus a wrapping `seq` for loss stats|
+| ID     | Name      | Direction       | Purpose                                        |
+| ------ | --------- | --------------- | ---------------------------------------------- |
+| `0x01` | HELLO     | phone → desktop | Announce the hub (uuid + name, optional clock) |
+| `0x02` | HELLO_ACK | desktop → phone | Ack the hub, echo the clock for RTT            |
+| `0x03` | ANNOUNCE  | phone → desktop | Register one forwarded device (a `handle`)     |
+| `0x04` | REMOVE    | phone → desktop | Drop a forwarded device                        |
+| `0x05` | IMU       | phone → desktop | Sample burst for a handle                      |
+| `0x06` | BATTERY   | phone → desktop | Battery fraction + charging for a handle       |
+| `0x07` | BUTTON    | phone → desktop | Reset request (yaw / full) for a handle        |
+| `0x08` | RUMBLE    | desktop → phone | Rumble intensity for a handle                  |
+| `0x09` | IMU2      | phone → desktop | Like IMU, plus a wrapping `seq` for loss stats |
 
 `handle` is a `u16` chosen by the phone; each `(hub, handle)` pair maps to one
 tracker on the desktop.
@@ -288,13 +288,13 @@ RUMBLE (`0x08`): `[2 bytes] handle][4 bytes] intensity (f32, 0..1)`.
 
 ## Device kind byte (ANNOUNCE)
 
-| Value | Kind             | Value | Kind             |
-| ----- | ---------------- | ----- | ---------------- |
-| 1     | Phone            | 7     | DualSense        |
-| 2     | Watch            | 8     | DualShock 4      |
-| 3     | Joy-Con 2 L      | 9     | Joy-Con L        |
-| 4     | Joy-Con 2 R      | 10    | Joy-Con R        |
-| 5     | Pro Controller 2 | 11    | Pro Controller   |
-| 6     | HOPX             | 12    | Gamepad (generic)|
+| Value | Kind             | Value | Kind              |
+| ----- | ---------------- | ----- | ----------------- |
+| 1     | Phone            | 7     | DualSense         |
+| 2     | Watch            | 8     | DualShock 4       |
+| 3     | Joy-Con 2 L      | 9     | Joy-Con L         |
+| 4     | Joy-Con 2 R      | 10    | Joy-Con R         |
+| 5     | Pro Controller 2 | 11    | Pro Controller    |
+| 6     | HOPX             | 12    | Gamepad (generic) |
 
 An ANNOUNCE with an unknown kind byte is dropped.
