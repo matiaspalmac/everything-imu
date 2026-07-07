@@ -13,16 +13,17 @@
 
 `everything-imu` is a native bridge that turns Nintendo, Sony, and other game controllers
 into full-body trackers for **SlimeVR-Server**. Plug a controller into your PC,
-strap it on, and it shows up in SlimeVR as a regular tracker — no extra hardware,
+strap it on, and it shows up in SlimeVR as a regular tracker. No extra hardware,
 no firmware flashing.
 
 It also incorporates **Haptics** via the device's rumble, for information on how to set this up on your Avatar, go [HERE](#haptics)
 
 The bridge reads the controller's built-in IMU at its native sample rate, runs a
-sensor fusion filter (VQF or Madgwick) in Rust, and forwards the resulting
-quaternion to SlimeVR-Server over UDP using the official protocol.
+sensor fusion filter (VQF by default, Madgwick or BasicVQF optional) in Rust, and
+forwards the resulting quaternion to SlimeVR-Server over UDP using the official
+protocol.
 
-> **Status:** 1.0.6. The core fusion + protocol pipeline is stable and
+> **Status:** 1.0.7. The core fusion + protocol pipeline is stable and
 > hardware-validated across the supported controllers. If you hit a snag,
 > please file an issue with reproduction steps and the logs from the **Logs**
 > tab.
@@ -31,22 +32,22 @@ quaternion to SlimeVR-Server over UDP using the official protocol.
 
 - **13+ controller & device families** supported across USB · BT Classic · BLE ·
   TCP · UDP forwarders.
-- **VQF / Madgwick / BasicVQF** fusion, switchable per-device.
+- **VQF / Madgwick / BasicVQF** fusion, switchable per-device (VQF is the default).
 - **Magnetometer calibration wizard** for Joy-Con 2 and PS Move ZCM1 (sphere
   fit + coverage meter).
 - **Reset Yaw / Reset Full / Reset Mounting** from the UI, system tray, global
   hotkey, or on-device gesture.
 - **VRChat OSC → rumble bridge** with per-rule gain, threshold, pulse mode,
   and a per-device haptic calibration wizard (floor / gain mapping).
-- **UDP-forwarded haptic targets** — register `host:port` endpoints as virtual
+- **UDP-forwarded haptic targets**: register `host:port` endpoints as virtual
   rumble devices for remote setups.
-- **Linux udev installer** — one-click hidraw access for Joy-Con / DualSense /
+- **Linux udev installer**, one-click hidraw access for Joy-Con / DualSense /
   PSMove without sudo.
 - **Auto-update at startup** (GitHub Releases), with optional crash reporting
   via Sentry. Both opt-in, both off by default.
-- **Live diagnostics** — per-tracker rate panels, bridge latency, raw IMU
+- **Live diagnostics**: per-tracker rate panels, bridge latency, raw IMU
   charts on the Debug page, circular battery rings, signal meter.
-- **Remote hub ingest** — phones, watches, and phone-paired controllers stream
+- **Remote hub ingest** lets phones, watches, and phone-paired controllers stream
   in over UDP with auto-discovery, round-trip-time echo, packet-loss
   measurement, and a rumble backchannel.
 
@@ -71,7 +72,7 @@ only.
 | Joy-Con 2 / Pro 2 / NSO GC2 | BLE only                         |       62 Hz |  ✓  | hardware-validated |
 | DualSense (PS5)             | USB · BT                         |      250 Hz |  ✗  | hardware-validated |
 | DualSense Edge              | USB · BT                         |      250 Hz |  ✗  | needs hardware     |
-| DualShock 4 (PS4)           | USB                              |      250 Hz |  ✗  | hardware-validated |
+| DualShock 4 (PS4)           | USB · BT                         |      250 Hz |  ✗  | hardware-validated |
 | PS Move ZCM1                | USB · BT                         |      175 Hz |  ✓  | hardware-validated |
 | PS Move ZCM2                | USB · BT                         |      175 Hz |  ✗  | hardware-validated |
 | Wii Remote                  | TCP forwarder (`127.0.0.1:9909`) |      100 Hz |  ✗  | hardware-validated |
@@ -80,10 +81,10 @@ only.
 | PS Vita                     | UDP forwarder (`:9306`)          |      100 Hz |  ✗  | needs hardware     |
 | DualShock 3 (PS3)           | USB                              |     ~100 Hz |  ✗  | experimental¹      |
 | Steam Deck                  | USB (integrated)                 |      250 Hz |  ✗  | needs hardware     |
-| Steam Controller            | USB · BLE                        |      100 Hz |  ✗  | needs hardware     |
-| Tesla (vehicle IMU)         | Fleet API                        |           — |  ✗  | experimental       |
+| Steam Controller            | USB (wired + dongle)             |      100 Hz |  ✗  | needs hardware     |
+| Tesla (vehicle)             | Fleet API                        |     ~10 Hz |  ✗  | experimental       |
 
-¹ DualShock 3 has only a single-axis (yaw) gyroscope and no magnetometer — it is
+¹ DualShock 3 has only a single-axis (yaw) gyroscope and no magnetometer. It is
 a tilt-dominant, drift-prone tracker included for completeness. Not recommended.
 
 The Wii, 3DS, and PS Vita are not host-drivable, so they stream their IMU from a
@@ -98,7 +99,7 @@ Deep-dive on each: [DEVICES.md](DEVICES.md).
 The native Android phone tracker + Wear OS companion live in their own
 repository: **[everything-imu-mobile](https://github.com/matiaspalmac/everything-imu-mobile)**.
 The app auto-discovers this desktop bridge on your LAN and streams the phone's
-IMU to it — the desktop runs fusion and registers the phone as one more
+IMU to it. The desktop runs fusion and registers the phone as one more
 tracker. Phone-paired controllers (DualSense, Joy-Con 2, and more) forward
 through the same link, and desktop haptics rumble back to every device. Grab
 the phone/watch APKs from that repo's releases.
@@ -125,7 +126,7 @@ page:
   automatically. To force the default renderer, export
   `WEBKIT_DISABLE_DMABUF_RENDERER=0` before launching.
 
-Or build from source — see [Building from source](#building-from-source) below.
+Or build from source. See [Building from source](#building-from-source) below.
 
 ## HAPTICS
 
@@ -227,10 +228,10 @@ To avoid typing the address manually, you may add them via the **Discovered OSC 
 5. **Reset orientation**: `R` (yaw) / `Shift+R` (full) from the global hotkeys,
    or click _Reset Yaw_ / _Reset Full_ / _Reset Mounting_ on the device card.
    On controllers without a magnetometer (Joy-Con 1, DualSense, DualShock 4,
-   Wii Remote, 3DS, PS Vita, DualShock 3) yaw drifts on body rotation — re-yaw
+   Wii Remote, 3DS, PS Vita, DualShock 3) yaw drifts on body rotation. Re-yaw
    facing forward, or use
    Reset Mounting right after strapping the tracker. Some devices accept
-   on-device gestures — see [DEVICES.md](DEVICES.md).
+   on-device gestures. See [DEVICES.md](DEVICES.md).
 
 ### Global hotkeys
 
@@ -242,7 +243,7 @@ To avoid typing the address manually, you may add them via the **Discovered OSC 
 | `Ctrl+Shift+B`  | Kill-switch the bridge (pause emission) |
 | `R` / `Shift+R` | Broadcast yaw / full reset              |
 
-Mounting reset is per-device — click _Reset Mounting_ on the device card or
+Mounting reset is per-device. Click _Reset Mounting_ on the device card or
 the tracker detail page.
 
 ## Building from source

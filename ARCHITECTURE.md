@@ -1,4 +1,4 @@
-# Architecture — everything-imu
+# Architecture: everything-imu
 
 ## Workspace layout
 
@@ -25,10 +25,11 @@ everything-imu/
 │   ├── device-wii/                      # Wii Remote via homebrew Wi-Fi forwarder
 │   ├── device-3ds/                      # 3DS / 2DS via homebrew UDP forwarder
 │   ├── device-vita/                     # PS Vita via homebrew UDP forwarder
-│   ├── device-steam-deck/               # Steam Deck integrated IMU
-│   ├── device-steam-controller/         # Steam Controller (USB / BLE)
-│   ├── device-tesla/                    # Tesla vehicle IMU (Fleet API)
+│   ├── device-steam-deck/               # Steam Deck integrated IMU (USB)
+│   ├── device-steam-controller/         # Steam Controller (USB wired + dongle)
+│   ├── device-tesla/                    # Tesla vehicle heading/speed → synth IMU
 │   ├── device-hopx/                     # HOPX / Triki BLE IMU (Nordic UART)
+│   ├── device-remote/                   # eimu remote-hub UDP ingest (phone/watch)
 │   ├── osc-haptics/                     # VRChat OSC → rumble bridge
 │   ├── persistence/                     # rusqlite settings store
 │   └── core/                            # AppState, orchestrator
@@ -139,10 +140,13 @@ Implementations in `device-*` crates.
 
 ### `device-dualsense`
 
-- DS5: BT via `btleplug` + USB via `hidapi`
-- DS4: USB + Bluetooth input
-- Factory calibration read
-- Touchpad / gyro / accel / battery, RGB lightbar, hardware sensor timestamp
+- DS5 + DS5 Edge + DS4: USB and Bluetooth, both via `hidapi` (Bluetooth is HID
+  over Bluetooth Classic, not BLE)
+- USB report `0x01`; BT report `0x31` (DS5) / `0x11` (DS4), told apart by report
+  length; BT output rumble carries a trailing CRC32
+- Factory calibration read (feature report `0x05`)
+- Gyro / accel / battery, PS-button reset, RGB lightbar, DS5 hardware sensor
+  timestamp
 
 ### `device-psmove`
 
@@ -154,7 +158,7 @@ Implementations in `device-*` crates.
 ### `device-wii`
 
 - TCP listener for the homebrew Wi-Fi forwarder (Wii Remote + MotionPlus)
-- No HID/BLE — passive packet receiver
+- No HID/BLE; passive packet receiver
 
 ### `device-hopx`
 
@@ -162,6 +166,14 @@ Implementations in `device-*` crates.
 - Nordic UART Service: notifications carry packed gyro + accel
 - Discovery by advertised name prefix (`Triki`)
 - 6-axis only (no magnetometer, battery, or rumble in the stream)
+
+### `device-remote`
+
+- UDP ingest for the eimu remote protocol (see PROTOCOL.md)
+- The phone/watch app forwards its own IMU plus any BLE controllers it owns;
+  each announced handle registers as one device through the normal supervisor
+- Handles HELLO/ACK discovery, per-handle announce/remove, IMU bursts, battery,
+  button resets, and a rumble backchannel
 
 ### `persistence`
 
@@ -172,7 +184,7 @@ Implementations in `device-*` crates.
 
 ### `core`
 
-- `AppState` — central registry of devices, fusion engines, SlimeVR connections
+- `AppState`: central registry of devices, fusion engines, SlimeVR connections
 - Device discovery orchestration via `Supervisor`
 - Per-device `Pipeline`: IMU events → fusion → SlimeVR UDP
 - Configuration loading (`persistence` integration)
@@ -227,7 +239,7 @@ Parallel:
 
 `tauri-specta` generates TypeScript types from Rust. Single source of truth.
 
-High-frequency data (tracker pose 60-200 Hz) goes via `emit("tracker_update", payload)` — UI subscribes and throttles render loop to 30-60 Hz.
+High-frequency data (tracker pose 60-200 Hz) goes via `emit("tracker_update", payload)`; the UI subscribes and throttles render loop to 30-60 Hz.
 
 ## Distribution
 

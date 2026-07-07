@@ -13,7 +13,7 @@ UDP packets, big-endian byte order. **Every datagram begins with a 12-byte heade
 | ID  | Name                   | Notes                                                                 |
 | --- | ---------------------- | --------------------------------------------------------------------- |
 | 0   | Heartbeat              | Trailing 1-byte tracker id (always 0)                                 |
-| 1   | Rotation               | **Deprecated** — use ID 17 (`ROTATION_DATA`) for modern servers       |
+| 1   | Rotation               | **Deprecated**, use ID 17 (`ROTATION_DATA`) for modern servers        |
 | 2   | Gyro                   | Raw gyro (rad/s)                                                      |
 | 3   | Handshake              | Initial connect                                                       |
 | 4   | Acceleration           | Linear acceleration vector (m/s², NOT g)                              |
@@ -21,9 +21,9 @@ UDP packets, big-endian byte order. **Every datagram begins with a 12-byte heade
 | 10  | Ping/Pong              | Server-issued challenge, tracker echoes                               |
 | 12  | Battery level          | `[f32 voltage_volts][f32 level_0_to_1]`                               |
 | 15  | Sensor info            | Tracker description (multiple per controller for multi-IMU devices)   |
-| 17  | Rotation data          | **Modern rotation** — quaternion in `(X, Y, Z, W)` byte order         |
+| 17  | Rotation data          | **Modern rotation**: quaternion in `(X, Y, Z, W)` byte order          |
 | 21  | Calibration action     | User-button reset events (yaw/full/mounting)                          |
-| 22  | Feature flags          | **Bidirectional** — see § Feature flags below                         |
+| 22  | Feature flags          | **Bidirectional**, see § Feature flags below                          |
 | 23  | Rotation+Accel compact | Q15/Q7 packed combined frame for `BUNDLE_COMPACT`                     |
 | 24  | Ack config change      | Tracker → server ack of inbound `SET_CONFIG_FLAG`                     |
 | 25  | Set config flag        | **Server → tracker** request (mag enable, etc.)                       |
@@ -43,7 +43,7 @@ Client → server. Establishes session. Server replies with a packet whose first
 [12 bytes] 3× i32 BE IMU info    (slot 0 = MagnetometerStatus; slots 1+2 reserved)
 [4 bytes] i32 BE protocol version (19)
 [1 byte]  u8 firmware string length N (≤ 255)
-[N bytes] firmware string (e.g. "EverythingIMU 1.0.0")
+[N bytes] firmware string — the bridge sends "everything-imu <version>" (e.g. "everything-imu 1.0.7")
 [6 bytes] MAC address
 ```
 
@@ -58,7 +58,7 @@ Client → server. Establishes session. Server replies with a packet whose first
 [1 byte]  u8 calibration info (0 normally)
 ```
 
-**Quaternion byte order**: `(X, Y, Z, W)` — maps to `(i, j, k, w)` in nalgebra notation.
+**Quaternion byte order**: `(X, Y, Z, W)`, which maps to `(i, j, k, w)` in nalgebra notation.
 
 ### Accel (packet 4)
 
@@ -98,9 +98,9 @@ Client → server. Establishes session. Server replies with a packet whose first
 
 `sensor_config` bitmask for magnetometer: bit 0 = enabled, bit 1 = supported. So:
 
-- `0x0003` — magnetometer enabled
-- `0x0002` — magnetometer supported but disabled
-- `0x0000` — magnetometer not supported
+- `0x0003`: magnetometer enabled
+- `0x0002`: magnetometer supported but disabled
+- `0x0000`: magnetometer not supported
 
 For multi-IMU devices, send one `SENSOR_INFO` per logical tracker.
 
@@ -136,7 +136,7 @@ Multi-packet batched datagram. ONLY usable if the server's FEATURE_FLAGS reply a
     [L-4 bytes] inner payload (no per-inner sequence number)
 ```
 
-Inner packets do **not** carry their own 8-byte sequence number — only the outer one does. The encoder strips bytes `[4..12]` of each pre-built inner packet before copying.
+Inner packets do **not** carry their own 8-byte sequence number; only the outer one does. The encoder strips bytes `[4..12]` of each pre-built inner packet before copying.
 
 **BUNDLE auto-fallback** (implemented in `slime-tracker/src/client.rs`):
 
@@ -144,8 +144,10 @@ Inner packets do **not** carry their own 8-byte sequence number — only the out
 2. After handshake, the server's FEATURE_FLAGS reply lands; parse it and set `server_supports_bundle = (flag_bytes[0] & (1 << PROTOCOL_BUNDLE_SUPPORT)) != 0`.
 3. When emitting per-tick rotation+accel:
     - If `server_supports_bundle` → send single BUNDLE (packet 100).
-    - Else → send rotation (packet 17) THEN acceleration (packet 4) as separate datagrams. **Rotation first** — accel-first produced visible 1-frame jitter on servers without bundle support.
+    - Else → send rotation (packet 17) THEN acceleration (packet 4) as separate datagrams. **Rotation first**: accel-first produced visible 1-frame jitter on servers without bundle support.
 4. The ~1–2 samples that land before the FEATURE_FLAGS reply go via the fallback path automatically; no data loss.
+
+> The bridge does not currently emit compact frames. `ROTATION_AND_ACCELERATION_COMPACT` (23) and `BUNDLE_COMPACT` (101) are listed above for completeness and so the client can read the server's `PROTOCOL_BUNDLE_COMPACT_SUPPORT` flag, but the hot path only sends full BUNDLE (100) or the rotation-then-accel fallback.
 
 ---
 
@@ -184,4 +186,115 @@ fn handshake_byte_compat() {
 }
 ```
 
-Without these, SlimeVR-Server silently rejects packets — silent failures are extremely costly to debug.
+Without these, SlimeVR-Server silently rejects packets, and silent failures are extremely costly to debug.
+
+---
+
+# eimu remote-hub protocol
+
+Second UDP protocol, separate from SlimeVR. The phone app
+([everything-imu-mobile](https://github.com/matiaspalmac/everything-imu-mobile))
+acts as a remote hub: it forwards its own IMU and any BLE controllers it owns to
+this desktop bridge, which runs fusion and registers each forwarded device as a
+normal tracker. Implemented in `crates/device-remote/` (`protocol.rs`).
+
+## Envelope
+
+Every datagram is one message:
+
+```
+[4 bytes] magic "EIMU" (45 49 4D 55)
+[1 byte]  version = 1
+[1 byte]  message type
+[ ...   ] payload, LITTLE-endian (note: opposite of the SlimeVR protocol above)
+```
+
+The hub binds `0.0.0.0:9320` (`DEFAULT_PORT`) by default. A datagram whose magic
+or version does not match is dropped.
+
+## Message types
+
+| ID     | Name        | Direction        | Purpose                                       |
+| ------ | ----------- | ---------------- | --------------------------------------------- |
+| `0x01` | HELLO       | phone → desktop  | Announce the hub (uuid + name, optional clock)|
+| `0x02` | HELLO_ACK   | desktop → phone  | Ack the hub, echo the clock for RTT           |
+| `0x03` | ANNOUNCE    | phone → desktop  | Register one forwarded device (a `handle`)    |
+| `0x04` | REMOVE      | phone → desktop  | Drop a forwarded device                       |
+| `0x05` | IMU         | phone → desktop  | Sample burst for a handle                     |
+| `0x06` | BATTERY     | phone → desktop  | Battery fraction + charging for a handle       |
+| `0x07` | BUTTON      | phone → desktop  | Reset request (yaw / full) for a handle       |
+| `0x08` | RUMBLE      | desktop → phone  | Rumble intensity for a handle                 |
+| `0x09` | IMU2        | phone → desktop  | Like IMU, plus a wrapping `seq` for loss stats|
+
+`handle` is a `u16` chosen by the phone; each `(hub, handle)` pair maps to one
+tracker on the desktop.
+
+## Payload layouts
+
+HELLO (`0x01`):
+
+```
+[16 bytes] uuid
+[1 byte]   name length N
+[N bytes]  name (UTF-8)
+[8 bytes]  optional sender clock (µs, u64) — present on newer phones only
+```
+
+HELLO_ACK (`0x02`):
+
+```
+[1 byte]  server version (1)
+[8 bytes] optional echoed clock (µs, u64) — present only if HELLO carried one
+```
+
+ANNOUNCE (`0x03`):
+
+```
+[2 bytes] handle (u16)
+[1 byte]  device kind (see table below)
+[6 bytes] MAC
+[1 byte]  has_magnetometer (0/1)
+[1 byte]  has_battery (0/1)
+[1 byte]  has_rumble (0/1)
+[2 bytes] native rate Hz (u16)
+[1 byte]  name length N
+[N bytes] name (UTF-8)
+```
+
+REMOVE (`0x04`): `[2 bytes] handle`.
+
+IMU (`0x05`):
+
+```
+[2 bytes] handle
+[1 byte]  sample count C
+[ C × 45-byte sample ]:
+    [8 bytes]  timestamp µs (u64)
+    [12 bytes] gyro  X/Y/Z (3× f32, rad/s)
+    [12 bytes] accel X/Y/Z (3× f32, m/s²)
+    [1 byte]   has_mag (0/1)
+    [12 bytes] mag X/Y/Z (3× f32, µT) — always on the wire; ignored when has_mag = 0
+```
+
+IMU2 (`0x09`): identical to IMU with a `[2 bytes] seq (u16)` inserted right after
+`handle`, before the sample count. `seq` is a wrapping send counter the desktop
+uses to measure packet loss.
+
+BATTERY (`0x06`): `[2 bytes] handle][4 bytes] fraction (f32, 0..1)][1 byte] charging`.
+
+BUTTON (`0x07`): `[2 bytes] handle][1 byte] reset` where `0` = yaw, non-zero = full.
+
+RUMBLE (`0x08`): `[2 bytes] handle][4 bytes] intensity (f32, 0..1)`.
+
+## Device kind byte (ANNOUNCE)
+
+| Value | Kind             | Value | Kind             |
+| ----- | ---------------- | ----- | ---------------- |
+| 1     | Phone            | 7     | DualSense        |
+| 2     | Watch            | 8     | DualShock 4      |
+| 3     | Joy-Con 2 L      | 9     | Joy-Con L        |
+| 4     | Joy-Con 2 R      | 10    | Joy-Con R        |
+| 5     | Pro Controller 2 | 11    | Pro Controller   |
+| 6     | HOPX             | 12    | Gamepad (generic)|
+
+An ANNOUNCE with an unknown kind byte is dropped.
