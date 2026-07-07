@@ -159,6 +159,12 @@ where
             .map_err(|e| format!("open: {e}"))?
     };
 
+    // DualShock 4 over Bluetooth streams the minimal report 0x01 (no IMU) until
+    // the host reads feature report 0x05; that read flips it to the full 0x11
+    // report. The live driver does this on connect — mirror it so the diagnostic
+    // can see IMU over BT. Harmless over USB and for the DualSense (already full).
+    let _ = crate::device::read_feature_calibration(&device, kind);
+
     eprintln!("[ds-raw] streaming. Ctrl-C to stop.");
     let mut buf = [0u8; 128];
     let mut count: u64 = 0;
