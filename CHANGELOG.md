@@ -9,6 +9,29 @@ reverse-chronological order below.
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-07-06
+
+### Fixed
+
+- DualShock 4 over Bluetooth now streams motion data on Windows. The input
+  report was matched on an exact length, but Windows delivers it padded, so
+  every Bluetooth frame previously decoded to zero and tracking was dead over
+  BT. Hardware-validated.
+- DualSense over Bluetooth now reports correct motion and the PS button. The
+  gyroscope, accelerometer, and PS/Mute byte offsets were off by one, producing
+  garbage orientation and a non-responsive PS button over Bluetooth.
+  Hardware-validated.
+- Guarded the fusion filters against non-finite input so a bad sample can no
+  longer poison the orientation estimate.
+
+### Changed
+
+- Tuned the default Madgwick filter gain to a standard value; the previous
+  default over-weighted the accelerometer and produced a jumpy estimate for
+  anyone selecting that algorithm.
+- Correctness and robustness hardening across the device drivers, networking,
+  and diagnostics from a full-repository audit.
+
 ## [1.0.5] - 2026-06-10
 
 ### Added
