@@ -172,7 +172,10 @@ impl Device for DualSenseDevice {
     }
 }
 
-fn read_feature_calibration(device: &HidDevice, kind: ControllerKind) -> Option<SonyCalibration> {
+pub(crate) fn read_feature_calibration(
+    device: &HidDevice,
+    kind: ControllerKind,
+) -> Option<SonyCalibration> {
     let mut buf_05 = [0u8; 41];
     buf_05[0] = 0x05;
     match device.get_feature_report(&mut buf_05) {
