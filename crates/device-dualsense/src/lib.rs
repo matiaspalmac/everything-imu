@@ -1,11 +1,14 @@
-//! Sony controller IMU driver — DualSense (PS5) + DualSense Edge + DualShock 4 (PS4).
+//! Sony controller IMU driver: DualSense (PS5), DualSense Edge, and DualShock 4 (PS4).
 //!
-//! Wire format reference:
-//! - DualSense USB input report 0x01 (64 bytes after report ID is stripped by hidapi).
-//! - DualSense BT input report 0x31 (78 bytes, payload offset by 1 vs USB) — recognized
-//!   but treated as "compatibility-mode 0x01 with shifted payload" for now. Full BT
-//!   pairing handshake / CRC32 is queued for a follow-up sprint.
-//! - DualShock 4 USB input report 0x01 (10 bytes header + IMU at offset 13).
+//! Wire format (hidapi keeps the report ID at buf[0]):
+//! - DualSense USB input report 0x01 (64 bytes): gyro at 16, accel at 22.
+//! - DualSense BT input report 0x31: a single sequence-tag byte at buf[1] shifts
+//!   the payload +1 vs USB, so gyro is at 17 and accel at 23. Bluetooth output
+//!   reports carry a trailing CRC32.
+//! - DualShock 4 USB input report 0x01 (64 bytes): gyro at 13, accel at 19.
+//! - DualShock 4 BT input report 0x11: a 2-byte header shifts the payload +2 (gyro
+//!   15, accel 21). Windows delivers this report padded, so the parser matches any
+//!   length of at least 78 bytes rather than an exact size.
 //!
 //! IMU calibration:
 //! - Default scale factors come from pydualsense / Sony PSDK reference. ±2000 deg/s gyro
