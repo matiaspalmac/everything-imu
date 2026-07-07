@@ -2,7 +2,7 @@
 //!
 //! Three known input report shapes are recognized:
 //! - DualSense USB report 0x01 (64 bytes; buf[0]=report ID, gyro at buf[16], accel at buf[22]).
-//! - DualSense BT report 0x31 (78 bytes; buf[0]=0x31, buf[1]=tag, payload shifted +1 vs USB → gyro at buf[18], accel at buf[24]). Trailing 4-byte CRC32 ignored on input.
+//! - DualSense BT report 0x31 (78 bytes; buf[0]=0x31, buf[1]=seq tag, payload shifted +1 vs USB → gyro at buf[17], accel at buf[23]). Trailing 4-byte CRC32 ignored on input.
 //! - DualShock 4 USB report 0x01 (64 bytes; gyro at buf[13], accel at buf[19]).
 //!
 //! Offsets follow pydualsense / hid-playstation canonical layout: hidapi returns
@@ -56,15 +56,15 @@ impl ImuOffsets {
             }),
             (ControllerKind::DualSense | ControllerKind::DualSenseEdge, _) if len >= 78 => {
                 Some(Self {
-                    gyro: 18,
-                    accel: 24,
+                    // BT report 0x31 carries a SINGLE sequence-tag byte at buf[1]
+                    // before the common report, so every payload offset is USB + 1
+                    // (not +2). Hardware hex dump on a DualSense over Bluetooth
+                    // confirmed gyro at 17 (zero triplet at rest), accel at 23
+                    // (gravity ~8192 on one axis), and buttons_2 (PS / Mute) at 11.
+                    gyro: 17,
+                    accel: 23,
                     battery: Some(54),
-                    // buttons[2] sits 6 payload bytes before gyro in the DualSense
-                    // common report (buttons[2] struct offset 9, gyro struct offset
-                    // 15). USB anchors gyro 16 → buttons_2 10; the BT report is +2
-                    // (validated gyro 18/accel 24), so buttons_2 = 18 - 6 = 12.
-                    // (The previous 10 applied no BT shift and decoded a d-pad byte.)
-                    buttons_2: Some(12),
+                    buttons_2: Some(11),
                 })
             }
             (ControllerKind::DualShock4, 64) => Some(Self {
@@ -407,8 +407,8 @@ mod tests {
         assert_eq!((o.gyro, o.accel), (15, 21));
         assert_eq!(
             (ImuOffsets::for_report(ControllerKind::DualSense, 128).map(|o| (o.gyro, o.accel))),
-            Some((18, 24)),
-            "DualSense BT is padded on Windows too",
+            Some((17, 23)),
+            "DualSense BT (padded) IMU offsets are USB + 1",
         );
 
         let mut buf = [0u8; 128];
@@ -452,9 +452,10 @@ mod tests {
             parse_ps_button(ControllerKind::DualSense, &buf),
             Some(false)
         );
-        // BT shape (78-byte report 0x31): buttons[2] at offset 12 (gyro 18 - 6).
+        // BT shape (78-byte report 0x31): buttons[2] at offset 11 (USB 10 + the
+        // single BT sequence-tag byte). Hardware-confirmed on a DualSense.
         let mut buf_bt = [0u8; 78];
-        buf_bt[12] = 0x01;
+        buf_bt[11] = 0x01;
         assert_eq!(
             parse_ps_button(ControllerKind::DualSense, &buf_bt),
             Some(true),
