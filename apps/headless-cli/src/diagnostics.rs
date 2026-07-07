@@ -16,7 +16,9 @@ pub async fn run_ds_raw() -> anyhow::Result<()> {
     eprintln!("  3. Rotate exactly 90 deg about ONE axis, slowly, then back.");
     eprintln!("  4. Tilt nose-down ~45 deg, then roll left ~45 deg.");
     eprintln!("  5. Press Ctrl-C and send the whole output back.");
-    eprintln!("Cols: id len  gyro[x y z] | accel[x y z]  ts=<u32>  dts=<delta/report>  ~rate");
+    eprintln!(
+        "Cols: id len  gyro[x y z] | accel[x y z]  ts=<u32>  dts=<delta/report>  ~rate  PS=<0/1>"
+    );
     eprintln!();
 
     // The DualSense read loop is blocking; run it on a dedicated thread and
@@ -41,12 +43,16 @@ pub async fn run_ds_raw() -> anyhow::Result<()> {
                 .ts_offset
                 .map(|o| o.to_string())
                 .unwrap_or_else(|| "?".into());
+            let ps = s
+                .ps_pressed
+                .map(|b| if b { "1" } else { "0" })
+                .unwrap_or("?");
             println!(
-                "id=0x{:02x} len={:3}  g[{:6} {:6} {:6}] | a[{:6} {:6} {:6}]  ts={:>10}@{} dts={:>6}  ~{:.1}Hz",
+                "id=0x{:02x} len={:3}  g[{:6} {:6} {:6}] | a[{:6} {:6} {:6}]  ts={:>10}@{} dts={:>6}  ~{:.1}Hz  PS={}",
                 s.report_id, s.len,
                 s.gyro[0], s.gyro[1], s.gyro[2],
                 s.accel[0], s.accel[1], s.accel[2],
-                ts, off, dts, s.rate_hz,
+                ts, off, dts, s.rate_hz, ps,
             );
         })
     });

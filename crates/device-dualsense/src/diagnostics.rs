@@ -40,6 +40,10 @@ pub struct RawSample {
     pub ts_offset: Option<usize>,
     /// Running average report rate (reports/s) over the whole window.
     pub rate_hz: f32,
+    /// PS / system button state this report (via `parse_ps_button`), or `None`
+    /// if the report shape is unknown. Lets the raw dump confirm the buttons-2
+    /// offset on real hardware.
+    pub ps_pressed: Option<bool>,
 }
 
 /// Open the first paired Sony pad (matching pid + interface from the live HID
@@ -196,6 +200,7 @@ where
             ts_delta,
             ts_offset,
             rate_hz: count as f32 / secs,
+            ps_pressed: crate::report::parse_ps_button(kind, report),
         });
     }
 }
