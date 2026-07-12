@@ -9,6 +9,19 @@
     <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg" alt="Platform">
     <a href="https://github.com/matiaspalmac/everything-imu/releases/latest"><img src="https://img.shields.io/github/v/release/matiaspalmac/everything-imu?include_prereleases&label=release" alt="Latest release"></a>
   </p>
+
+  <p>
+    <a href="https://eimu.vante.systems"><img src="https://img.shields.io/badge/website-eimu.vante.systems-FF4F0A" alt="Website"></a>
+    <a href="https://discord.gg/stVDVQR9XR"><img src="https://img.shields.io/discord/1525720633034539099?label=Discord&logo=discord&logoColor=white&color=FF4F0A" alt="Discord"></a>
+  </p>
+
+  <p>
+    <a href="https://eimu.vante.systems">Website</a> ·
+    <a href="https://eimu.vante.systems/docs/">Docs</a> ·
+    <a href="https://github.com/matiaspalmac/everything-imu/releases/latest">Download</a> ·
+    <a href="https://discord.gg/stVDVQR9XR">Discord</a> ·
+    <a href="https://github.com/matiaspalmac/everything-imu-mobile">Mobile app</a>
+  </p>
 </div>
 
 `everything-imu` is a native bridge that turns Nintendo, Sony, and other game controllers
