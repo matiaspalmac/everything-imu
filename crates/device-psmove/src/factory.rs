@@ -87,9 +87,36 @@ impl PsMoveFactory {
                             i.product_id(),
                             i.serial_number().unwrap_or("").to_string(),
                             i.interface_number(),
+                            i.usage_page(),
+                            i.usage(),
                         )
                     })
                     .collect()
+            };
+
+            // On Windows BT a single PS Move enumerates as three HID collections:
+            // the Generic-Desktop Game Pad (usage_page 0x0001, usage 0x0005) carries
+            // input report 0x01 with the IMU data, while the two vendor collections
+            // (0xFF02 / 0xFF03) do not support interrupt-IN reads and fail every read
+            // with ERROR_INVALID_USER_BUFFER (os error 1784). Worse, all three derive
+            // the same MAC from the serial, so a vendor reader's failure tears down
+            // the sensor pipeline. Keep only the Game Pad collection. If no entry
+            // reports that usage (e.g. Linux hidraw exposing a single node with
+            // usage 0/0), fall back to every entry so non-Windows paths don't regress.
+            const USAGE_PAGE_GENERIC_DESKTOP: u16 = 0x0001;
+            const USAGE_GAMEPAD: u16 = 0x0005;
+            let has_gamepad_collection = infos.iter().any(|(_, _, _, _, up, u)| {
+                *up == USAGE_PAGE_GENERIC_DESKTOP && *u == USAGE_GAMEPAD
+            });
+            let infos: Vec<_> = if has_gamepad_collection {
+                infos
+                    .into_iter()
+                    .filter(|(_, _, _, _, up, u)| {
+                        *up == USAGE_PAGE_GENERIC_DESKTOP && *u == USAGE_GAMEPAD
+                    })
+                    .collect()
+            } else {
+                infos
             };
 
             // Forget devices no longer present on the HID bus so a PS Move
@@ -98,11 +125,11 @@ impl PsMoveFactory {
             // reconnect requires an app restart. Aligned with joycon/dualsense.
             let present: HashSet<String> = infos
                 .iter()
-                .map(|(path, _, _, iface)| format!("{path:?}#{iface}"))
+                .map(|(path, _, _, iface, _, _)| format!("{path:?}#{iface}"))
                 .collect();
             known.retain(|key| present.contains(key));
 
-            for (path, pid_value, serial, iface) in infos {
+            for (path, pid_value, serial, iface, _usage_page, _usage) in infos {
                 let key = format!("{path:?}#{iface}");
                 if !known.insert(key.clone()) {
                     continue;
