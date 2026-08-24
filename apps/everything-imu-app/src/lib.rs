@@ -16,9 +16,17 @@ pub mod udev_install;
 pub mod udp_haptic;
 pub mod update_boot;
 pub mod updater;
+pub mod webview_runtime;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // The window is drawn by the system webview, and on Windows that runtime
+    // can simply be absent. Probe before anything else: once `setup` has run
+    // there is a database, a device pipeline, a tray and a haptic bridge
+    // holding the process up, and a webview that fails at that point leaves a
+    // headless process running with no UI to close it from.
+    webview_runtime::ensure_available();
+
     // Workaround for Linux NVIDIA + WebKitGTK bug causing blank/crashing windows.
     // Disabling DMA-BUF forces fallback rendering, fixing the issue transparently
     // for users. Only set it when the user hasn't already chosen a value, so a
@@ -44,7 +52,7 @@ pub fn run() {
         prepend_ts_nocheck(bindings_path);
     }
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         // Single-instance MUST be registered first per the plugin's docs —
         // it short-circuits subsequent launches before any other plugin
         // initialization runs. The callback brings the existing window
@@ -193,8 +201,14 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("tauri run");
+        .run(tauri::generate_context!());
+
+    // `setup` has already started the background pipeline by the time the
+    // event loop can fail, so unwinding out of here would leave those threads
+    // to decide when the process dies. Report and exit the process instead.
+    if let Err(e) = app {
+        webview_runtime::fail_startup(&e.to_string());
+    }
 }
 
 /// Prepend `// @ts-nocheck` to a generated bindings file. Needed because

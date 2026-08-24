@@ -72,6 +72,13 @@ crash-reporting = ["dep:sentry"]
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
+# Native message box + shell open for the pre-window failure paths, where the
+# Tauri dialog APIs are not up yet. Matches the version already in the tree.
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [lints]
 workspace = true
