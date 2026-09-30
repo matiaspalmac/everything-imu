@@ -19,6 +19,11 @@ reverse-chronological order below.
   from the two vendor collections failed with `os error 1784` and tore down the
   working pipeline with it, leaving the controller stuck as inactive with no
   IMU. Only the Game Pad collection is opened now. Hardware-validated on ZCM1.
+- Joy-Con 2 over Bluetooth on Linux comes up reliably. A failed bring-up left
+  the BlueZ link half-open, so every retry timed out, and service discovery
+  could return before BlueZ had resolved the controller's characteristics. A
+  failed bring-up now disconnects cleanly before the next attempt, and
+  characteristic lookup retries briefly while BlueZ finishes resolving.
 - Windows machines without the Microsoft Edge WebView2 runtime no longer leave
   a headless process running in the background. The missing runtime was only
   discovered after the device pipeline, tray and haptic bridge had started, so
