@@ -52,13 +52,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Linux builds on the oldest supported Ubuntu LTS: the AppImage bundles
+        # everything except glibc, so the build host's glibc is the minimum the
+        # AppImage runs on (24.04 would require glibc 2.39).
+        os: [ubuntu-22.04, windows-latest]
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
 
       - name: Install Linux Tauri deps
-        if: matrix.os == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -91,6 +94,21 @@ jobs:
       - name: Install npm deps
         run: pnpm install --frozen-lockfile
 
+      # The Tauri bundler downloads its AppRun into the tools cache with mode
+      # 0770 and copies it into the AppDir as-is; linuxdeploy then renames it
+      # to AppRun.wrapped. Sandboxed launchers (firejail) run the AppImage as a
+      # user outside that owner/group and fail with "Permission denied".
+      # Seeding the cache with a world-executable copy makes the bundler skip
+      # its own download.
+      - name: Seed AppImage AppRun with world-executable mode
+        if: runner.os == 'Linux'
+        run: |
+          TOOLS="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
+          mkdir -p "$TOOLS"
+          curl -fsSL -o "$TOOLS/AppRun-x86_64" \
+            https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64
+          chmod 0755 "$TOOLS/AppRun-x86_64"
+
       - name: Tauri build + GitHub release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -110,3 +128,27 @@ jobs:
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           makeLatest: true
+
+      - name: Verify AppImage permissions and glibc floor
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          APPIMAGE=$(ls target/release/bundle/appimage/*.AppImage)
+          WORK=$(mktemp -d)
+          cp "$APPIMAGE" "$WORK/app.AppImage"
+          chmod +x "$WORK/app.AppImage"
+          (cd "$WORK" && ./app.AppImage --appimage-extract >/dev/null)
+          ROOT="$WORK/squashfs-root"
+          # Every entrypoint must be executable by users other than the owner.
+          for f in "$ROOT"/AppRun "$ROOT"/AppRun.wrapped "$ROOT"/usr/bin/*; do
+            [ -e "$f" ] || continue
+            mode=$(stat -c '%a' "$f")
+            echo "$mode ${f#"$ROOT"/}"
+            if [ $((0$mode & 01)) -eq 0 ]; then
+              echo "::error::${f#"$ROOT"/} is not world-executable (mode $mode)"
+              exit 1
+            fi
+          done
+          # Report the newest glibc symbol the main binary needs.
+          objdump -T "$ROOT/usr/bin/everything-imu" \
+            | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
