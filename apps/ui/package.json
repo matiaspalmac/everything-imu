@@ -14,7 +14,7 @@
   "dependencies": {
     "@fontsource/space-grotesk": "^5.2.10",
     "@phosphor-icons/react": "^2.1.10",
-    "@react-three/fiber": "^9.0.0",
+    "@react-three/fiber": "^9.7.0",
     "@tauri-apps/api": "^2.1.0",
     "@tauri-apps/plugin-autostart": "^2.5.1",
     "cmdk": "^1.0.0",
@@ -23,7 +23,7 @@
     "react-dom": "^19.2.7",
     "react-i18next": "^17.0.7",
     "react-router-dom": "^7.15.1",
-    "three": ">=0.170.0",
+    "three": ">=0.185.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
