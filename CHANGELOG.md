@@ -9,6 +9,30 @@ reverse-chronological order below.
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-09-30
+
+### Fixed
+
+- PS Move over Bluetooth on Windows now streams motion. Windows exposes each
+  controller as three separate HID collections that share a VID, PID and
+  serial; only the Game Pad collection carries the sensor stream, and reading
+  from the two vendor collections failed with `os error 1784` and tore down the
+  working pipeline with it, leaving the controller stuck as inactive with no
+  IMU. Only the Game Pad collection is opened now. Hardware-validated on ZCM1.
+- Windows machines without the Microsoft Edge WebView2 runtime no longer leave
+  a headless process running in the background. The missing runtime was only
+  discovered after the device pipeline, tray and haptic bridge had started, so
+  the window failed to open while the process stayed alive with no UI to close
+  it from. The runtime is now checked before anything starts, and the app says
+  what is missing, offers the download page, and exits.
+- The Linux AppImage starts under sandboxed launchers such as firejail. Its
+  inner `AppRun.wrapped` entrypoint was packaged executable only by its owner
+  and group, so running it as any other user failed with `Permission denied`.
+  All entrypoints are now world-executable, and the release build checks this
+  before publishing.
+- The Linux AppImage runs on older distributions. It is now built on Ubuntu
+  22.04, lowering the minimum glibc from 2.39 to 2.35.
+
 ## [1.0.7] - 2026-07-06
 
 ### Fixed
