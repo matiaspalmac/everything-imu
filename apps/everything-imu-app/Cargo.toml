@@ -64,7 +64,7 @@ anyhow = { workspace = true }
 keyvalues-parser = "0.2"
 regex = "1.11"
 itertools = "0.14"
-sentry = { version = "0.48", default-features = false, features = ["backtrace", "contexts", "panic", "rustls", "reqwest"], optional = true }
+sentry = { version = "0.49", default-features = false, features = ["backtrace", "contexts", "panic", "rustls", "reqwest"], optional = true }
 
 [features]
 default = []
